@@ -66,6 +66,7 @@
       box-shadow: 0 4px 15px rgba(0,0,0,0.03);
     }
 
+    /* CLICKABLE RANDOM MOTIVATION CARD */
     .motivation-card {
       background: linear-gradient(135deg, #1e293b, #0f172a);
       color: #ffffff;
@@ -75,6 +76,7 @@
       position: relative;
       overflow: hidden;
       box-shadow: 0 6px 20px rgba(15, 23, 42, 0.15);
+      cursor: pointer;
     }
 
     .streak-badge { background: #fef3c7; color: #b45309; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 800; display: inline-flex; align-items: center; gap: 4px; }
@@ -148,8 +150,12 @@
           <div class="streak-badge"><i class="fa-solid fa-fire"></i> <span id="streak-count">1</span> Day Streak</div>
         </div>
 
-        <div class="motivation-card">
-          <div style="font-size:11px; text-transform:uppercase; opacity:0.7; font-weight:800; letter-spacing:0.5px; margin-bottom:4px;">⚡ Daily Motivation</div>
+        <!-- TAP TO SHUFFLE RANDOM MOTIVATION -->
+        <div class="motivation-card" onclick="shuffleQuote()">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+            <span style="font-size:11px; text-transform:uppercase; opacity:0.7; font-weight:800; letter-spacing:0.5px;">⚡ Daily Motivation</span>
+            <i class="fa-solid fa-rotate" style="font-size:12px; opacity:0.6;"></i>
+          </div>
           <div style="font-size:13px; font-weight:700; line-height:1.4;" id="motivation-text">"Every step and every rep moves you closer to your goal."</div>
         </div>
 
@@ -417,6 +423,30 @@
   </div>
 
   <script>
+    /* DYNAMIC RANDOM MOTIVATION GENERATOR SYSTEM */
+    const fitnessQuotes = [
+      '"Consistency is what transforms average into excellence."',
+      '"Every step and every rep moves you closer to your goal."',
+      '"Your only limit is you. Push harder than yesterday."',
+      '"Small daily improvements over time lead to stunning results."',
+      '"Do something today that your future self will thank you for."',
+      '"Sweat is just fat crying. Keep going!"',
+      '"The pain you feel today will be the strength you feel tomorrow."',
+      '"Don\'t stop when you\'re tired. Stop when you\'re done."',
+      '"Action is the foundational key to all fitness success."',
+      '"You don\'t have to be extreme, just consistent."',
+      '"Champions train when no one is watching."',
+      '"Fuel your body, empower your mind, conquer your day."',
+      '"Run when you can, walk if you have to, crawl if you must; just never give up."',
+      '"Discipline is choosing between what you want now and what you want most."',
+      '"Your body can stand almost anything. It\'s your mind that you have to convince."'
+    ];
+
+    function shuffleQuote() {
+      const randomIndex = Math.floor(Math.random() * fitnessQuotes.length);
+      document.getElementById('motivation-text').innerText = fitnessQuotes[randomIndex];
+    }
+
     let appData = JSON.parse(localStorage.getItem('calTrackerData')) || {
       userName: 'Athlete',
       userTitle: 'Fitness Enthusiast',
@@ -683,6 +713,8 @@
       });
     }
 
+    /* INITIALIZE RANDOM QUOTE UPON APP OPEN */
+    shuffleQuote();
     updateAppUI();
   </script>
 </body>
