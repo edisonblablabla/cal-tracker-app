@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>CAL TRACKER - Clean Mobile View</title>
+  
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --primary: #4f46e5;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --water: #0284c7;
+      --protein: #3b82f6;
+      --carbs: #10b981;
+      --fats: #f59e0b;
+      --bg-main: #f8fafc;
+      --card-bg: #ffffff;
+      --text-dark: #0f172a;
+      --text-muted: #64748b;
+      --border-color: #e2e8f0;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; -webkit-tap-highlight-color: transparent; }
+    
+    body { 
+      background-color: #0f172a; 
+      display: flex; 
+      justify-content: center; 
+      align-items: center; 
+      min-height: 100vh; 
+      color: var(--text-dark); 
+    }
+
+    /* MALINIS NA CONTAINER (WALANG FAKE BORDER/STATUS BAR) */
+    .mobile-frame {
+      width: 100%; 
+      max-width: 412px; 
+      height: 100vh; 
+      max-height: 870px;
+      background-color: var(--bg-main); 
+      position: relative;
+      overflow: hidden; 
+      display: flex; 
+      flex-direction: column;
+    }
+
+    @media (max-width: 480px) { 
+      .mobile-frame { 
+        max-width: 100%; 
+        height: 100vh; 
+        max-height: 100vh; 
+      } 
+    }
+
+    .screen-container { flex: 1; overflow-y: auto; padding: 18px 18px 80px 18px; }
+    .screen { display: none; animation: fadeIn 0.2s ease; }
+    .screen.active { display: block; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+
+    .card {
+      background: var(--card-bg); border-radius: 20px; padding: 18px;
+      margin-bottom: 16px; border: 1px solid var(--border-color); box-shadow: 0 4px 15px rgba(0,0,0,0.03);
+    }
+
+    .streak-badge { background: #fef3c7; color: #b45309; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 800; display: inline-flex; align-items: center; gap: 4px; }
+
+    .mode-toggle { display: flex; background: #e2e8f0; border-radius: 12px; padding: 3px; margin-bottom: 14px; }
+    .mode-btn { flex: 1; border: none; padding: 8px; border-radius: 10px; font-size: 12px; font-weight: 800; cursor: pointer; background: transparent; color: var(--text-muted); transition: 0.2s; }
+    .mode-btn.active { background: white; color: var(--primary); box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
+
+    .overview-grid { display: flex; align-items: center; gap: 15px; margin-bottom: 15px; }
+    .ring-box { position: relative; width: 100px; height: 100px; flex-shrink: 0; }
+    .ring-box svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+    .ring-bg { fill: none; stroke: #f1f5f9; stroke-width: 10; }
+    .ring-progress { fill: none; stroke: var(--primary); stroke-width: 10; stroke-dasharray: 283; stroke-dashoffset: 283; stroke-linecap: round; transition: stroke-dashoffset 0.5s ease; }
+    .ring-text { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; font-weight: 800; font-size: 16px; }
+
+    .macro-bar-bg { width: 100%; height: 8px; background: #f1f5f9; border-radius: 10px; overflow: hidden; margin-top: 4px; }
+    .macro-bar-fill { height: 100%; border-radius: 10px; width: 0%; transition: width 0.4s ease; }
+
+    .water-box { display: flex; justify-content: space-between; align-items: center; background: #f0f9ff; padding: 12px; border-radius: 14px; border: 1px solid #bae6fd; }
+    .btn-water { background: var(--water); color: white; border: none; padding: 8px 14px; border-radius: 10px; font-weight: 800; font-size: 12px; cursor: pointer; }
+
+    .preset-chip { padding: 8px 12px; border-radius: 10px; border: 1px solid #cbd5e1; background: #fff; font-size: 12px; font-weight: 700; cursor: pointer; text-align: left; width: 100%; display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+
+    .goal-card-option { padding: 12px; border-radius: 14px; border: 2px solid #e2e8f0; margin-bottom: 10px; cursor: pointer; transition: 0.2s; background: white; }
+    .goal-card-option.selected { border-color: var(--primary); background: #e0e7ff; }
+
+    .food-entry { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border-color); font-size: 13px; font-weight: 600; }
+
+    .form-input, .form-select { width: 100%; height: 42px; padding: 0 12px; border: 1px solid var(--border-color); border-radius: 10px; font-size: 13px; font-weight: 600; margin-top: 4px; margin-bottom: 10px; outline: none; background: white; }
+    .btn-block { width: 100%; height: 44px; background: var(--primary); color: white; border: none; border-radius: 12px; font-weight: 800; cursor: pointer; }
+
+    .chart-bars { display: flex; justify-content: space-between; align-items: flex-end; height: 130px; margin-top: 15px; }
+    .chart-col { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 12%; height: 100%; justify-content: flex-end; }
+    .bar-wrapper { width: 100%; height: 100px; background: #f1f5f9; border-radius: 8px; display: flex; align-items: flex-end; overflow: hidden; }
+    .bar-fill { width: 100%; height: 0%; background: #cbd5e1; border-radius: 8px; transition: height 0.5s ease, background 0.3s; }
+    .bar-fill.active-day { background: var(--primary); }
+
+    .stat-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border-color); font-size: 13px; font-weight: 700; }
+
+    .bottom-nav {
+      position: absolute; bottom: 0; left: 0; right: 0; height: 65px;
+      background: #ffffff; border-top: 1px solid var(--border-color);
+      display: flex; justify-content: space-around; align-items: center; z-index: 100;
+    }
+    .nav-item { display: flex; flex-direction: column; align-items: center; gap: 3px; color: var(--text-muted); font-size: 11px; font-weight: 700; cursor: pointer; width: 20%; }
+    .nav-item.active { color: var(--primary); }
+  </style>
+</head>
+<body>
+
+  <div class="mobile-frame">
+    <!-- WALA NANG FAKE STATUS BAR DITO -->
+
+    <div class="screen-container">
+      
+      <!-- 1. DASHBOARD -->
+      <div id="screen-home" class="screen active">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+          <div>
+            <h2 style="font-size:20px; font-weight:800;">Hello, <span id="dash-user-name">User</span>! 👋</h2>
+            <div class="streak-badge"><i class="fa-solid fa-fire"></i> <span id="streak-count">1</span> Day Streak</div>
+          </div>
+          <i class="fa-regular fa-bell" style="font-size:18px;"></i>
+        </div>
+
+        <div class="mode-toggle">
+          <button id="btn-mode-rest" class="mode-btn" onclick="setDayMode('rest')">🛋️ Rest Day</button>
+          <button id="btn-mode-work" class="mode-btn active" onclick="setDayMode('workout')">🏋️ Workout Day</button>
+        </div>
+
+        <div class="card">
+          <div style="font-size:14px; font-weight:800; margin-bottom:10px;">Today Overview</div>
+          <div class="overview-grid">
+            <div class="ring-box">
+              <svg viewBox="0 0 100 100">
+                <circle class="ring-bg" cx="50" cy="50" r="45"></circle>
+                <circle id="cal-ring" class="ring-progress" cx="50" cy="50" r="45"></circle>
+              </svg>
+              <div class="ring-text"><span id="pct-text">0%</span></div>
+            </div>
+            <div>
+              <p style="font-size:11px; color:var(--text-muted); font-weight:600;">Calories Target</p>
+              <h3 style="font-size:22px; font-weight:800;"><span id="dash-eaten">0</span> / <span id="dash-goal">2200</span> kcal</h3>
+            </div>
+          </div>
+
+          <div style="margin-top:8px;">
+            <div style="display:flex; justify-content:space-between; font-size:11px; font-weight:700;"><span>Protein</span><span id="p-txt">0 / 150g</span></div>
+            <div class="macro-bar-bg"><div id="p-bar" class="macro-bar-fill" style="background:var(--protein);"></div></div>
+          </div>
+          <div style="margin-top:8px;">
+            <div style="display:flex; justify-content:space-between; font-size:11px; font-weight:700;"><span>Carbs</span><span id="c-txt">0 / 250g</span></div>
+            <div class="macro-bar-bg"><div id="c-bar" class="macro-bar-fill" style="background:var(--carbs);"></div></div>
+          </div>
+          <div style="margin-top:8px;">
+            <div style="display:flex; justify-content:space-between; font-size:11px; font-weight:700;"><span>Fats</span><span id="f-txt">0 / 70g</span></div>
+            <div class="macro-bar-bg"><div id="f-bar" class="macro-bar-fill" style="background:var(--fats);"></div></div>
+          </div>
+        </div>
+
+        <!-- WATER TRACKER -->
+        <div class="card">
+          <div style="font-size:14px; font-weight:800; margin-bottom:10px;">Hydration Goal</div>
+          <div class="water-box">
+            <div>
+              <div style="font-size:12px; font-weight:800; color:var(--water);"><i class="fa-solid fa-glass-water"></i> Water Intake</div>
+              <div style="font-size:14px; font-weight:800; margin-top:2px;"><span id="water-intake">0</span> / 2.5 L</div>
+            </div>
+            <button class="btn-water" onclick="addWater()">+ 250ml</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. FOOD DIARY -->
+      <div id="screen-diary" class="screen">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+          <h3 style="font-size:18px; font-weight:800;">Today's Log</h3>
+          <button style="width:30px; height:30px; border-radius:50%; background:var(--primary); color:white; border:none;" onclick="switchTab('add')"><i class="fa-solid fa-plus"></i></button>
+        </div>
+
+        <div class="diary-summary" style="display:flex; justify-content:space-around; text-align:center; padding:12px 0; background:#f1f5f9; border-radius:16px; margin-bottom:16px;">
+          <div><h4 id="diary-eaten">0</h4><p style="font-size:11px; color:var(--text-muted);">Eaten</p></div>
+          <div><h4 id="diary-goal">2200</h4><p style="font-size:11px; color:var(--text-muted);">Goal</p></div>
+          <div style="color:var(--success);"><h4 id="diary-left">2200</h4><p style="font-size:11px;">Left</p></div>
+        </div>
+
+        <div class="card">
+          <div style="font-size:14px; font-weight:800; margin-bottom:8px;">Logged Meals (Latest First)</div>
+          <div id="diary-meals-list">
+            <p style="font-size:12px; color:var(--text-muted); text-align:center;">No meals logged yet today.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. ADD FOOD -->
+      <div id="screen-add" class="screen">
+        <h3 style="font-size:18px; font-weight:800; margin-bottom:14px;">Add Food</h3>
+        
+        <div class="card">
+          <div style="font-size:13px; font-weight:800; margin-bottom:10px;">🇵🇭 Pinoy Food Presets</div>
+          <div class="preset-chip" onclick="addPreset('Chicken Adobo (1 serving)', 320, 28, 6, 20)">
+            <div><span>Chicken Adobo</span><br><small style="color:var(--text-muted); font-size:10px;">320 kcal • P:28g C:6g F:20g</small></div>
+            <i class="fa-solid fa-plus" style="color:var(--primary);"></i>
+          </div>
+          <div class="preset-chip" onclick="addPreset('Sinangag Garlic Rice (1 cup)', 220, 4, 42, 5)">
+            <div><span>Sinangag Garlic Rice</span><br><small style="color:var(--text-muted); font-size:10px;">220 kcal • P:4g C:42g F:5g</small></div>
+            <i class="fa-solid fa-plus" style="color:var(--primary);"></i>
+          </div>
+          <div class="preset-chip" onclick="addPreset('Tapsilog Complete Meal', 540, 32, 48, 24)">
+            <div><span>Tapsilog Meal</span><br><small style="color:var(--text-muted); font-size:10px;">540 kcal • P:32g C:48g F:24g</small></div>
+            <i class="fa-solid fa-plus" style="color:var(--primary);"></i>
+          </div>
+        </div>
+
+        <div class="card">
+          <div style="font-size:13px; font-weight:800; margin-bottom:10px;">Custom Meal Input</div>
+          <label style="font-size:11px; font-weight:700;">Food Name</label>
+          <input type="text" id="in-name" class="form-input" placeholder="e.g. Tuna Canned">
+          
+          <label style="font-size:11px; font-weight:700;">Calories (kcal)</label>
+          <input type="number" id="in-cal" class="form-input" placeholder="e.g. 180">
+
+          <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:6px;">
+            <div><label style="font-size:10px; font-weight:700;">Protein (g)</label><input type="number" id="in-p" class="form-input" placeholder="0"></div>
+            <div><label style="font-size:10px; font-weight:700;">Carbs (g)</label><input type="number" id="in-c" class="form-input" placeholder="0"></div>
+            <div><label style="font-size:10px; font-weight:700;">Fats (g)</label><input type="number" id="in-f" class="form-input" placeholder="0"></div>
+          </div>
+
+          <button class="btn-block" onclick="addCustomMeal()">Add Custom Meal</button>
+        </div>
+      </div>
+
+      <!-- 4. REAL-TIME WEEKLY PROGRESS -->
+      <div id="screen-progress" class="screen">
+        <h3 style="font-size:18px; font-weight:800; text-align:center; margin-bottom:14px;">Weekly Progress</h3>
+        
+        <div class="card">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div style="font-size:13px; font-weight:800;">Calories Intake (This Week)</div>
+            <span style="font-size:10px; color:var(--primary); font-weight:800;">Live Tracker</span>
+          </div>
+
+          <div class="chart-bars">
+            <div class="chart-col">
+              <div class="bar-wrapper"><div id="bar-mon" class="bar-fill"></div></div>
+              <span style="font-size:10px; font-weight:700;">Mon</span>
+            </div>
+            <div class="chart-col">
+              <div class="bar-wrapper"><div id="bar-tue" class="bar-fill"></div></div>
+              <span style="font-size:10px; font-weight:700;">Tue</span>
+            </div>
+            <div class="chart-col">
+              <div class="bar-wrapper"><div id="bar-wed" class="bar-fill"></div></div>
+              <span style="font-size:10px; font-weight:700;">Wed</span>
+            </div>
+            <div class="chart-col">
+              <div class="bar-wrapper"><div id="bar-thu" class="bar-fill"></div></div>
+              <span style="font-size:10px; font-weight:700;">Thu</span>
+            </div>
+            <div class="chart-col">
+              <div class="bar-wrapper"><div id="bar-fri" class="bar-fill"></div></div>
+              <span style="font-size:10px; font-weight:700;">Fri</span>
+            </div>
+            <div class="chart-col">
+              <div class="bar-wrapper"><div id="bar-sat" class="bar-fill"></div></div>
+              <span style="font-size:10px; font-weight:700;">Sat</span>
+            </div>
+            <div class="chart-col">
+              <div class="bar-wrapper"><div id="bar-sun" class="bar-fill"></div></div>
+              <span style="font-size:10px; font-weight:700;">Sun</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="stat-row"><span>Today's Total</span><span id="prog-today-cal" style="color:var(--primary);">0 kcal</span></div>
+          <div class="stat-row"><span>Weight</span><span id="prog-weight">60.2 kg</span></div>
+          <div class="stat-row"><span>Height</span><span id="prog-height">161 cm</span></div>
+        </div>
+      </div>
+
+      <!-- 5. GOALS -->
+      <div id="screen-goals" class="screen">
+        <h3 style="font-size:18px; font-weight:800; text-align:center; margin-bottom:14px;">Gym & Fitness Goals</h3>
+        
+        <div class="card" style="background:linear-gradient(135deg, #4f46e5, #3730a3); color:white; margin-bottom:14px;">
+          <p style="font-size:11px; opacity:0.8;">Active Goal Plan</p>
+          <h2 style="font-size:20px; font-weight:800;" id="goal-active-name">Lean Bulk</h2>
+          <p style="font-size:11px; opacity:0.8; margin-top:2px;"><span id="goal-target-cal-summary">2200</span> kcal/day</p>
+        </div>
+
+        <div style="font-size:13px; font-weight:800; margin-bottom:10px;">Select Gym Target:</div>
+
+        <div class="goal-card-option" id="opt-bulk" onclick="setGoalPreset('bulk')">
+          <div style="font-size:13px; font-weight:800;">💪 1. Lean Bulk (Clean Muscle)</div>
+          <div style="font-size:10px; color:var(--text-muted); margin-top:2px;">Slight surplus for muscle growth with minimal fat.</div>
+        </div>
+
+        <div class="goal-card-option" id="opt-cut" onclick="setGoalPreset('cut')">
+          <div style="font-size:13px; font-weight:800;">🔥 2. Aggressive Cut (Fast Fat Loss)</div>
+          <div style="font-size:10px; color:var(--text-muted); margin-top:2px;">High deficit + High Protein to preserve muscle.</div>
+        </div>
+
+        <div class="goal-card-option" id="opt-recomp" onclick="setGoalPreset('recomp')">
+          <div style="font-size:13px; font-weight:800;">🧱 3. Body Recomposition</div>
+          <div style="font-size:10px; color:var(--text-muted); margin-top:2px;">Build muscle & lose fat simultaneously.</div>
+        </div>
+
+        <div class="goal-card-option" id="opt-dirty" onclick="setGoalPreset('dirty')">
+          <div style="font-size:13px; font-weight:800;">⚡ 4. Heavy Mass Gain (Hardgainer)</div>
+          <div style="font-size:10px; color:var(--text-muted); margin-top:2px;">High calorie + High carbs for rapid weight gain.</div>
+        </div>
+
+        <div class="goal-card-option" id="opt-athlete" onclick="setGoalPreset('athlete')">
+          <div style="font-size:13px; font-weight:800;">🏃 5. Athletic Performance / Endurance</div>
+          <div style="font-size:10px; color:var(--text-muted); margin-top:2px;">High carbs fuel for intense training & sports.</div>
+        </div>
+
+        <div class="goal-card-option" id="opt-maint" onclick="setGoalPreset('maint')">
+          <div style="font-size:13px; font-weight:800;">⚖️ 6. Weight Maintenance</div>
+          <div style="font-size:10px; color:var(--text-muted); margin-top:2px;">Balanced calories to stay fit and healthy.</div>
+        </div>
+
+        <div class="card" style="margin-top:14px;">
+          <div style="font-size:13px; font-weight:800; margin-bottom:8px;">Calculated Target Breakdown:</div>
+          <div class="stat-row"><span>Calories</span><span id="g-cal-val">2200 kcal</span></div>
+          <div class="stat-row"><span>Protein Target</span><span id="g-p-val">150 g</span></div>
+          <div class="stat-row"><span>Carbs Target</span><span id="g-c-val">250 g</span></div>
+          <div class="stat-row"><span>Fats Target</span><span id="g-f-val">70 g</span></div>
+        </div>
+      </div>
+
+      <!-- 6. EDITABLE PROFILE -->
+      <div id="screen-profile" class="screen">
+        <div style="text-align:center; padding:10px 0;">
+          <div style="width:70px; height:70px; border-radius:50%; background:var(--primary); margin:0 auto 8px auto; display:flex; align-items:center; justify-content:center; color:white; font-size:28px;"><i class="fa-solid fa-user"></i></div>
+          <h3 style="font-size:18px; font-weight:800;" id="prof-display-name">Jowel</h3>
+          <p style="font-size:12px; color:var(--text-muted);" id="prof-display-title">Gymrat • Developer</p>
+        </div>
+
+        <div class="card">
+          <div style="font-size:14px; font-weight:800; margin-bottom:12px;">⚙️ User & Activity Profile</div>
+          
+          <label style="font-size:11px; font-weight:700;">Your Name</label>
+          <input type="text" id="prof-name-in" class="form-input">
+
+          <label style="font-size:11px; font-weight:700;">Bio / Title</label>
+          <input type="text" id="prof-title-in" class="form-input">
+
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+            <div><label style="font-size:11px; font-weight:700;">Height (cm)</label><input type="number" id="prof-height-in" class="form-input"></div>
+            <div><label style="font-size:11px; font-weight:700;">Weight (kg)</label><input type="number" id="prof-weight-in" class="form-input"></div>
+          </div>
+
+          <label style="font-size:11px; font-weight:700;">Activity Level (For TDEE Auto-Calc)</label>
+          <select id="prof-activity-in" class="form-select">
+            <option value="1.2">Sedentary (Little or no exercise)</option>
+            <option value="1.375">Lightly Active (1-3 days gym/week)</option>
+            <option value="1.55" selected>Moderately Active (3-5 days gym/week)</option>
+            <option value="1.725">Heavy Lifter (6-7 days intense gym)</option>
+          </select>
+
+          <button class="btn-block" onclick="saveUserProfile()">💾 Auto-Calculate & Save Profile</button>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Navigation Bar -->
+    <div class="bottom-nav">
+      <div class="nav-item active" onclick="switchTab('home')"><i class="fa-solid fa-house"></i><span>Home</span></div>
+      <div class="nav-item" onclick="switchTab('diary')"><i class="fa-regular fa-calendar-check"></i><span>Diary</span></div>
+      <div class="nav-item" onclick="switchTab('add')"><i class="fa-solid fa-plus-circle"></i><span>Add</span></div>
+      <div class="nav-item" onclick="switchTab('progress')"><i class="fa-solid fa-chart-simple"></i><span>Progress</span></div>
+      <div class="nav-item" onclick="switchTab('goals')"><i class="fa-solid fa-bullseye"></i><span>Goals</span></div>
+      <div class="nav-item" onclick="switchTab('profile')"><i class="fa-regular fa-user"></i><span>Profile</span></div>
+    </div>
+  </div>
+
+  <script>
+    let appData = JSON.parse(localStorage.getItem('calTrackerData')) || {
+      userName: 'Jowel',
+      userTitle: 'Gymrat • Developer',
+      height: 161,
+      weight: 60.2,
+      activityLevel: 1.55,
+      dayMode: 'workout',
+      streakDays: 1,
+      lastLogDate: '',
+      activeGoalType: 'bulk',
+      baseGoal: 2200, goal: 2200, pGoal: 150, cGoal: 250, fGoal: 70, waterMl: 0,
+      weeklyLogs: { mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 },
+      meals: []
+    };
+
+    function saveAndRefresh() {
+      localStorage.setItem('calTrackerData', JSON.stringify(appData));
+      updateAppUI();
+    }
+
+    function switchTab(tab) {
+      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+      document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+
+      document.getElementById('screen-' + tab).classList.add('active');
+      
+      const tabMap = {'home':0, 'diary':1, 'add':2, 'progress':3, 'goals':4, 'profile':5};
+      if (tabMap[tab] !== undefined) document.querySelectorAll('.nav-item')[tabMap[tab]].classList.add('active');
+    }
+
+    function setDayMode(mode) {
+      appData.dayMode = mode;
+      saveAndRefresh();
+    }
+
+    function addWater() {
+      appData.waterMl = (appData.waterMl || 0) + 250;
+      saveAndRefresh();
+    }
+
+    function setGoalPreset(type) {
+      appData.activeGoalType = type;
+      recalculateTDEE();
+    }
+
+    function recalculateTDEE() {
+      const w = appData.weight || 60;
+      const h = appData.height || 160;
+      const act = parseFloat(appData.activityLevel) || 1.55;
+
+      let bmr = (10 * w) + (6.25 * h) - (5 * 25) + 5;
+      let tdee = Math.round(bmr * act);
+
+      const type = appData.activeGoalType || 'bulk';
+
+      if (type === 'bulk') {
+        appData.baseGoal = tdee + 250;
+        appData.pGoal = Math.round(w * 2.2);
+        appData.cGoal = Math.round(w * 4.0);
+        appData.fGoal = Math.round(w * 1.0);
+      } else if (type === 'cut') {
+        appData.baseGoal = Math.max(1200, tdee - 450);
+        appData.pGoal = Math.round(w * 2.4);
+        appData.cGoal = Math.round(w * 2.0);
+        appData.fGoal = Math.round(w * 0.8);
+      } else if (type === 'recomp') {
+        appData.baseGoal = tdee;
+        appData.pGoal = Math.round(w * 2.2);
+        appData.cGoal = Math.round(w * 3.0);
+        appData.fGoal = Math.round(w * 0.9);
+      } else if (type === 'dirty') {
+        appData.baseGoal = tdee + 600;
+        appData.pGoal = Math.round(w * 2.0);
+        appData.cGoal = Math.round(w * 5.0);
+        appData.fGoal = Math.round(w * 1.2);
+      } else if (type === 'athlete') {
+        appData.baseGoal = tdee + 300;
+        appData.pGoal = Math.round(w * 1.8);
+        appData.cGoal = Math.round(w * 5.5);
+        appData.fGoal = Math.round(w * 0.9);
+      } else {
+        appData.baseGoal = tdee;
+        appData.pGoal = Math.round(w * 2.0);
+        appData.cGoal = Math.round(w * 3.2);
+        appData.fGoal = Math.round(w * 0.9);
+      }
+
+      saveAndRefresh();
+    }
+
+    function addPreset(name, cal, p, c, f) {
+      logMealEntry({ name, cal, p, c, f, id: Date.now() });
+      switchTab('diary');
+    }
+
+    function addCustomMeal() {
+      const name = document.getElementById('in-name').value.trim();
+      const cal = parseInt(document.getElementById('in-cal').value) || 0;
+      const p = parseInt(document.getElementById('in-p').value) || 0;
+      const c = parseInt(document.getElementById('in-c').value) || 0;
+      const f = parseInt(document.getElementById('in-f').value) || 0;
+
+      if (!name || cal <= 0) return alert('Lagyan ng name at calories!');
+
+      logMealEntry({ name, cal, p, c, f, id: Date.now() });
+
+      document.getElementById('in-name').value = '';
+      document.getElementById('in-cal').value = '';
+      document.getElementById('in-p').value = '';
+      document.getElementById('in-c').value = '';
+      document.getElementById('in-f').value = '';
+
+      switchTab('diary');
+    }
+
+    function logMealEntry(mealObj) {
+      appData.meals.unshift(mealObj);
+      
+      const todayStr = new Date().toDateString();
+      if (appData.lastLogDate !== todayStr) {
+        appData.streakDays = (appData.streakDays || 0) + 1;
+        appData.lastLogDate = todayStr;
+      }
+
+      saveAndRefresh();
+    }
+
+    function deleteMeal(id) {
+      appData.meals = appData.meals.filter(m => m.id !== id);
+      saveAndRefresh();
+    }
+
+    function saveUserProfile() {
+      appData.userName = document.getElementById('prof-name-in').value || 'User';
+      appData.userTitle = document.getElementById('prof-title-in').value || 'Gym Enthusiast';
+      appData.height = parseFloat(document.getElementById('prof-height-in').value) || 160;
+      appData.weight = parseFloat(document.getElementById('prof-weight-in').value) || 60;
+      appData.activityLevel = document.getElementById('prof-activity-in').value;
+
+      recalculateTDEE();
+      alert('✅ Profile updated!');
+      switchTab('home');
+    }
+
+    function updateAppUI() {
+      document.getElementById('dash-user-name').innerText = appData.userName;
+      document.getElementById('prof-display-name').innerText = appData.userName;
+      document.getElementById('prof-display-title').innerText = appData.userTitle;
+      document.getElementById('streak-count').innerText = appData.streakDays || 1;
+
+      document.getElementById('prof-name-in').value = appData.userName;
+      document.getElementById('prof-title-in').value = appData.userTitle;
+      document.getElementById('prof-height-in').value = appData.height;
+      document.getElementById('prof-weight-in').value = appData.weight;
+      if (appData.activityLevel) document.getElementById('prof-activity-in').value = appData.activityLevel;
+
+      document.getElementById('prog-height').innerText = appData.height + ' cm';
+      document.getElementById('prog-weight').innerText = appData.weight + ' kg';
+
+      const mode = appData.dayMode || 'workout';
+      if (mode === 'workout') {
+        document.getElementById('btn-mode-work').classList.add('active');
+        document.getElementById('btn-mode-rest').classList.remove('active');
+        appData.goal = (appData.baseGoal || 2200) + 200;
+      } else {
+        document.getElementById('btn-mode-rest').classList.add('active');
+        document.getElementById('btn-mode-work').classList.remove('active');
+        appData.goal = appData.baseGoal || 2200;
+      }
+
+      document.querySelectorAll('.goal-card-option').forEach(el => el.classList.remove('selected'));
+      const activeType = appData.activeGoalType || 'bulk';
+      
+      const goalTitles = {
+        'bulk': '💪 Lean Bulk',
+        'cut': '🔥 Aggressive Cut',
+        'recomp': '🧱 Recomposition',
+        'dirty': '⚡ Heavy Mass Gain',
+        'athlete': '🏃 Athletic Performance',
+        'maint': '⚖️ Maintenance'
+      };
+
+      const optEl = document.getElementById('opt-' + activeType);
+      if (optEl) optEl.classList.add('selected');
+      document.getElementById('goal-active-name').innerText = goalTitles[activeType] || '💪 Lean Bulk';
+
+      document.getElementById('goal-target-cal-summary').innerText = appData.goal;
+      document.getElementById('g-cal-val').innerText = appData.goal + ' kcal';
+      document.getElementById('g-p-val').innerText = appData.pGoal + ' g';
+      document.getElementById('g-c-val').innerText = appData.cGoal + ' g';
+      document.getElementById('g-f-val').innerText = appData.fGoal + ' g';
+
+      // Meals Calculation
+      let totalCal = 0, totalP = 0, totalC = 0, totalF = 0;
+      const diaryList = document.getElementById('diary-meals-list');
+      diaryList.innerHTML = '';
+
+      if (appData.meals.length === 0) {
+        diaryList.innerHTML = '<p style="font-size:12px; color:var(--text-muted); text-align:center;">No meals logged yet today.</p>';
+      } else {
+        appData.meals.forEach(m => {
+          totalCal += m.cal; totalP += m.p; totalC += m.c; totalF += m.f;
+          diaryList.innerHTML += `
+            <div class="food-entry">
+              <div>
+                <div>${m.name}</div>
+                <div style="font-size:11px; color:var(--text-muted);">${m.cal} kcal • P:${m.p}g C:${m.c}g F:${m.f}g</div>
+              </div>
+              <i class="fa-solid fa-trash" style="color:var(--danger); cursor:pointer;" onclick="deleteMeal(${m.id})"></i>
+            </div>
+          `;
+        });
+      }
+
+      document.getElementById('dash-eaten').innerText = totalCal;
+      document.getElementById('dash-goal').innerText = appData.goal;
+      document.getElementById('diary-eaten').innerText = totalCal;
+      document.getElementById('diary-goal').innerText = appData.goal;
+      document.getElementById('diary-left').innerText = Math.max(0, appData.goal - totalCal);
+      document.getElementById('prog-today-cal').innerText = totalCal + ' kcal';
+
+      const pct = Math.min(Math.round((totalCal / appData.goal) * 100), 100);
+      document.getElementById('pct-text').innerText = pct + '%';
+      document.getElementById('cal-ring').style.strokeDashoffset = 283 - (283 * (pct / 100));
+
+      const liters = ((appData.waterMl || 0) / 1000).toFixed(1);
+      document.getElementById('water-intake').innerText = liters;
+
+      document.getElementById('p-txt').innerText = `${totalP} / ${appData.pGoal}g`;
+      document.getElementById('p-bar').style.width = Math.min((totalP / appData.pGoal) * 100, 100) + '%';
+
+      document.getElementById('c-txt').innerText = `${totalC} / ${appData.cGoal}g`;
+      document.getElementById('c-bar').style.width = Math.min((totalC / appData.cGoal) * 100, 100) + '%';
+
+      document.getElementById('f-txt').innerText = `${totalF} / ${appData.fGoal}g`;
+      document.getElementById('f-bar').style.width = Math.min((totalF / (appData.fGoal || 70)) * 100, 100) + '%';
+
+      // Weekly Progress Chart
+      const dayNames = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+      const todayKey = dayNames[new Date().getDay()];
+
+      if (!appData.weeklyLogs) appData.weeklyLogs = {};
+      appData.weeklyLogs[todayKey] = totalCal;
+
+      dayNames.forEach(d => {
+        const barEl = document.getElementById('bar-' + d);
+        if (barEl) {
+          const dayCal = appData.weeklyLogs[d] || 0;
+          const heightPct = Math.min(Math.round((dayCal / appData.goal) * 100), 100);
+          barEl.style.height = heightPct + '%';
+          if (d === todayKey) barEl.classList.add('active-day');
+          else barEl.classList.remove('active-day');
+        }
+      });
+    }
+
+    updateAppUI();
+  </script>
+</body>
+</html>
