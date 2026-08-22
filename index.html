@@ -78,7 +78,6 @@
       cursor: pointer;
     }
 
-    /* MANDATORY DISCLAIMER MODAL */
     .modal-overlay {
       position: fixed;
       inset: 0;
@@ -176,7 +175,6 @@
 </head>
 <body>
 
-  <!-- MANDATORY MEDICAL DISCLAIMER MODAL -->
   <div id="disclaimer-modal" class="modal-overlay" style="display:none;">
     <div class="modal-card">
       <div style="font-size:28px; text-align:center; margin-bottom:8px;">⚠️</div>
@@ -208,7 +206,6 @@
           <div style="font-size:13px; font-weight:700; line-height:1.4;" id="motivation-text">"Every step and every rep moves you closer to your goal."</div>
         </div>
 
-        <!-- FASTING TIMER WITH COUNTDOWN -->
         <div class="fasting-box">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
             <div>
@@ -541,6 +538,7 @@
       fastingActive: false,
       fastStartTime: null,
       disclaimerAccepted: false,
+      notifiedComplete: false,
       weeklyLogs: { mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 },
       meals: []
     };
@@ -550,7 +548,6 @@
       updateAppUI();
     }
 
-    /* DISCLAIMER MODAL LOGIC */
     function checkDisclaimerModal() {
       const modalEl = document.getElementById('disclaimer-modal');
       if (!appData.disclaimerAccepted) {
@@ -566,14 +563,32 @@
       saveAndRefresh();
     }
 
-    /* FASTING COUNTDOWN LOGIC */
+    /* WEB NOTIFICATION SYSTEM */
+    function requestNotificationPermission() {
+      if ('Notification' in window && Notification.permission !== 'granted' && Notification.permission !== 'denied') {
+        Notification.requestPermission();
+      }
+    }
+
+    function sendFastingNotification() {
+      if ('Notification' in window && Notification.permission === 'granted') {
+        new Notification("🔔 Cal Tracker", {
+          body: "🎉 Fast Complete! Nakarating ka na sa target fasting window mo. Pwede ka nang kumain!",
+          icon: "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/svgs/solid/fire.svg"
+        });
+      }
+    }
+
     function toggleFast() {
+      requestNotificationPermission();
       if (!appData.fastingActive) {
         appData.fastingActive = true;
         appData.fastStartTime = Date.now();
+        appData.notifiedComplete = false;
       } else {
         appData.fastingActive = false;
         appData.fastStartTime = null;
+        appData.notifiedComplete = false;
       }
       saveAndRefresh();
     }
@@ -612,6 +627,12 @@
         clockEl.innerText = "00:00:00";
         statusTitle.innerText = "🎉 Fast Complete!";
         subtextEl.innerText = "Goal reached! You can now eat.";
+
+        if (!appData.notifiedComplete) {
+          sendFastingNotification();
+          appData.notifiedComplete = true;
+          localStorage.setItem('calTrackerData', JSON.stringify(appData));
+        }
       } else {
         statusTitle.innerText = "🔥 Fasting Window";
         
