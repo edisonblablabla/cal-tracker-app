@@ -66,7 +66,6 @@
       box-shadow: 0 4px 15px rgba(0,0,0,0.03);
     }
 
-    /* CLICKABLE RANDOM MOTIVATION CARD */
     .motivation-card {
       background: linear-gradient(135deg, #1e293b, #0f172a);
       color: #ffffff;
@@ -77,6 +76,18 @@
       overflow: hidden;
       box-shadow: 0 6px 20px rgba(15, 23, 42, 0.15);
       cursor: pointer;
+    }
+
+    .disclaimer-card {
+      background: #fffbebf5;
+      border: 1px solid #fde68a;
+      border-radius: 16px;
+      padding: 14px;
+      margin-top: 10px;
+      margin-bottom: 16px;
+      color: #92400e;
+      font-size: 11px;
+      line-height: 1.4;
     }
 
     .streak-badge { background: #fef3c7; color: #b45309; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 800; display: inline-flex; align-items: center; gap: 4px; }
@@ -97,6 +108,12 @@
 
     .water-box { display: flex; justify-content: space-between; align-items: center; background: #f0f9ff; padding: 12px; border-radius: 14px; border: 1px solid #bae6fd; }
     .btn-water { background: var(--water); color: white; border: none; padding: 8px 14px; border-radius: 10px; font-weight: 800; font-size: 12px; cursor: pointer; }
+
+    .fasting-box { background: linear-gradient(135deg, #0f172a, #1e1b4b); color: white; border-radius: 20px; padding: 18px; margin-bottom: 16px; }
+    .fasting-timer-display { font-size: 28px; font-weight: 800; font-family: monospace; letter-spacing: 1px; }
+    .btn-fast { border: none; padding: 10px 16px; border-radius: 12px; font-weight: 800; font-size: 12px; cursor: pointer; transition: 0.2s; }
+    .btn-fast-start { background: var(--success); color: white; }
+    .btn-fast-stop { background: var(--danger); color: white; }
 
     .preset-chip { padding: 8px 12px; border-radius: 10px; border: 1px solid #cbd5e1; background: #fff; font-size: 12px; font-weight: 700; cursor: pointer; text-align: left; width: 100%; display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
 
@@ -150,13 +167,34 @@
           <div class="streak-badge"><i class="fa-solid fa-fire"></i> <span id="streak-count">1</span> Day Streak</div>
         </div>
 
-        <!-- TAP TO SHUFFLE RANDOM MOTIVATION -->
         <div class="motivation-card" onclick="shuffleQuote()">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
             <span style="font-size:11px; text-transform:uppercase; opacity:0.7; font-weight:800; letter-spacing:0.5px;">⚡ Daily Motivation</span>
             <i class="fa-solid fa-rotate" style="font-size:12px; opacity:0.6;"></i>
           </div>
           <div style="font-size:13px; font-weight:700; line-height:1.4;" id="motivation-text">"Every step and every rep moves you closer to your goal."</div>
+        </div>
+
+        <div class="fasting-box">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+            <div>
+              <span style="font-size:11px; opacity:0.7; text-transform:uppercase; font-weight:800;">⏱️ Intermittent Fasting</span>
+              <div style="font-size:13px; font-weight:800;" id="fasting-status-title">Eating Window</div>
+            </div>
+            <select id="fasting-plan-select" style="background:#1e293b; color:white; border:1px solid #334155; border-radius:8px; padding:4px 8px; font-size:11px; font-weight:700;" onchange="changeFastPlan()">
+              <option value="16">16:8 Fast</option>
+              <option value="18">18:6 Fast</option>
+              <option value="20">20:4 Fast</option>
+            </select>
+          </div>
+
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div>
+              <div class="fasting-timer-display" id="fasting-clock">00:00:00</div>
+              <div style="font-size:10px; opacity:0.7; margin-top:2px;" id="fasting-subtext">Target: 16 Hours Fasting</div>
+            </div>
+            <button id="btn-fast-toggle" class="btn-fast btn-fast-start" onclick="toggleFast()">Start Fast</button>
+          </div>
         </div>
 
         <div class="mode-toggle">
@@ -375,6 +413,10 @@
           <div class="stat-row"><span>Carbs Target</span><span id="g-c-val">250 g</span></div>
           <div class="stat-row"><span>Fats Target</span><span id="g-f-val">70 g</span></div>
         </div>
+
+        <div class="disclaimer-card">
+          <strong>⚠️ Health Disclaimer:</strong> Ang mga kalkulasyon ng calories at macro targets ay nakatutulong na gabay lamang at HINDI medikal na payo. Kumonsulta sa doktor o nutritionist bago magsimula ng matinding calorie deficit o training.
+        </div>
       </div>
 
       <div id="screen-profile" class="screen">
@@ -408,6 +450,10 @@
 
           <button class="btn-block" onclick="saveUserProfile()">💾 Auto-Calculate & Save Profile</button>
         </div>
+
+        <div class="disclaimer-card">
+          <strong>🔒 Privacy & Medical Notice:</strong> Lahat ng iyong personal data at meal logs ay lokal na nakatabi lamang sa iyong sariling device. Ang app na ito ay hindi nagbibigay ng propesyonal na medical diagnosis.
+        </div>
       </div>
 
     </div>
@@ -423,7 +469,6 @@
   </div>
 
   <script>
-    /* DYNAMIC RANDOM MOTIVATION GENERATOR SYSTEM */
     const fitnessQuotes = [
       '"Consistency is what transforms average into excellence."',
       '"Every step and every rep moves you closer to your goal."',
@@ -458,6 +503,9 @@
       lastLogDate: '',
       activeGoalType: 'jogger',
       baseGoal: 2200, goal: 2200, pGoal: 120, cGoal: 300, fGoal: 60, waterMl: 0,
+      fastingPlan: 16,
+      fastingActive: false,
+      fastStartTime: null,
       weeklyLogs: { mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 },
       meals: []
     };
@@ -466,6 +514,66 @@
       localStorage.setItem('calTrackerData', JSON.stringify(appData));
       updateAppUI();
     }
+
+    let timerInterval = null;
+
+    function toggleFast() {
+      if (!appData.fastingActive) {
+        appData.fastingActive = true;
+        appData.fastStartTime = Date.now();
+      } else {
+        appData.fastingActive = false;
+        appData.fastStartTime = null;
+      }
+      saveAndRefresh();
+    }
+
+    function changeFastPlan() {
+      appData.fastingPlan = parseInt(document.getElementById('fasting-plan-select').value) || 16;
+      saveAndRefresh();
+    }
+
+    function updateFastingClock() {
+      const clockEl = document.getElementById('fasting-clock');
+      const statusTitle = document.getElementById('fasting-status-title');
+      const subtextEl = document.getElementById('fasting-subtext');
+      const btnEl = document.getElementById('btn-fast-toggle');
+      const planSelect = document.getElementById('fasting-plan-select');
+
+      if (planSelect) planSelect.value = appData.fastingPlan || 16;
+
+      if (!appData.fastingActive || !appData.fastStartTime) {
+        clockEl.innerText = "00:00:00";
+        statusTitle.innerText = "Eating Window";
+        subtextEl.innerText = `Target: ${appData.fastingPlan || 16} Hours Fasting`;
+        btnEl.innerText = "Start Fast";
+        btnEl.className = "btn-fast btn-fast-start";
+        return;
+      }
+
+      btnEl.innerText = "End Fast";
+      btnEl.className = "btn-fast btn-fast-stop";
+
+      const elapsedMs = Date.now() - appData.fastStartTime;
+      const targetMs = (appData.fastingPlan || 16) * 3600 * 1000;
+
+      if (elapsedMs >= targetMs) {
+        statusTitle.innerText = "🎉 Fast Complete!";
+        subtextEl.innerText = "You met your fasting goal!";
+      } else {
+        statusTitle.innerText = "🔥 Fasting Window";
+        subtextEl.innerText = `Target: ${appData.fastingPlan || 16} Hours Fasting`;
+      }
+
+      const totalSec = Math.floor(elapsedMs / 1000);
+      const hrs = String(Math.floor(totalSec / 3600)).padStart(2, '0');
+      const mins = String(Math.floor((totalSec % 3600) / 60)).padStart(2, '0');
+      const secs = String(totalSec % 60).padStart(2, '0');
+
+      clockEl.innerText = `${hrs}:${mins}:${secs}`;
+    }
+
+    setInterval(updateFastingClock, 1000);
 
     function switchTab(tab) {
       document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
@@ -711,9 +819,10 @@
           else barEl.classList.remove('active-day');
         }
       });
+
+      updateFastingClock();
     }
 
-    /* INITIALIZE RANDOM QUOTE UPON APP OPEN */
     shuffleQuote();
     updateAppUI();
   </script>
