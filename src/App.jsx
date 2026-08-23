@@ -126,6 +126,11 @@ export default function App() {
       pGoal = Math.round(w * 2.0);
       cGoal = Math.round(w * 5.0);
       fGoal = Math.round(w * 1.2);
+    } else if (type === 'jogging') {
+      baseGoal = tdee + 400;
+      pGoal = Math.round(w * 1.8);
+      cGoal = Math.round(w * 5.0);
+      fGoal = Math.round(w * 1.0);
     } else if (type === 'athlete') {
       baseGoal = tdee + 300;
       pGoal = Math.round(w * 1.8);
@@ -152,11 +157,10 @@ export default function App() {
       weight: parseFloat(profWeight) || 60,
       activityLevel: profActivity
     }));
-    alert('✅ Profile updated!');
+    alert('Profile updated!');
     setActiveTab('home');
   };
 
-  // Aggregated calculations
   let totalCal = 0, totalP = 0, totalC = 0, totalF = 0;
   appData.meals.forEach(m => {
     totalCal += m.cal;
@@ -171,12 +175,13 @@ export default function App() {
   const waterLiters = ((appData.waterMl || 0) / 1000).toFixed(1);
 
   const goalTitles = {
-    'bulk': '💪 Lean Bulk',
-    'cut': '🔥 Aggressive Cut',
-    'recomp': '🧱 Recomposition',
-    'dirty': '⚡ Heavy Mass Gain',
-    'athlete': '🏃 Athletic Performance',
-    'maint': '⚖️ Maintenance'
+    'bulk': '1. Lean Bulk (Clean Muscle)',
+    'cut': '2. Aggressive Cut (Fat Loss)',
+    'recomp': '3. Body Recomposition',
+    'dirty': '4. Heavy Mass Gain',
+    'jogging': '5. Jogging & Cardio Endurance',
+    'athlete': '6. Athletic Performance',
+    'maint': '7. Weight Maintenance'
   };
 
   const dayNames = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
@@ -186,20 +191,20 @@ export default function App() {
     <div className="mobile-frame">
       <div className="screen-container">
         
-        {/* ==================== SCREEN 1: HOME / DASHBOARD ==================== */}
+        {/* SCREEN 1: HOME */}
         {activeTab === 'home' && (
           <div className="screen active">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
               <div>
-                <h2 style={{ fontSize: '20px', fontWeight: '800' }}>Hello, {appData.userName}! 👋</h2>
+                <h2 style={{ fontSize: '20px', fontWeight: '800' }}>Hello, {appData.userName}!</h2>
                 <div className="streak-badge"><i className="fa-solid fa-fire"></i> <span>{appData.streakDays || 1}</span> Day Streak</div>
               </div>
               <i className="fa-regular fa-bell" style={{ fontSize: '18px' }}></i>
             </div>
 
             <div className="mode-toggle">
-              <button className={`mode-btn ${appData.dayMode === 'rest' ? 'active' : ''}`} onClick={() => setDayMode('rest')}>🛋️ Rest Day</button>
-              <button className={`mode-btn ${appData.dayMode === 'workout' ? 'active' : ''}`} onClick={() => setDayMode('workout')}>🏋️ Workout Day</button>
+              <button className={`mode-btn ${appData.dayMode === 'rest' ? 'active' : ''}`} onClick={() => setDayMode('rest')}>Rest Day</button>
+              <button className={`mode-btn ${appData.dayMode === 'workout' ? 'active' : ''}`} onClick={() => setDayMode('workout')}>Workout / Active Day</button>
             </div>
 
             <div className="card">
@@ -245,7 +250,7 @@ export default function App() {
           </div>
         )}
 
-        {/* ==================== SCREEN 2: FOOD DIARY ==================== */}
+        {/* SCREEN 2: FOOD DIARY */}
         {activeTab === 'diary' && (
           <div className="screen active">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
@@ -280,13 +285,13 @@ export default function App() {
           </div>
         )}
 
-        {/* ==================== SCREEN 3: ADD FOOD ==================== */}
+        {/* SCREEN 3: ADD FOOD */}
         {activeTab === 'add' && (
           <div className="screen active">
             <h3 style={{ fontSize: '18px', fontWeight: '800', marginBottom: '14px' }}>Add Food</h3>
             
             <div className="card">
-              <div style={{ fontSize: '13px', fontWeight: '800', marginBottom: '10px' }}>🇵🇭 Pinoy Food Presets</div>
+              <div style={{ fontSize: '13px', fontWeight: '800', marginBottom: '10px' }}>Pinoy Food Presets</div>
               <div className="preset-chip" onClick={() => addPreset('Chicken Adobo (1 serving)', 320, 28, 6, 20)}>
                 <div><span>Chicken Adobo</span><br /><small style={{ color: 'var(--text-muted)', fontSize: '10px' }}>320 kcal • P:28g C:6g F:20g</small></div>
                 <i className="fa-solid fa-plus" style={{ color: 'var(--primary)' }}></i>
@@ -320,7 +325,7 @@ export default function App() {
           </div>
         )}
 
-        {/* ==================== SCREEN 4: WEEKLY PROGRESS ==================== */}
+        {/* SCREEN 4: PROGRESS */}
         {activeTab === 'progress' && (
           <div className="screen active">
             <h3 style={{ fontSize: '18px', fontWeight: '800', textAlign: 'center', marginBottom: '14px' }}>Weekly Progress</h3>
@@ -356,7 +361,7 @@ export default function App() {
           </div>
         )}
 
-        {/* ==================== SCREEN 5: GOALS SELECTION ==================== */}
+        {/* SCREEN 5: GOALS */}
         {activeTab === 'goals' && (
           <div className="screen active">
             <h3 style={{ fontSize: '18px', fontWeight: '800', textAlign: 'center', marginBottom: '14px' }}>Gym & Fitness Goals</h3>
@@ -367,35 +372,40 @@ export default function App() {
               <p style={{ fontSize: '11px', opacity: 0.8, marginTop: '2px' }}><span>{activeGoal}</span> kcal/day</p>
             </div>
 
-            <div style={{ fontSize: '13px', fontWeight: '800', marginBottom: '10px' }}>Select Gym Target:</div>
+            <div style={{ fontSize: '13px', fontWeight: '800', marginBottom: '10px' }}>Select Fitness Target:</div>
 
             <div className={`goal-card-option ${appData.activeGoalType === 'bulk' ? 'selected' : ''}`} onClick={() => setGoalPreset('bulk')}>
-              <div style={{ fontSize: '13px', fontWeight: '800' }}>💪 1. Lean Bulk (Clean Muscle)</div>
+              <div style={{ fontSize: '13px', fontWeight: '800' }}>1. Lean Bulk (Clean Muscle)</div>
               <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px' }}>Slight surplus for muscle growth with minimal fat.</div>
             </div>
 
             <div className={`goal-card-option ${appData.activeGoalType === 'cut' ? 'selected' : ''}`} onClick={() => setGoalPreset('cut')}>
-              <div style={{ fontSize: '13px', fontWeight: '800' }}>🔥 2. Aggressive Cut (Fast Fat Loss)</div>
+              <div style={{ fontSize: '13px', fontWeight: '800' }}>2. Aggressive Cut (Fast Fat Loss)</div>
               <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px' }}>High deficit + High Protein to preserve muscle.</div>
             </div>
 
             <div className={`goal-card-option ${appData.activeGoalType === 'recomp' ? 'selected' : ''}`} onClick={() => setGoalPreset('recomp')}>
-              <div style={{ fontSize: '13px', fontWeight: '800' }}>🧱 3. Body Recomposition</div>
+              <div style={{ fontSize: '13px', fontWeight: '800' }}>3. Body Recomposition</div>
               <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px' }}>Build muscle & lose fat simultaneously.</div>
             </div>
 
             <div className={`goal-card-option ${appData.activeGoalType === 'dirty' ? 'selected' : ''}`} onClick={() => setGoalPreset('dirty')}>
-              <div style={{ fontSize: '13px', fontWeight: '800' }}>⚡ 4. Heavy Mass Gain (Hardgainer)</div>
+              <div style={{ fontSize: '13px', fontWeight: '800' }}>4. Heavy Mass Gain (Hardgainer)</div>
               <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px' }}>High calorie + High carbs for rapid weight gain.</div>
             </div>
 
+            <div className={`goal-card-option ${appData.activeGoalType === 'jogging' ? 'selected' : ''}`} onClick={() => setGoalPreset('jogging')}>
+              <div style={{ fontSize: '13px', fontWeight: '800' }}>5. Jogging & Cardio Endurance</div>
+              <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px' }}>Higher carbs + Calorie cushion to fuel long runs.</div>
+            </div>
+
             <div className={`goal-card-option ${appData.activeGoalType === 'athlete' ? 'selected' : ''}`} onClick={() => setGoalPreset('athlete')}>
-              <div style={{ fontSize: '13px', fontWeight: '800' }}>🏃 5. Athletic Performance / Endurance</div>
-              <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px' }}>High carbs fuel for intense training & sports.</div>
+              <div style={{ fontSize: '13px', fontWeight: '800' }}>6. Athletic Performance</div>
+              <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px' }}>High carbs fuel for intense sports and agility.</div>
             </div>
 
             <div className={`goal-card-option ${appData.activeGoalType === 'maint' ? 'selected' : ''}`} onClick={() => setGoalPreset('maint')}>
-              <div style={{ fontSize: '13px', fontWeight: '800' }}>⚖️ 6. Weight Maintenance</div>
+              <div style={{ fontSize: '13px', fontWeight: '800' }}>7. Weight Maintenance</div>
               <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px' }}>Balanced calories to stay fit and healthy.</div>
             </div>
 
@@ -409,17 +419,17 @@ export default function App() {
           </div>
         )}
 
-        {/* ==================== SCREEN 6: USER PROFILE ==================== */}
+        {/* SCREEN 6: PROFILE */}
         {activeTab === 'profile' && (
           <div className="screen active">
             <div style={{ textAlign: 'center', padding: '10px 0' }}>
-              <div style={{ width: '70px', height: '70px', borderRadius: '50%', background: 'var(--primary)', margin: '0 auto 8px auto', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '28px' }}><i className="fa-solid fa-user"></i></div>
+              <div style={{ width: '70px', height: '70px', borderRadius: '50%', background: 'var(--primary)', margin: '0 auto 8px auto', display: 'flex', alignItems: 'center', justify-content: 'center', color: 'white', fontSize: '28px' }}><i className="fa-solid fa-user"></i></div>
               <h3 style={{ fontSize: '18px', fontWeight: '800' }}>{appData.userName}</h3>
               <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{appData.userTitle}</p>
             </div>
 
             <div className="card">
-              <div style={{ fontSize: '14px', fontWeight: '800', marginBottom: '12px' }}>⚙️ User & Activity Profile</div>
+              <div style={{ fontSize: '14px', fontWeight: '800', marginBottom: '12px' }}>User & Activity Profile</div>
               
               <label style={{ fontSize: '11px', fontWeight: '700' }}>Your Name</label>
               <input type="text" className="form-input" value={profName} onChange={e => setProfName(e.target.value)} />
@@ -440,14 +450,14 @@ export default function App() {
                 <option value="1.725">Heavy Lifter (6-7 days intense gym)</option>
               </select>
 
-              <button className="btn-block" onClick={saveUserProfile}>💾 Auto-Calculate & Save Profile</button>
+              <button className="btn-block" onClick={saveUserProfile}>Auto-Calculate & Save Profile</button>
             </div>
           </div>
         )}
 
       </div>
 
-      {/* ==================== FIXED BOTTOM NAVIGATION BAR ==================== */}
+      {/* BOTTOM NAV */}
       <div className="bottom-nav">
         <div className={`nav-item ${activeTab === 'home' ? 'active' : ''}`} onClick={() => setActiveTab('home')}><i className="fa-solid fa-house"></i><span>Home</span></div>
         <div className={`nav-item ${activeTab === 'diary' ? 'active' : ''}`} onClick={() => setActiveTab('diary')}><i className="fa-regular fa-calendar-check"></i><span>Diary</span></div>
