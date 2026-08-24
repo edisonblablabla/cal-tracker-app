@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "432202919655",
+    "project_id": "caltracker-7bb45",
+    "storage_bucket": "caltracker-7bb45.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:432202919655:android:8a736bc2baba369963fc42",
+        "android_client_info": {
+          "package_name": "com.nutripulse.officialapp"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "432202919655-3ojm20cjgamsnkiaoujihv3agc1me8kb.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAgpn3b7zD1N1je3uz0Ru-Q5iYm-KgqgvQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "432202919655-3ojm20cjgamsnkiaoujihv3agc1me8kb.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
