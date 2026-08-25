@@ -388,11 +388,15 @@ export default function App() {
       shuffleQuote();
     }
     let unsubUsers = null;
+    let unsubPosts = null;
     if (activeTab === "community" || activeTab === "profile" || activeTab === "admin") {
-      fetchPosts();
+      unsubPosts = fetchPosts();
       unsubUsers = fetchUsers();
     }
-    return () => { if (unsubUsers) unsubUsers(); };
+    return () => { 
+      if (unsubUsers) unsubUsers(); 
+      if (unsubPosts) unsubPosts();
+    };
   }, [activeTab]);
 
   const shuffleQuote = () => {
@@ -433,17 +437,20 @@ export default function App() {
     setTimerSeconds(initialMins * 60);
   };
 
-  const fetchPosts = async () => {
+  const fetchPosts = () => {
     try {
       const q = query(collection(db, "posts"), orderBy("createdAt", "desc"), limit(50));
-      const querySnapshot = await getDocs(q);
-      const list = [];
-      querySnapshot.forEach((doc) => {
-        list.push({ id: doc.id, ...doc.data() });
+      return onSnapshot(q, (snapshot) => {
+        const list = [];
+        snapshot.forEach((doc) => {
+          list.push({ id: doc.id, ...doc.data() });
+        });
+        setPosts(list);
+      }, (err) => {
+        console.error("Error listening to posts:", err);
       });
-      setPosts(list);
     } catch (err) {
-      console.error("Error fetching posts:", err);
+      console.error("Error setting up posts listener:", err);
     }
   };
 
@@ -677,8 +684,7 @@ export default function App() {
         likes: updatedLikesCount, 
         likedBy: updatedLikedBy 
       }, { merge: true });
-      fetchPosts();
-    } catch (err) {
+      } catch (err) {
       console.error("Error toggling pulse:", err);
     }
   };
