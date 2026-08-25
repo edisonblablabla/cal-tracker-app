@@ -287,8 +287,9 @@ export default function App() {
             setAvatarPreview(data?.avatarUrl || "");
             setCoverPreview(data?.coverUrl || "");
 
-            // DERECHONG DASHBOARD KAPAG COMPLETED NA ANG ONBOARDING
-            if (data?.onboardingCompleted) {
+            // EKSAKTONG LOGIC FIX:
+            // HINDI PAKIKITAIN ANG DISCLAIMER/ONBOARDING KUNG KUMPLETO NA
+            if (data?.onboardingCompleted === true) {
               setOnboardStep(0);
             } else {
               setOnboardStep(1);
@@ -326,6 +327,7 @@ export default function App() {
         if (unsubUserDoc) unsubUserDoc();
         if (heartbeatInterval) clearInterval(heartbeatInterval);
         setAppData(null);
+        setOnboardStep(0);
         setLoading(false);
       }
     });
@@ -1115,7 +1117,8 @@ export default function App() {
     );
   }
 
-  if (onboardStep === 1) {
+  // MODIFIED ONBOARDING CHECK: HINDI DAPAT LUMITAW KAPAG COMPLETED NA
+  if (onboardStep === 1 && !appData?.onboardingCompleted) {
     return (
       <div className="mobile-frame" style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}>
         <div className="card" style={{ maxWidth: "360px", width: "100%", padding: "24px", textAlign: "center" }}>
@@ -1131,7 +1134,7 @@ export default function App() {
     );
   }
 
-  if (onboardStep === 2) {
+  if (onboardStep === 2 && !appData?.onboardingCompleted) {
     return (
       <div className="mobile-frame" style={{ padding: "20px", overflowY: "auto" }}>
         <div className="card" style={{ maxWidth: "360px", margin: "0 auto", padding: "24px" }}>
@@ -2392,14 +2395,14 @@ export default function App() {
                             {isOnline ? (
                               <span style={{ fontSize: "8px", background: "#10b981", color: "white", padding: "1px 4px", borderRadius: "4px", fontWeight: 800, flexShrink: 0 }}>ON</span>
                             ) : (
-                              <span style={{ fontSize: "8px", background: "#94a3b8", color: "white", padding: "1px 4px", borderRadius: "4px", fontWeight: 800, flexShrink: 0 }}>OFF</span>
+                              <span style={{ fontSize: "8px", background: "#94a3b8", color: "white", padding: "1px 4px", borderRadius: "4px", fontWeight 800, flexShrink: 0 }}>OFF</span>
                             )}
-                            {u.isBlocked && <span style={{ fontSize: "8px", background: "#dc2626", color: "white", padding: "1px 4px", borderRadius: "4px", fontWeight: 800, flexShrink: 0 }}>BLOCKED (SAVED)</span>}
+                            {u.isBlocked && <span style={{ fontSize: "8px", background: "#dc2626", color: "white", padding: "1px 4px", borderRadius: "4px", fontWeight 800, flexShrink: 0 }}>BLOCKED (SAVED)</span>}
                           </div>
 
                           <button 
                             onClick={() => toggleBlockUser(u.uid, u.isBlocked)}
-                            style={{ background: u.isBlocked ? "#10b981" : "#dc2626", color: "white", border: "none", borderRadius: "6px", padding: "3px 8px", fontSize: "9px", fontWeight: 800, cursor: "pointer", flexShrink: 0 }}
+                            style={{ background: u.isBlocked ? "#10b981" : "#dc2626", color: "white", border: "none", borderRadius: "6px", padding: "3px 8px", fontSize: "9px", fontWeight 800, cursor: "pointer", flexShrink: 0 }}
                           >
                             {u.isBlocked ? "Unblock User" : "Block User"}
                           </button>
