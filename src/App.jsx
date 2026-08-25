@@ -1316,14 +1316,26 @@ export default function App() {
         {/* TAB 1: HOME */}
         {activeTab === "home" && (
           <div className="screen active">
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-              <div>
-                <span style={{ fontSize: "10px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase" }}>NutriPulse Dashboard</span>
-                <h2 style={{ fontSize: "17px", fontWeight: 800, margin: 0, lineHeight: 1.2 }}>Welcome back, {appData?.userName || "Athlete"}!</h2>
+            {/* ULTRA-COMPACT HEADER WITH AUTO-ELLIPSIS */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px", gap: "8px" }}>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <span style={{ fontSize: "9px", fontWeight: 800, color: "var(--primary)", textTransform: "uppercase", letterSpacing: "0.5px" }}>NUTRIPULSE</span>
+                <h2 style={{ 
+                  fontSize: "15px", 
+                  fontWeight: 900, 
+                  margin: 0, 
+                  lineHeight: 1.2, 
+                  color: "#0f172a",
+                  whiteSpace: "nowrap", 
+                  overflow: "hidden", 
+                  textOverflow: "ellipsis" 
+                }}>
+                  Hey, {appData?.userName || "Athlete"}! 👋
+                </h2>
               </div>
-              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                <div className="streak-badge" style={{ padding: "4px 8px", fontSize: "11px" }}><i className="fa-solid fa-fire"></i> <span>{appData?.streakDays || 1}</span> Day Streak</div>
-                <button onClick={() => setShowAboutModal(true)} style={{ background: "#e0e7ff", border: "none", color: "var(--primary)", borderRadius: "8px", width: "26px", height: "26px", fontWeight: 900, cursor: "pointer", fontSize: "12px" }}>?</button>
+              <div style={{ display: "flex", alignItems: "center", gap: "5px", flexShrink: 0 }}>
+                <div className="streak-badge" style={{ padding: "4px 8px", fontSize: "10px" }}><i className="fa-solid fa-fire"></i> <span>{appData?.streakDays || 1}</span>d</div>
+                <button onClick={() => setShowAboutModal(true)} style={{ background: "#e0e7ff", border: "none", color: "var(--primary)", borderRadius: "8px", width: "26px", height: "26px", fontWeight: 900, cursor: "pointer", fontSize: "11px" }}>?</button>
               </div>
             </div>
 
@@ -2525,7 +2537,7 @@ export default function App() {
         <div style={{ position: "fixed", inset: 0, background: "rgba(15, 23, 42, 0.75)", backdropFilter: "blur(6px)", zIndex: 2700, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
           <div className="card" style={{ width: "100%", maxWidth: "480px", padding: "20px", borderRadius: "24px 24px 0 0", background: "#ffffff", boxShadow: "0 -10px 25px rgba(0,0,0,0.15)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
-              <h4 style={{ fontSize: "15px", fontWeight: 900, color: "#0f172a" }}>Resonate Fitness Post</h4>
+              <h4 style={{ fontSize: "15px", fontWeight 900, color: "#0f172a" }}>Resonate Fitness Post</h4>
               <button onClick={() => setResonatePost(null)} style={{ background: "#f1f5f9", border: "none", borderRadius: "50%", width: "28px", height: "28px", cursor: "pointer", fontWeight: 800 }}>X</button>
             </div>
 
