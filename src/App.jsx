@@ -2795,8 +2795,11 @@ export default function App() {
         <div style={{
           position: "fixed",
           top: "20px",
-          left: "50%",
-          transform: "translateX(-50%)",
+          left: 0,
+          right: 0,
+          display: "flex",
+          justifyContent: "center",
+          
           background: toastMessage.type === "info" ? "#0284c7" : "#10b981",
           color: "white",
           padding: "10px 18px",
@@ -2816,7 +2819,10 @@ export default function App() {
       )}
 
       {/* FIXED BOTTOM NAVIGATION BAR */}
-      <div className="bottom-nav" style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", maxWidth: "480px", width: "100%", background: "#ffffff", borderTop: "1px solid #e2e8f0", zIndex: 1000 }}>
+      <div className="bottom-nav" style={{ position: "fixed", bottom: 0, left: 0,
+          right: 0,
+          display: "flex",
+          justifyContent: "center",  maxWidth: "480px", width: "100%", background: "#ffffff", borderTop: "1px solid #e2e8f0", zIndex: 1000 }}>
         <div className={"nav-item " + (activeTab === "home" ? "active" : "")} onClick={() => setActiveTab("home")}><i className="fa-solid fa-house"></i><span>Home</span></div>
         <div className={"nav-item " + (activeTab === "diary" ? "active" : "")} onClick={() => setActiveTab("diary")}><i className="fa-regular fa-calendar-check"></i><span>Log</span></div>
         <div className={"nav-item " + (activeTab === "community" ? "active" : "")} onClick={() => setActiveTab("community")}><i className="fa-solid fa-users"></i><span>Social</span></div>
