@@ -39,3 +39,9 @@ NutriPulse is a responsive, feature-rich health, nutrition, and social fitness t
 * **Frontend**: React (JSX), Vite, JavaScript (ES6+), Custom UI
 * **Backend / Database**: Firebase Authentication, Firestore Cloud Database
 * **Deployment**: GitHub Pages (`gh-pages`)
+
+---
+
+## 📄 License & Ownership
+Created and Maintained by **Edison Valerio** (Copyright © 2026). All rights reserved. 
+Unauthorized re-uploading, distribution, or claiming ownership of this source code and project without explicit permission or proper attribution is strictly prohibited.
