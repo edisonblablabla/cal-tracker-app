@@ -2239,7 +2239,7 @@ export default function App() {
                               </button>
                               <button 
                                 onClick={() => handleDeletePost(p.id)} 
-                                style={{ width: "100%", padding: "8px 10px", background: "transparent", border: "none", textAlign: "left", fontSize: "10px", fontWeight 700, color: "#ef4444", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px", borderTop: "1px solid #f1f5f9" }}
+                                style={{ width: "100%", padding: "8px 10px", background: "transparent", border: "none", textAlign: "left", fontSize: "10px", fontWeight: 700, color: "#ef4444", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px", borderTop: "1px solid #f1f5f9" }}
                               >
                                 <i className="fa-solid fa-trash"></i> Delete
                               </button>
