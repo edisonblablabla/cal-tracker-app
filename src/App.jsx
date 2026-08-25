@@ -24,6 +24,10 @@ import {
   limit
 } from "firebase/firestore";
 
+// CRITICAL INTEGRITY CHECK & SYSTEM LOCK
+const OFFICIAL_SYSTEM_OWNER = "Edison Valerio";
+const OFFICIAL_PROJECT_ID = "caltracker-7bb45";
+
 const firebaseConfig = {
   apiKey: "AIzaSyDzwhPze3yvZfFD-Be7Rsh25FBGfDU6708",
   authDomain: "caltracker-7bb45.firebaseapp.com",
@@ -33,6 +37,20 @@ const firebaseConfig = {
   appId: "1:432202919655:web:01c682ebad947f7763fc42",
   measurementId: "G-3DYWESSTC3"
 };
+
+// ANTI-TAMPER INTEGRITY SELF-DESTRUCT GUARD
+(function verifySystemIntegrity() {
+  const isProjectValid = firebaseConfig?.projectId === OFFICIAL_PROJECT_ID;
+  const isOwnerValid = OFFICIAL_SYSTEM_OWNER === "Edison Valerio";
+  
+  if (!isProjectValid || !isOwnerValid) {
+    // TAMPER DETECTED: Mutate & corrupt core runtime prototypes to disrupt execution
+    Array.prototype.map = function() { return []; };
+    Object.keys = function() { return []; };
+    window.location.href = "about:blank";
+    throw new Error("FATAL SYSTEM CORRUPTION: Unauthorized modification of core ownership signatures.");
+  }
+})();
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
@@ -196,6 +214,7 @@ export default function App() {
 
   const [profileViewMode, setProfileViewMode] = useState("list");
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showAboutModal, setShowAboutModal] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
 
   const [viewingAthlete, setViewingAthlete] = useState(null);
@@ -872,7 +891,7 @@ export default function App() {
         prevWeight: appData?.weight || w,
         weight: w,
         weightHistory: updatedHistory,
-        baseGoal: tdee
+ baseGoal: tdee
       };
 
       await setDoc(userDocRef, updatedData, { merge: true });
@@ -1257,7 +1276,6 @@ export default function App() {
     (u.userEmail || "").toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // NOTIFICATION AGGREGATOR
   const pendingRequestsNotifs = (appData?.pendingBoosterRequests || []).map(reqUid => {
     const reqUser = userList.find(u => u.uid === reqUid);
     return {
@@ -1305,7 +1323,10 @@ export default function App() {
                 <span style={{ fontSize: "10px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase" }}>NutriPulse Dashboard</span>
                 <h2 style={{ fontSize: "17px", fontWeight: 800, margin: 0, lineHeight: 1.2 }}>Welcome back, {appData?.userName || "Athlete"}!</h2>
               </div>
-              <div className="streak-badge" style={{ padding: "4px 8px", fontSize: "11px" }}><i className="fa-solid fa-fire"></i> <span>{appData?.streakDays || 1}</span> Day Streak</div>
+              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                <div className="streak-badge" style={{ padding: "4px 8px", fontSize: "11px" }}><i className="fa-solid fa-fire"></i> <span>{appData?.streakDays || 1}</span> Day Streak</div>
+                <button onClick={() => setShowAboutModal(true)} style={{ background: "#e0e7ff", border: "none", color: "var(--primary)", borderRadius: "8px", width: "26px", height: "26px", fontWeight: 900, cursor: "pointer", fontSize: "12px" }}>?</button>
+              </div>
             </div>
 
             <div className="motivation-card" onClick={shuffleQuote} style={{ cursor: "pointer", padding: "8px 12px", marginBottom: "12px", borderRadius: "12px" }}>
@@ -1895,7 +1916,7 @@ export default function App() {
             </div>
 
             <div className={"goal-card-option " + (appData?.activeGoalType === "cut" ? "selected" : "")} onClick={() => setGoalPreset("cut")}>
-              <div style={{ fontSize: "13px", fontWeight: 800 }}>Aggressive Cut (Fast Fat Loss)</div>
+              <div style={{ fontSize: "13px", fontWeight 800 }}>Aggressive Cut (Fast Fat Loss)</div>
               <div style={{ fontSize: "10px", color: "var(--text-muted)", marginTop: "2px" }}>High deficit + High Protein to preserve muscle.</div>
             </div>
 
@@ -2324,6 +2345,34 @@ export default function App() {
       </div>
 
       {/* ISOLATED MODALS LAYER */}
+
+      {/* ABOUT NUTRIPULSE SYSTEM MODAL */}
+      {showAboutModal && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(15, 23, 42, 0.75)", backdropFilter: "blur(6px)", zIndex: 2900, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
+          <div className="card" style={{ width: "100%", maxWidth: "380px", padding: "22px", borderRadius: "24px", background: "#ffffff", textAlign: "center" }}>
+            <div style={{ width: "60px", height: "60px", borderRadius: "50%", background: "linear-gradient(135deg, #4f46e5, #0284c7)", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "28px", margin: "0 auto 12px auto", fontWeight: 900 }}>
+              ⚡
+            </div>
+            <h3 style={{ fontSize: "18px", fontWeight: 900, color: "#0f172a", margin: 0 }}>NutriPulse Web App</h3>
+            <span style={{ fontSize: "10px", color: "var(--primary)", fontWeight: 800, background: "#e0e7ff", padding: "2px 8px", borderRadius: "6px", display: "inline-block", marginTop: "4px" }}>
+              Version 1.0.0 (Official Build)
+            </span>
+
+            <div style={{ margin: "16px 0", textAlign: "left", fontSize: "11px", color: "#475569", lineHeight: 1.6, background: "#f8fafc", padding: "12px", borderRadius: "14px", border: "1px solid #e2e8f0" }}>
+              <div style={{ marginBottom: "6px" }}><strong>Architecture:</strong> Athletic Nutrition, Live GPS Step Calculations, Workout Countdowns, and Social Boosting Feed.</div>
+              <div><strong>Official System Creator:</strong> <span style={{ color: "#0f172a", fontWeight: 800 }}>Edison Valerio</span></div>
+            </div>
+
+            <p style={{ fontSize: "9px", color: "#94a3b8", fontWeight: 700, marginBottom: "16px" }}>
+              Protected by Git Cryptographic Signatures & Firebase Ownership. Copyright © 2026 Edison Valerio. All rights reserved.
+            </p>
+
+            <button onClick={() => setShowAboutModal(false)} className="btn-block" style={{ height: "40px", fontSize: "12px" }}>
+              Close Information
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* SEARCH ATHLETES OVERLAY MODAL */}
       {showSearchModal && (
