@@ -834,6 +834,10 @@ export default function App() {
     }
     await signOut(auth);
     setAppData(null);
+    setAvatarPreview("");
+    setCoverPreview("");
+    setProfPostText("");
+    setProfImagePreview(null);
     setOnboardStep(0);
     setShowAuthForm(false);
     setActiveTab("home");
