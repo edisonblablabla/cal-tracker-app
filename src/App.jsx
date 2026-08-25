@@ -809,7 +809,11 @@ export default function App() {
     if (user) {
       try {
         const userDocRef = doc(db, "users", user.uid);
-        await setDoc(userDocRef, { lastSeen: Date.now() }, { merge: true });
+        // I-set sa 1 ang presence indicator para agad maging OFFLINE sa realtime listener, at itala ang exact logout time
+        await setDoc(userDocRef, { 
+          lastSeen: 1, 
+          lastLoggedOutAt: Date.now() 
+        }, { merge: true });
       } catch (err) {
         console.error("Logout presence error:", err);
       }
@@ -2360,7 +2364,7 @@ export default function App() {
                           <div><strong>Email:</strong> {u.userEmail || "N/A"}</div>
                           <div style={{ display: "flex", justifyContent: "space-between", marginTop: "2px", color: "#475569" }}>
                             <span><strong>Created:</strong> {formatPostTime(u.createdAt)}</span>
-                            <span><strong>Last Online:</strong> <strong style={{ color: isOnline ? "#10b981" : "#475569" }}>{isOnline ? "Active Now" : ((u.lastSeen && u.lastSeen > 0) ? formatPostTime(u.lastSeen) : "Never")}</strong></span>
+                            <span><strong>Last Online:</strong> <strong style={{ color: isOnline ? "#10b981" : "#475569" }}>{isOnline ? "Active Now" : (u.lastLoggedOutAt ? formatPostTime(u.lastLoggedOutAt) : ((u.lastSeen && u.lastSeen > 1) ? formatPostTime(u.lastSeen) : "Never"))}</strong></span>
                           </div>
                         </div>
                       </div>
