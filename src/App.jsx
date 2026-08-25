@@ -996,7 +996,12 @@ export default function App() {
       return (
         <div className="mobile-frame" style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", padding: "32px 24px", background: "linear-gradient(180deg, #f8fafc 0%, #edf2f7 100%)" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <h2 style={{ fontSize: "20px", fontWeight: 900, color: "var(--primary)", letterSpacing: "-0.5px" }}>NUTRIPULSE</h2>
+            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+              <div style={{ width: "24px", height: "24px", borderRadius: "50%", background: "linear-gradient(135deg, #4f46e5, #06b6d4)", display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontSize: "11px", boxShadow: "0 2px 6px rgba(79,70,229,0.3)" }}>
+                <i className="fa-solid fa-heart-pulse"></i>
+              </div>
+              <h2 style={{ fontSize: "20px", fontWeight: 900, color: "var(--primary)", letterSpacing: "-0.5px", margin: 0 }}>NUTRIPULSE</h2>
+            </div>
             <button onClick={() => setShowAuthForm(true)} style={{ background: "transparent", border: "none", color: "#64748b", fontWeight: 800, fontSize: "12px", cursor: "pointer" }}>Skip</button>
           </div>
 
@@ -1040,11 +1045,16 @@ export default function App() {
     return (
       <div className="mobile-frame" style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}>
         <div className="card" style={{ maxWidth: "360px", width: "100%", padding: "24px" }}>
-          <div style={{ display: "flex", alignItems: "center", marginBottom: "16px" }}>
-            <button onClick={() => setShowAuthForm(false)} style={{ background: "#f1f5f9", border: "none", borderRadius: "50%", width: "28px", height: "28px", cursor: "pointer", fontSize: "12px", fontWeight: 800, color: "#334155" }}>
-              <i className="fa-solid fa-arrow-left"></i>
-            </button>
-            <h2 style={{ fontSize: "18px", fontWeight: 900, color: "var(--primary)", letterSpacing: "0.5px", margin: "0 auto 0 auto" }}>NUTRIPULSE</h2>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: "16px" }}>
+            <div style={{ width: "48px", height: "48px", borderRadius: "50%", background: "linear-gradient(135deg, #4f46e5, #06b6d4)", display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontSize: "22px", boxShadow: "0 4px 12px rgba(79,70,229,0.35)", marginBottom: "8px" }}>
+              <i className="fa-solid fa-heart-pulse"></i>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", width: "100%", position: "relative" }}>
+              <button onClick={() => setShowAuthForm(false)} style={{ position: "absolute", left: 0, background: "#f1f5f9", border: "none", borderRadius: "50%", width: "28px", height: "28px", cursor: "pointer", fontSize: "12px", fontWeight: 800, color: "#334155" }}>
+                <i className="fa-solid fa-arrow-left"></i>
+              </button>
+              <h2 style={{ fontSize: "18px", fontWeight: 900, color: "var(--primary)", letterSpacing: "0.5px", margin: "0 auto" }}>NUTRIPULSE</h2>
+            </div>
           </div>
 
           {errorMessage && (
