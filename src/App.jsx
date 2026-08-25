@@ -287,9 +287,8 @@ export default function App() {
             setAvatarPreview(data?.avatarUrl || "");
             setCoverPreview(data?.coverUrl || "");
 
-            // EKSAKTONG LOGIC FIX:
-            // HINDI PAKIKITAIN ANG DISCLAIMER/ONBOARDING KUNG KUMPLETO NA
-            if (data?.onboardingCompleted === true) {
+            // DERECHO AGAD SA DASHBOARD KUNG KUMPLETO NA ANG ONBOARDING RECORD
+            if (data?.onboardingCompleted) {
               setOnboardStep(0);
             } else {
               setOnboardStep(1);
@@ -2341,7 +2340,7 @@ export default function App() {
                               </span>
                             )}
                             {isAuthorBlocked && (
-                              <span style={{ fontSize: "8px", background: "#dc2626", color: "white", padding: "1px 5px", borderRadius: "4px", fontWeight: 800, flexShrink: 0 }}>
+                              <span style={{ fontSize: "8px", background: "#dc2626", color: "white", padding: "1px 5px", borderRadius: "4px", fontWeight 800, flexShrink: 0 }}>
                                 BLOCKED USER
                               </span>
                             )}
@@ -2612,7 +2611,7 @@ export default function App() {
                               setViewingPostDetail(notif.postObj); 
                               setShowNotifModal(false); 
                             }}
-                            style={{ background: "var(--primary)", color: "white", border: "none", padding: "4px 8px", borderRadius: "8px", fontSize: "9px", fontWeight: 800, cursor: "pointer" }}
+                            style={{ background: "var(--primary)", color: "white", border: "none", padding: "4px 8px", borderRadius: "8px", fontSize: "9px", fontWeight 800, cursor: "pointer" }}
                           >
                             View Post
                           </button>
