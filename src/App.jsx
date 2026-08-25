@@ -2376,7 +2376,7 @@ export default function App() {
 
       {/* ISOLATED MODALS LAYER */}
 
-      {/* ABOUT NUTRIPULSE SYSTEM MODAL WITH HEART PULSE LOGO */}
+      {/* ABOUT NUTRIPULSE SYSTEM MODAL WITH FEEDBACK INTEGRATION */}
       {showAboutModal && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(15, 23, 42, 0.75)", backdropFilter: "blur(6px)", zIndex: 2900, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
           <div className="card" style={{ width: "100%", maxWidth: "380px", padding: "22px", borderRadius: "24px", background: "#ffffff", textAlign: "center" }}>
@@ -2388,16 +2388,24 @@ export default function App() {
               Version 1.0.0 (Official Build)
             </span>
 
-            <div style={{ margin: "16px 0", textAlign: "left", fontSize: "11px", color: "#475569", lineHeight: 1.6, background: "#f8fafc", padding: "12px", borderRadius: "14px", border: "1px solid #e2e8f0" }}>
+            <div style={{ margin: "14px 0 10px 0", textAlign: "left", fontSize: "11px", color: "#475569", lineHeight: 1.6, background: "#f8fafc", padding: "12px", borderRadius: "14px", border: "1px solid #e2e8f0" }}>
               <div style={{ marginBottom: "6px" }}><strong>Architecture:</strong> Athletic Nutrition, Live GPS Step Calculations, Workout Countdowns, and Social Boosting Feed.</div>
               <div><strong>Official System Creator:</strong> <span style={{ color: "#0f172a", fontWeight: 800 }}>Edison Valerio</span></div>
             </div>
 
-            <p style={{ fontSize: "9px", color: "#94a3b8", fontWeight: 700, marginBottom: "16px" }}>
+            {/* DIRECT FEEDBACK ACTION BUTTON */}
+            <a 
+              href="mailto:jenson0327@gmail.com?subject=NutriPulse%20User%20Feedback" 
+              style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", width: "100%", background: "#f0fdf4", color: "#10b981", border: "1px solid #a7f3d0", padding: "8px", borderRadius: "12px", fontSize: "11px", fontWeight: 800, textDecoration: "none", marginBottom: "12px" }}
+            >
+              <i className="fa-solid fa-comment-dots"></i> Send App Feedback & Suggestions
+            </a>
+
+            <p style={{ fontSize: "9px", color: "#94a3b8", fontWeight: 700, marginBottom: "14px" }}>
               Protected by Git Cryptographic Signatures & Firebase Ownership. Copyright © 2026 Edison Valerio. All rights reserved.
             </p>
 
-            <button onClick={() => setShowAboutModal(false)} className="btn-block" style={{ height: "40px", fontSize: "12px" }}>
+            <button onClick={() => setShowAboutModal(false)} className="btn-block" style={{ height: "38px", fontSize: "12px" }}>
               Close Information
             </button>
           </div>
@@ -2697,7 +2705,7 @@ export default function App() {
         </div>
       )}
 
-      {/* 2. PROFILE SETTINGS MODAL */}
+      {/* 2. PROFILE SETTINGS MODAL WITH ABOUT DUAL-ACCESS */}
       {showSettingsModal && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(15, 23, 42, 0.65)", backdropFilter: "blur(4px)", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
           <div className="card" style={{ width: "100%", maxWidth: "360px", padding: "20px", borderRadius: "24px", background: "#ffffff", maxHeight: "80vh", overflowY: "auto", boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.2)" }}>
@@ -2768,6 +2776,15 @@ export default function App() {
 
             <button className="btn-block" onClick={saveUserProfile} disabled={isSavingProfile} style={{ marginBottom: "10px" }}>
               {isSavingProfile ? "Saving Profile..." : "Save Changes"}
+            </button>
+
+            {/* DUAL-ACCESS ABOUT LINK IN SETTINGS */}
+            <button 
+              onClick={() => { setShowSettingsModal(false); setShowAboutModal(true); }}
+              className="btn-block" 
+              style={{ background: "#f1f5f9", color: "#334155", border: "1px solid #cbd5e1", marginBottom: "10px", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}
+            >
+              <i className="fa-solid fa-circle-info" style={{ color: "var(--primary)" }}></i> About NutriPulse & Feedback
             </button>
 
             <button className="btn-block" onClick={handleLogout} disabled={isLoggingOut} style={{ background: isLoggingOut ? "#94a3b8" : "var(--danger)", marginBottom: "20px" }}>
