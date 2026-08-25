@@ -215,6 +215,10 @@ export default function App() {
   const [isPublishing, setIsPublishing] = useState(false);
 
   const [viewingAthlete, setViewingAthlete] = useState(null);
+  const [viewingPostDetail, setViewingPostDetail] = useState(null);
+  const [readNotifIds, setReadNotifIds] = useState([]);
+  const [salutedUsers, setSalutedUsers] = useState([]);
+
   const [boosterListModalType, setBoosterListModalType] = useState(null);
   const [resonatePost, setResonatePost] = useState(null);
 
@@ -1287,12 +1291,13 @@ export default function App() {
   const pendingRequestsNotifs = (appData?.pendingBoosterRequests || []).map(reqUid => {
     const reqUser = userList.find(u => u.uid === reqUid);
     return {
-      id: reqUid,
+      id: "req_" + reqUid,
       type: "request",
       title: reqUser?.userName || "An Athlete",
       avatar: reqUser?.avatarUrl || "",
       text: "sent a Booster Request",
-      uid: reqUid
+      uid: reqUid,
+      postId: null
     };
   });
 
@@ -1300,17 +1305,19 @@ export default function App() {
     return p.likedBy.filter(likerUid => likerUid !== user?.uid).map(likerUid => {
       const likerUser = userList.find(u => u.uid === likerUid);
       return {
-        id: p.id + "_" + likerUid,
+        id: "pulse_" + p.id + "_" + likerUid,
         type: "pulse",
         title: likerUser?.userName || "An Athlete",
         avatar: likerUser?.avatarUrl || "",
         text: "pulsed your fitness update",
-        uid: likerUid
+        uid: likerUid,
+        postObj: p
       };
     });
   });
 
   const allUserNotifs = [...pendingRequestsNotifs, ...pulseActivityNotifs];
+  const unreadNotifCount = allUserNotifs.filter(n => !readNotifIds.includes(n.id)).length;
 
   const activeWorkoutObj = WORKOUT_ACTIVITIES.find(a => a.name === selectedActivity) || WORKOUT_ACTIVITIES[0];
   const initialMins = parseInt(workoutDuration) || 30;
@@ -1597,9 +1604,9 @@ export default function App() {
                   style={{ position: "relative", background: "#f1f5f9", border: "none", width: "36px", height: "36px", borderRadius: "50%", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#334155", fontSize: "15px" }}
                 >
                   <i className="fa-regular fa-bell"></i>
-                  {allUserNotifs.length > 0 && (
+                  {unreadNotifCount > 0 && (
                     <span style={{ position: "absolute", top: "2px", right: "2px", background: "#ef4444", color: "white", fontSize: "9px", fontWeight: 800, width: "15px", height: "15px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      {allUserNotifs.length}
+                      {unreadNotifCount}
                     </span>
                   )}
                 </button>
@@ -2376,6 +2383,38 @@ export default function App() {
 
       {/* ISOLATED MODALS LAYER */}
 
+      {/* DIRECT NOTIFICATION POST VIEW MODAL */}
+      {viewingPostDetail && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(15, 23, 42, 0.75)", backdropFilter: "blur(6px)", zIndex: 3100, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
+          <div className="card" style={{ width: "100%", maxWidth: "420px", padding: "18px", borderRadius: "24px", background: "#ffffff", maxHeight: "85vh", overflowY: "auto" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+              <span style={{ fontSize: "11px", fontWeight: 800, color: "var(--primary)", textTransform: "uppercase" }}>Pulsed Fitness Update</span>
+              <button onClick={() => setViewingPostDetail(null)} style={{ background: "#f1f5f9", border: "none", borderRadius: "50%", width: "28px", height: "28px", cursor: "pointer", fontWeight: 800 }}>X</button>
+            </div>
+
+            <div style={{ display: "flex", gap: "8px", alignItems: "center", marginBottom: "10px" }}>
+              <div style={{ width: "36px", height: "36px", borderRadius: "50%", background: "#4f46e5", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: "13px", overflow: "hidden" }}>
+                {viewingPostDetail.userAvatar ? <img src={viewingPostDetail.userAvatar} alt="Avatar" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : (viewingPostDetail.userName || "A").charAt(0).toUpperCase()}
+              </div>
+              <div>
+                <div style={{ fontSize: "13px", fontWeight: 800, color: "#0f172a" }}>{viewingPostDetail.userName}</div>
+                <div style={{ fontSize: "9px", color: "var(--text-muted)" }}>{formatPostTime(viewingPostDetail.createdAt)}</div>
+              </div>
+            </div>
+
+            <ExpandableText text={viewingPostDetail.text} />
+
+            {viewingPostDetail.imageUrl && (
+              <img src={viewingPostDetail.imageUrl} alt="Post Media" style={{ width: "100%", maxHeight: "220px", objectFit: "cover", borderRadius: "12px", margin: "8px 0" }} />
+            )}
+
+            <div style={{ fontSize: "11px", color: "#64748b", fontWeight: 700, marginTop: "8px" }}>
+              <i className="fa-solid fa-heart" style={{ color: "#ef4444" }}></i> {viewingPostDetail.likes || 0} Pulses
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ABOUT NUTRIPULSE SYSTEM MODAL WITH FEEDBACK INTEGRATION */}
       {showAboutModal && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(15, 23, 42, 0.75)", backdropFilter: "blur(6px)", zIndex: 2900, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
@@ -2464,12 +2503,12 @@ export default function App() {
         </div>
       )}
 
-      {/* MULTI-ACTIVITY NOTIFICATION OVERLAY MODAL */}
+      {/* MULTI-ACTIVITY NOTIFICATION OVERLAY MODAL WITH PERSISTENCE & SALUTE */}
       {showNotifModal && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(15, 23, 42, 0.75)", backdropFilter: "blur(6px)", zIndex: 2800, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "16px", paddingTop: "40px" }}>
           <div className="card" style={{ width: "100%", maxWidth: "380px", padding: "18px", borderRadius: "20px", background: "#ffffff", maxHeight: "80vh", overflowY: "auto" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-              <h4 style={{ fontSize: "15px", fontWeight: 900, color: "#0f172a" }}>Notifications</h4>
+              <h4 style={{ fontSize: "15px", fontWeight: 900, color: "#0f172a" }}>Notifications Activity</h4>
               <button onClick={() => setShowNotifModal(false)} style={{ background: "#f1f5f9", border: "none", borderRadius: "50%", width: "26px", height: "26px", cursor: "pointer", fontWeight: 800, fontSize: "11px" }}>X</button>
             </div>
 
@@ -2481,8 +2520,27 @@ export default function App() {
                 </div>
               ) : (
                 allUserNotifs.map(notif => {
+                  const isRead = readNotifIds.includes(notif.id);
+                  const isSaluted = salutedUsers.includes(notif.uid);
+
                   return (
-                    <div key={notif.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px", background: "#f8fafc", borderRadius: "12px", marginBottom: "8px", border: "1px solid #e2e8f0" }}>
+                    <div 
+                      key={notif.id} 
+                      onClick={() => {
+                        if (!isRead) setReadNotifIds(prev => [...prev, notif.id]);
+                      }}
+                      style={{ 
+                        display: "flex", 
+                        alignItems: "center", 
+                        justify: "space-between", 
+                        padding: "10px", 
+                        background: isRead ? "#ffffff" : "#f0f9ff", 
+                        borderRadius: "12px", 
+                        marginBottom: "8px", 
+                        border: isRead ? "1px solid #e2e8f0" : "1px solid #bae6fd",
+                        cursor: "pointer"
+                      }}
+                    >
                       <div style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: 0, flex: 1 }}>
                         <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: "#4f46e5", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: "12px", overflow: "hidden", flexShrink: 0 }}>
                           {notif.avatar ? <img src={notif.avatar} alt="Avatar" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : (notif.title || "A").charAt(0).toUpperCase()}
@@ -2493,25 +2551,48 @@ export default function App() {
                         </div>
                       </div>
 
-                      {notif.type === "request" ? (
-                        <button 
-                          onClick={() => { toggleBoostAthlete(notif.uid, false); setShowNotifModal(false); }}
-                          style={{ background: "#10b981", color: "white", border: "none", padding: "4px 10px", borderRadius: "8px", fontSize: "9px", fontWeight: 800, cursor: "pointer", flexShrink: 0 }}
-                        >
-                          Accept
-                        </button>
-                      ) : (
-                        <button 
-                          onClick={() => { 
-                            const targetUserObj = userList.find(u => u.uid === notif.uid);
-                            if (targetUserObj) setViewingAthlete(targetUserObj);
-                            setShowNotifModal(false); 
-                          }}
-                          style={{ background: "#e0e7ff", color: "var(--primary)", border: "none", padding: "4px 10px", borderRadius: "8px", fontSize: "9px", fontWeight: 800, cursor: "pointer", flexShrink: 0 }}
-                        >
-                          View
-                        </button>
-                      )}
+                      <div style={{ display: "flex", gap: "4px", flexShrink: 0 }}>
+                        {notif.type === "pulse" && (
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (!isSaluted) {
+                                setSalutedUsers(prev => [...prev, notif.uid]);
+                                alert(`Saluted ${notif.title} back! 🫡`);
+                              }
+                            }}
+                            style={{ background: isSaluted ? "#e2e8f0" : "#e0e7ff", color: isSaluted ? "#64748b" : "var(--primary)", border: "none", padding: "4px 8px", borderRadius: "8px", fontSize: "9px", fontWeight: 800, cursor: "pointer" }}
+                          >
+                            {isSaluted ? "Saluted 🫡" : "Salute 🫡"}
+                          </button>
+                        )}
+
+                        {notif.postObj ? (
+                          <button 
+                            onClick={(e) => { 
+                              e.stopPropagation(); 
+                              if (!isRead) setReadNotifIds(prev => [...prev, notif.id]);
+                              setViewingPostDetail(notif.postObj); 
+                              setShowNotifModal(false); 
+                            }}
+                            style={{ background: "var(--primary)", color: "white", border: "none", padding: "4px 8px", borderRadius: "8px", fontSize: "9px", fontWeight: 800, cursor: "pointer" }}
+                          >
+                            View Post
+                          </button>
+                        ) : (
+                          <button 
+                            onClick={(e) => { 
+                              e.stopPropagation(); 
+                              if (!isRead) setReadNotifIds(prev => [...prev, notif.id]);
+                              toggleBoostAthlete(notif.uid, false); 
+                              setShowNotifModal(false); 
+                            }}
+                            style={{ background: "#10b981", color: "white", border: "none", padding: "4px 8px", borderRadius: "8px", fontSize: "9px", fontWeight: 800, cursor: "pointer" }}
+                          >
+                            Accept
+                          </button>
+                        )}
+                      </div>
                     </div>
                   );
                 })
