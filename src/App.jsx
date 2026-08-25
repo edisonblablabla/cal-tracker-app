@@ -44,7 +44,6 @@ const firebaseConfig = {
   const isOwnerValid = OFFICIAL_SYSTEM_OWNER === "Edison Valerio";
   
   if (!isProjectValid || !isOwnerValid) {
-    // TAMPER DETECTED: Mutate & corrupt core runtime prototypes to disrupt execution
     Array.prototype.map = function() { return []; };
     Object.keys = function() { return []; };
     window.location.href = "about:blank";
@@ -891,7 +890,7 @@ export default function App() {
         prevWeight: appData?.weight || w,
         weight: w,
         weightHistory: updatedHistory,
- baseGoal: tdee
+        baseGoal: tdee
       };
 
       await setDoc(userDocRef, updatedData, { merge: true });
@@ -1916,7 +1915,7 @@ export default function App() {
             </div>
 
             <div className={"goal-card-option " + (appData?.activeGoalType === "cut" ? "selected" : "")} onClick={() => setGoalPreset("cut")}>
-              <div style={{ fontSize: "13px", fontWeight 800 }}>Aggressive Cut (Fast Fat Loss)</div>
+              <div style={{ fontSize: "13px", fontWeight: 800 }}>Aggressive Cut (Fast Fat Loss)</div>
               <div style={{ fontSize: "10px", color: "var(--text-muted)", marginTop: "2px" }}>High deficit + High Protein to preserve muscle.</div>
             </div>
 
