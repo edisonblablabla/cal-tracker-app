@@ -1540,7 +1540,7 @@ export default function App() {
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "6px" }}>
                 <div><label style={{ fontSize: "10px", fontWeight: 700 }}>Protein (g)</label><input type="number" className="form-input" placeholder="0" value={customP} onChange={e => setCustomP(e.target.value)} /></div>
                 <div><label style={{ fontSize: "10px", fontWeight: 700 }}>Carbs (g)</label><input type="number" className="form-input" placeholder="0" value={customC} onChange={e => setCustomC(e.target.value)} /></div>
-                <div><label style={{ fontSize: "10px", fontWeight 700 }}>Fats (g)</label><input type="number" className="form-input" placeholder="0" value={customF} onChange={e => setCustomF(e.target.value)} /></div>
+                <div><label style={{ fontSize: "10px", fontWeight: 700 }}>Fats (g)</label><input type="number" className="form-input" placeholder="0" value={customF} onChange={e => setCustomF(e.target.value)} /></div>
               </div>
 
               <button className="btn-block" onClick={addCustomMeal} disabled={isAddingMeal}>
