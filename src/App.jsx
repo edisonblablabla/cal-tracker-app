@@ -1316,22 +1316,27 @@ export default function App() {
         {/* TAB 1: HOME */}
         {activeTab === "home" && (
           <div className="screen active">
-            {/* ULTRA-COMPACT HEADER WITH AUTO-ELLIPSIS */}
+            {/* ULTRA-COMPACT HEADER WITH AUTO-ELLIPSIS & PULSE LOGO */}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px", gap: "8px" }}>
-              <div style={{ minWidth: 0, flex: 1 }}>
-                <span style={{ fontSize: "9px", fontWeight: 800, color: "var(--primary)", textTransform: "uppercase", letterSpacing: "0.5px" }}>NUTRIPULSE</span>
-                <h2 style={{ 
-                  fontSize: "15px", 
-                  fontWeight: 900, 
-                  margin: 0, 
-                  lineHeight: 1.2, 
-                  color: "#0f172a",
-                  whiteSpace: "nowrap", 
-                  overflow: "hidden", 
-                  textOverflow: "ellipsis" 
-                }}>
-                  Hey, {appData?.userName || "Athlete"}! 👋
-                </h2>
+              <div style={{ minWidth: 0, flex: 1, display: "flex", alignItems: "center", gap: "6px" }}>
+                <div style={{ width: "24px", height: "24px", borderRadius: "50%", background: "linear-gradient(135deg, #4f46e5, #06b6d4)", display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontSize: "11px", boxShadow: "0 2px 6px rgba(79,70,229,0.3)", flexShrink: 0 }}>
+                  <i className="fa-solid fa-heart-pulse"></i>
+                </div>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <span style={{ fontSize: "9px", fontWeight: 800, color: "var(--primary)", textTransform: "uppercase", letterSpacing: "0.5px", display: "block", lineHeight: 1 }}>NUTRIPULSE</span>
+                  <h2 style={{ 
+                    fontSize: "14px", 
+                    fontWeight: 900, 
+                    margin: 0, 
+                    lineHeight: 1.2, 
+                    color: "#0f172a",
+                    whiteSpace: "nowrap", 
+                    overflow: "hidden", 
+                    textOverflow: "ellipsis" 
+                  }}>
+                    Hey, {appData?.userName || "Athlete"}! 👋
+                  </h2>
+                </div>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: "5px", flexShrink: 0 }}>
                 <div className="streak-badge" style={{ padding: "4px 8px", fontSize: "10px" }}><i className="fa-solid fa-fire"></i> <span>{appData?.streakDays || 1}</span>d</div>
@@ -1562,7 +1567,12 @@ export default function App() {
         {activeTab === "community" && (
           <div className="screen active">
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
-              <h2 style={{ fontSize: "22px", fontWeight: 900, color: "var(--primary)", letterSpacing: "-0.5px", margin: 0 }}>NutriPulse</h2>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <div style={{ width: "28px", height: "28px", borderRadius: "50%", background: "linear-gradient(135deg, #4f46e5, #06b6d4)", display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontSize: "13px", boxShadow: "0 2px 8px rgba(79,70,229,0.3)" }}>
+                  <i className="fa-solid fa-heart-pulse"></i>
+                </div>
+                <h2 style={{ fontSize: "20px", fontWeight: 900, color: "var(--primary)", letterSpacing: "-0.5px", margin: 0 }}>NutriPulse</h2>
+              </div>
               
               <div style={{ display: "flex", gap: "8px" }}>
                 <button 
@@ -2356,12 +2366,12 @@ export default function App() {
 
       {/* ISOLATED MODALS LAYER */}
 
-      {/* ABOUT NUTRIPULSE SYSTEM MODAL */}
+      {/* ABOUT NUTRIPULSE SYSTEM MODAL WITH HEART PULSE LOGO */}
       {showAboutModal && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(15, 23, 42, 0.75)", backdropFilter: "blur(6px)", zIndex: 2900, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
           <div className="card" style={{ width: "100%", maxWidth: "380px", padding: "22px", borderRadius: "24px", background: "#ffffff", textAlign: "center" }}>
-            <div style={{ width: "60px", height: "60px", borderRadius: "50%", background: "linear-gradient(135deg, #4f46e5, #0284c7)", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "28px", margin: "0 auto 12px auto", fontWeight: 900 }}>
-              ⚡
+            <div style={{ width: "64px", height: "64px", borderRadius: "50%", background: "linear-gradient(135deg, #4f46e5, #06b6d4)", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "28px", margin: "0 auto 12px auto", boxShadow: "0 4px 16px rgba(79,70,229,0.35)" }}>
+              <i className="fa-solid fa-heart-pulse"></i>
             </div>
             <h3 style={{ fontSize: "18px", fontWeight: 900, color: "#0f172a", margin: 0 }}>NutriPulse Web App</h3>
             <span style={{ fontSize: "10px", color: "var(--primary)", fontWeight: 800, background: "#e0e7ff", padding: "2px 8px", borderRadius: "6px", display: "inline-block", marginTop: "4px" }}>
