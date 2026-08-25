@@ -437,6 +437,26 @@ export default function App() {
     setTimerSeconds(initialMins * 60);
   };
 
+  const handleBoostUser = async (targetUid) => {
+    if (!user || user.uid === targetUid) return;
+    try {
+      const myRef = doc(db, "users", user.uid);
+      const currentBoosters = appData?.myBoosters || [];
+      const isBoosting = currentBoosters.includes(targetUid);
+
+      const updated = isBoosting
+        ? currentBoosters.filter(id => id !== targetUid)
+        : [...currentBoosters, targetUid];
+
+      await updateDoc(myRef, { myBoosters: updated });
+      setAppData(prev => ({ ...prev, myBoosters: updated }));
+      showToast(isBoosting ? "Unboosted athlete." : "You are now Boosting this athlete! ⚡");
+    } catch (err) {
+      console.error("Error boosting user:", err);
+      showToast("Failed to update boost status", "info");
+    }
+  };
+
   const fetchPosts = () => {
     try {
       const q = query(collection(db, "posts"), orderBy("createdAt", "desc"), limit(50));
