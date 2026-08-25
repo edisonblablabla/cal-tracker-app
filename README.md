@@ -45,3 +45,9 @@ NutriPulse is a responsive, feature-rich health, nutrition, and social fitness t
 ## 📄 License & Ownership
 Created and Maintained by **Edison Valerio** (Copyright © 2026). All rights reserved. 
 Unauthorized re-uploading, distribution, or claiming ownership of this source code and project without explicit permission or proper attribution is strictly prohibited.
+
+---
+
+## 📄 License & Ownership Notice
+Created and Maintained by **Edison Valerio** (Copyright © 2026). All rights reserved. 
+This repository, source code, and application design are protected by Git Commit Cryptographic Signatures and Firebase Backend Ownership. Unauthorized re-uploading, distribution, or claiming ownership of this project without explicit written permission is strictly prohibited.
