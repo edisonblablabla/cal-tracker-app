@@ -254,16 +254,19 @@ export default function App() {
   useEffect(() => {
     document.title = "NutriPulse - Health Dashboard";
     let heartbeatInterval = null;
+    let unsubUserDoc = null;
 
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+    const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
       if (!useSessionConfig()) return;
       setUser(currentUser);
       setShowSettingsModal(false);
+
       if (currentUser) {
         const userDocRef = doc(db, "users", currentUser.uid);
-        
-        // REAL-TIME LISTENER FOR LOGGED-IN USER DATA
-        const unsubUserDoc = onSnapshot(userDocRef, (docSnap) => {
+
+        if (unsubUserDoc) unsubUserDoc();
+
+        unsubUserDoc = onSnapshot(userDocRef, (docSnap) => {
           if (docSnap.exists()) {
             let data = docSnap.data();
             const todayStr = new Date().toDateString();
@@ -293,6 +296,10 @@ export default function App() {
             setSetupName(currentUser.displayName || "Athlete");
             setOnboardStep(1);
           }
+          setLoading(false);
+        }, (err) => {
+          console.error("User doc listener error:", err);
+          setLoading(false);
         });
 
         const sendPresencePing = () => {
@@ -300,6 +307,7 @@ export default function App() {
         };
 
         sendPresencePing();
+        if (heartbeatInterval) clearInterval(heartbeatInterval);
         heartbeatInterval = setInterval(sendPresencePing, 30000);
 
         const handleVisibilityChange = () => {
@@ -313,16 +321,17 @@ export default function App() {
         window.addEventListener("visibilitychange", handleVisibilityChange);
         window.addEventListener("focus", sendPresencePing);
         window.addEventListener("beforeunload", handleBeforeUnload);
-
-        return () => unsubUserDoc();
       } else {
+        if (unsubUserDoc) unsubUserDoc();
         if (heartbeatInterval) clearInterval(heartbeatInterval);
+        setAppData(null);
+        setLoading(false);
       }
-      setLoading(false);
     });
 
     return () => {
-      unsubscribe();
+      unsubscribeAuth();
+      if (unsubUserDoc) unsubUserDoc();
       if (heartbeatInterval) clearInterval(heartbeatInterval);
     };
   }, []);
