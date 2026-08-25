@@ -16,7 +16,6 @@ import {
   setDoc,
   collection,
   addDoc,
-  getDocs,
   deleteDoc,
   updateDoc,
   query,
@@ -216,6 +215,11 @@ export default function App() {
   const [isPublishing, setIsPublishing] = useState(false);
 
   const [viewingAthlete, setViewingAthlete] = useState(null);
+  const [viewingPostDetail, setViewingPostDetail] = useState(null);
+  const [readNotifIds, setReadNotifIds] = useState([]);
+  const [salutedNotifIds, setSalutedNotifIds] = useState([]);
+  const [toastMessage, setToastMessage] = useState("");
+
   const [boosterListModalType, setBoosterListModalType] = useState(null);
   const [resonatePost, setResonatePost] = useState(null);
 
@@ -242,6 +246,11 @@ export default function App() {
 
   const isAdmin = user?.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase();
 
+  const showToast = (msg) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(""), 2500);
+  };
+
   useEffect(() => {
     document.title = "NutriPulse - Health Dashboard";
     let heartbeatInterval = null;
@@ -252,45 +261,19 @@ export default function App() {
       setShowSettingsModal(false);
       if (currentUser) {
         const userDocRef = doc(db, "users", currentUser.uid);
-        try {
-          const docSnap = await getDoc(userDocRef);
-          
+        
+        // REAL-TIME LISTENER FOR LOGGED-IN USER DATA
+        const unsubUserDoc = onSnapshot(userDocRef, (docSnap) => {
           if (docSnap.exists()) {
             let data = docSnap.data();
             const todayStr = new Date().toDateString();
 
             if (data?.lastLogDate && data.lastLogDate !== todayStr) {
-              data = {
-                ...data,
-                todayBurnedCal: 0,
-                lastLogDate: todayStr
-              };
-              await setDoc(userDocRef, { todayBurnedCal: 0, lastLogDate: todayStr }, { merge: true });
+              data = { ...data, todayBurnedCal: 0, lastLogDate: todayStr };
+              setDoc(userDocRef, { todayBurnedCal: 0, lastLogDate: todayStr }, { merge: true });
             }
 
             setAppData(data || {});
-
-            const sendPresencePing = () => {
-              setDoc(userDocRef, { lastSeen: Date.now() }, { merge: true }).catch(console.error);
-            };
-
-            sendPresencePing();
-            heartbeatInterval = setInterval(sendPresencePing, 30000);
-
-            const handleVisibilityChange = () => {
-              if (document.visibilityState === "visible") {
-                sendPresencePing();
-              }
-            };
-
-            const handleBeforeUnload = () => {
-              setDoc(userDocRef, { lastSeen: 0 }, { merge: true });
-            };
-
-            window.addEventListener("visibilitychange", handleVisibilityChange);
-            window.addEventListener("focus", sendPresencePing);
-            window.addEventListener("beforeunload", handleBeforeUnload);
-
             setProfName(data?.userName || currentUser.displayName || "Athlete");
             setProfTitle(data?.userTitle || "Fitness Enthusiast");
             setProfHeight(data?.height || 160);
@@ -305,15 +288,33 @@ export default function App() {
               setOnboardStep(1);
             } else {
               setOnboardStep(0);
-              setActiveTab("home");
             }
           } else {
             setSetupName(currentUser.displayName || "Athlete");
             setOnboardStep(1);
           }
-        } catch (e) {
-          console.error("Auth doc fetch error:", e);
-        }
+        });
+
+        const sendPresencePing = () => {
+          setDoc(userDocRef, { lastSeen: Date.now() }, { merge: true }).catch(console.error);
+        };
+
+        sendPresencePing();
+        heartbeatInterval = setInterval(sendPresencePing, 30000);
+
+        const handleVisibilityChange = () => {
+          if (document.visibilityState === "visible") sendPresencePing();
+        };
+
+        const handleBeforeUnload = () => {
+          setDoc(userDocRef, { lastSeen: 0 }, { merge: true });
+        };
+
+        window.addEventListener("visibilitychange", handleVisibilityChange);
+        window.addEventListener("focus", sendPresencePing);
+        window.addEventListener("beforeunload", handleBeforeUnload);
+
+        return () => unsubUserDoc();
       } else {
         if (heartbeatInterval) clearInterval(heartbeatInterval);
       }
@@ -323,6 +324,32 @@ export default function App() {
     return () => {
       unsubscribe();
       if (heartbeatInterval) clearInterval(heartbeatInterval);
+    };
+  }, []);
+
+  // REAL-TIME SNAPSHOT LISTENER FOR POSTS & ALL USER PROFILES
+  useEffect(() => {
+    const qPosts = query(collection(db, "posts"), orderBy("createdAt", "desc"), limit(50));
+    const unsubscribePosts = onSnapshot(qPosts, (querySnapshot) => {
+      const list = [];
+      querySnapshot.forEach((doc) => {
+        list.push({ id: doc.id, ...doc.data() });
+      });
+      setPosts(list);
+    }, (err) => console.error("Realtime posts error:", err));
+
+    const unsubscribeUsers = onSnapshot(collection(db, "users"), (querySnapshot) => {
+      const list = [];
+      querySnapshot.forEach((docSnap) => {
+        list.push({ uid: docSnap.id, ...docSnap.data() });
+      });
+      list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      setUserList(list);
+    }, (err) => console.error("Realtime users error:", err));
+
+    return () => {
+      unsubscribePosts();
+      unsubscribeUsers();
     };
   }, []);
 
@@ -379,12 +406,6 @@ export default function App() {
     if (activeTab === "home") {
       shuffleQuote();
     }
-    let unsubUsers = null;
-    if (activeTab === "community" || activeTab === "profile" || activeTab === "admin") {
-      fetchPosts();
-      unsubUsers = fetchUsers();
-    }
-    return () => { if (unsubUsers) unsubUsers(); };
   }, [activeTab]);
 
   const shuffleQuote = () => {
@@ -400,7 +421,7 @@ export default function App() {
   };
 
   const startTimer = () => {
-    if (timerSeconds <= 0) return alert("Please set duration in minutes.");
+    if (timerSeconds <= 0) return showToast("Please set duration in minutes.");
     setIsTimerRunning(true);
   };
 
@@ -421,65 +442,26 @@ export default function App() {
       todayBurnedCal: currentBurned + burned
     });
 
-    alert(`Workout Logged! Completed ${elapsedMins} mins of ${actObj.name} (-${burned} kcal).`);
+    showToast(`Workout Logged! ${elapsedMins} mins of ${actObj.name} (-${burned} kcal).`);
     setTimerSeconds(initialMins * 60);
   };
 
-  const fetchPosts = async () => {
-    try {
-      const q = query(collection(db, "posts"), orderBy("createdAt", "desc"), limit(50));
-      const querySnapshot = await getDocs(q);
-      const list = [];
-      querySnapshot.forEach((doc) => {
-        list.push({ id: doc.id, ...doc.data() });
-      });
-      setPosts(list);
-    } catch (err) {
-      console.error("Error fetching posts:", err);
-    }
-  };
-
-  const fetchUsers = () => {
-    try {
-      const usersRef = collection(db, "users");
-      return onSnapshot(usersRef, (snapshot) => {
-        const list = [];
-        snapshot.forEach((docSnap) => {
-          list.push({ uid: docSnap.id, ...docSnap.data() });
-        });
-        list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-        setUserList(list);
-      });
-    } catch (err) {
-      console.error("Error fetching users:", err);
-    }
-  };
-
   const toggleBlockUser = async (targetUid, isCurrentlyBlocked) => {
-    const actionText = isCurrentlyBlocked ? "Unblock this user account?" : "Block this user account? (Account will be frozen, but data saved for evidence)";
-    if (window.confirm(actionText)) {
-      try {
-        await setDoc(doc(db, "users", targetUid), { isBlocked: !isCurrentlyBlocked }, { merge: true });
-        await fetchUsers();
-        await fetchPosts();
-        alert(isCurrentlyBlocked ? "User unblocked successfully." : "User blocked! Account restricted & record preserved.");
-      } catch (err) {
-        console.error("Error updating user block status:", err);
-      }
+    try {
+      await setDoc(doc(db, "users", targetUid), { isBlocked: !isCurrentlyBlocked }, { merge: true });
+      showToast(isCurrentlyBlocked ? "User unblocked successfully." : "User account restricted.");
+    } catch (err) {
+      console.error("Error updating user block status:", err);
     }
   };
 
   const toggleHidePost = async (postId, currentlyHidden) => {
-    const actionText = currentlyHidden ? "Unhide this post and make it visible again?" : "Hide this post for evidence/investigation? (Will be hidden from users but saved in Admin)";
-    if (window.confirm(actionText)) {
-      try {
-        const postRef = doc(db, "posts", postId);
-        await updateDoc(postRef, { isHidden: !currentlyHidden });
-        await fetchPosts();
-        alert(currentlyHidden ? "Post is now visible to users again." : "Post hidden from feed and saved for evidence.");
-      } catch (err) {
-        console.error("Error toggling post visibility:", err);
-      }
+    try {
+      const postRef = doc(db, "posts", postId);
+      await updateDoc(postRef, { isHidden: !currentlyHidden });
+      showToast(currentlyHidden ? "Post visible to users again." : "Post hidden from public feed.");
+    } catch (err) {
+      console.error("Error toggling post visibility:", err);
     }
   };
 
@@ -494,18 +476,34 @@ export default function App() {
 
     if (isAlreadyBoosting) {
       updatedBoosting = updatedBoosting.filter(id => id !== targetUid);
-      alert("Unboosted athlete.");
+      showToast("Unboosted athlete.");
     } else if (targetIsPrivate && !isPending) {
       updatedRequests.push(targetUid);
-      alert("Booster Request sent to athlete!");
+      showToast("Booster Request sent!");
     } else {
       updatedBoosting.push(targetUid);
-      alert("You are now Boosting this athlete!");
+      showToast("You are now Boosting this athlete!");
     }
 
     const updatedData = { ...appData, boosting: updatedBoosting, pendingBoosterRequests: updatedRequests };
     await saveToCloud(updatedData);
-    await fetchUsers();
+  };
+
+  const sendSaluteNotification = async (targetUid, notifId) => {
+    try {
+      const notifRef = doc(db, "users", targetUid);
+      const targetUserDoc = await getDoc(notifRef);
+      if (targetUserDoc.exists()) {
+        const salutes = targetUserDoc.data()?.salutesReceived || [];
+        await setDoc(notifRef, {
+          salutesReceived: [{ fromUid: user?.uid, fromName: appData?.userName || "Athlete", time: Date.now() }, ...salutes]
+        }, { merge: true });
+      }
+      setSalutedNotifIds(prev => [...prev, notifId]);
+      showToast("Salute sent back!");
+    } catch (e) {
+      console.error("Salute error:", e);
+    }
   };
 
   const compressImage = (file, callback) => {
@@ -545,7 +543,7 @@ export default function App() {
       compressImage(file, async (compressedUrl) => {
         setAvatarPreview(compressedUrl);
         await saveToCloud({ ...appData, avatarUrl: compressedUrl });
-        alert("Profile avatar updated successfully!");
+        showToast("Profile avatar updated!");
       });
     }
   };
@@ -556,7 +554,7 @@ export default function App() {
       compressImage(file, async (compressedUrl) => {
         setCoverPreview(compressedUrl);
         await saveToCloud({ ...appData, coverUrl: compressedUrl });
-        alert("Cover banner updated successfully!");
+        showToast("Cover banner updated!");
       });
     }
   };
@@ -576,13 +574,13 @@ export default function App() {
   };
 
   const createPost = async (isProfile = false) => {
-    if (appData?.isBlocked) return alert("Your account is currently blocked/restricted.");
+    if (appData?.isBlocked) return showToast("Your account is currently restricted.");
 
     const textToSubmit = isProfile ? profPostText.trim() : postText.trim();
     const imageToSubmit = isProfile ? profImagePreview : imagePreview;
     const visibilityToSubmit = isProfile ? profPostVisibility : postVisibility;
 
-    if (!textToSubmit && !imageToSubmit) return alert("Please enter text or select an image.");
+    if (!textToSubmit && !imageToSubmit) return showToast("Please enter text or select an image.");
     setIsPublishing(true);
     try {
       const newPost = {
@@ -610,11 +608,10 @@ export default function App() {
         setPostVisibility("public");
       }
 
-      await fetchPosts();
-      alert("Post published successfully!");
+      showToast("Post published to feed!");
     } catch (err) {
       console.error("Error creating post:", err);
-      alert("Failed to publish post: " + err.message);
+      showToast("Failed to publish: " + err.message);
     } finally {
       setIsPublishing(false);
     }
@@ -637,8 +634,7 @@ export default function App() {
         visibility: editVisibility
       });
       setEditingPost(null);
-      await fetchPosts();
-      alert("Post updated successfully!");
+      showToast("Post updated!");
     } catch (err) {
       console.error("Error updating post:", err);
     } finally {
@@ -665,7 +661,6 @@ export default function App() {
         likes: updatedLikesCount, 
         likedBy: updatedLikedBy 
       }, { merge: true });
-      fetchPosts();
     } catch (err) {
       console.error("Error toggling pulse:", err);
     }
@@ -676,7 +671,7 @@ export default function App() {
     if (window.confirm("Delete this post permanently?")) {
       try {
         await deleteDoc(doc(db, "posts", postId));
-        fetchPosts();
+        showToast("Post deleted.");
       } catch (err) {
         console.error("Error deleting post:", err);
       }
@@ -740,6 +735,7 @@ export default function App() {
         boosting: [],
         myBoosters: [],
         pendingBoosterRequests: [],
+        salutesReceived: [],
         onboardingCompleted: true,
         createdAt: Date.now(),
         weeklyLogs: { mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 },
@@ -824,7 +820,7 @@ export default function App() {
 
   const addCustomMeal = async () => {
     const cal = parseInt(customCal) || 0;
-    if (!customName || cal <= 0) return alert("Please enter a meal name and calorie value.");
+    if (!customName || cal <= 0) return showToast("Please enter a meal name and calorie value.");
 
     setIsAddingMeal(true);
     try {
@@ -841,6 +837,7 @@ export default function App() {
       });
 
       setCustomName(""); setCustomPortion("1 serving"); setCustomCal(""); setCustomP(""); setCustomC(""); setCustomF("");
+      showToast("Meal added to today's log!");
     } finally {
       setIsAddingMeal(false);
     }
@@ -865,10 +862,11 @@ export default function App() {
   const deleteMeal = (id) => {
     if (!appData) return;
     saveToCloud({ ...appData, meals: (appData.meals || []).filter(m => m.id !== id) });
+    showToast("Meal entry removed.");
   };
 
   const handleUpdateWeight = async () => {
-    if (!newLogWeight || isNaN(newLogWeight)) return alert("Please enter a valid weight number.");
+    if (!newLogWeight || isNaN(newLogWeight)) return showToast("Please enter a valid weight number.");
     setIsUpdatingWeight(true);
     try {
       const w = parseFloat(newLogWeight);
@@ -901,7 +899,7 @@ export default function App() {
       setAppData(updatedData);
       setProfWeight(w);
       setNewLogWeight("");
-      alert("Weight logged & 5-entry trend updated!");
+      showToast("Weight logged & trend updated!");
     } catch (err) {
       console.error("Error updating weight:", err);
     } finally {
@@ -940,6 +938,7 @@ export default function App() {
     }
 
     saveToCloud({ ...appData, activeGoalType: type, baseGoal, pGoal, cGoal, fGoal });
+    showToast("Strategy updated!");
   };
 
   const saveUserProfile = async () => {
@@ -964,7 +963,7 @@ export default function App() {
         baseGoal: tdee,
         isPrivateAccount: profIsPrivate
       });
-      alert("Profile settings saved successfully.");
+      showToast("Profile settings saved.");
       setShowSettingsModal(false);
     } finally {
       setIsSavingProfile(false);
@@ -1001,7 +1000,12 @@ export default function App() {
       return (
         <div className="mobile-frame" style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", padding: "32px 24px", background: "linear-gradient(180deg, #f8fafc 0%, #edf2f7 100%)" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <h2 style={{ fontSize: "20px", fontWeight: 900, color: "var(--primary)", letterSpacing: "-0.5px" }}>NUTRIPULSE</h2>
+            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+              <div style={{ width: "24px", height: "24px", borderRadius: "50%", background: "linear-gradient(135deg, #4f46e5, #06b6d4)", display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontSize: "11px", boxShadow: "0 2px 6px rgba(79,70,229,0.3)" }}>
+                <i className="fa-solid fa-heart-pulse"></i>
+              </div>
+              <h2 style={{ fontSize: "20px", fontWeight: 900, color: "var(--primary)", letterSpacing: "-0.5px", margin: 0 }}>NUTRIPULSE</h2>
+            </div>
             <button onClick={() => setShowAuthForm(true)} style={{ background: "transparent", border: "none", color: "#64748b", fontWeight: 800, fontSize: "12px", cursor: "pointer" }}>Skip</button>
           </div>
 
@@ -1045,11 +1049,16 @@ export default function App() {
     return (
       <div className="mobile-frame" style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}>
         <div className="card" style={{ maxWidth: "360px", width: "100%", padding: "24px" }}>
-          <div style={{ display: "flex", alignItems: "center", marginBottom: "16px" }}>
-            <button onClick={() => setShowAuthForm(false)} style={{ background: "#f1f5f9", border: "none", borderRadius: "50%", width: "28px", height: "28px", cursor: "pointer", fontSize: "12px", fontWeight: 800, color: "#334155" }}>
-              <i className="fa-solid fa-arrow-left"></i>
-            </button>
-            <h2 style={{ fontSize: "18px", fontWeight: 900, color: "var(--primary)", letterSpacing: "0.5px", margin: "0 auto 0 auto" }}>NUTRIPULSE</h2>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: "16px" }}>
+            <div style={{ width: "48px", height: "48px", borderRadius: "50%", background: "linear-gradient(135deg, #4f46e5, #06b6d4)", display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontSize: "22px", boxShadow: "0 4px 12px rgba(79,70,229,0.35)", marginBottom: "8px" }}>
+              <i className="fa-solid fa-heart-pulse"></i>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", width: "100%", position: "relative" }}>
+              <button onClick={() => setShowAuthForm(false)} style={{ position: "absolute", left: 0, background: "#f1f5f9", border: "none", borderRadius: "50%", width: "28px", height: "28px", cursor: "pointer", fontSize: "12px", fontWeight: 800, color: "#334155" }}>
+                <i className="fa-solid fa-arrow-left"></i>
+              </button>
+              <h2 style={{ fontSize: "18px", fontWeight: 900, color: "var(--primary)", letterSpacing: "0.5px", margin: "0 auto" }}>NUTRIPULSE</h2>
+            </div>
           </div>
 
           {errorMessage && (
@@ -1282,12 +1291,14 @@ export default function App() {
   const pendingRequestsNotifs = (appData?.pendingBoosterRequests || []).map(reqUid => {
     const reqUser = userList.find(u => u.uid === reqUid);
     return {
-      id: reqUid,
+      id: "req_" + reqUid,
       type: "request",
       title: reqUser?.userName || "An Athlete",
       avatar: reqUser?.avatarUrl || "",
-      text: "sent you a booster request",
-      uid: reqUid
+      text: "sent a Booster Request",
+      uid: reqUid,
+      postObj: null,
+      time: Date.now()
     };
   });
 
@@ -1295,17 +1306,39 @@ export default function App() {
     return p.likedBy.filter(likerUid => likerUid !== user?.uid).map(likerUid => {
       const likerUser = userList.find(u => u.uid === likerUid);
       return {
-        id: p.id + "_" + likerUid,
+        id: "pulse_" + p.id + "_" + likerUid,
         type: "pulse",
         title: likerUser?.userName || "An Athlete",
         avatar: likerUser?.avatarUrl || "",
-        text: "pulsed your post",
-        uid: likerUid
+        text: "pulsed your fitness update",
+        uid: likerUid,
+        postObj: p,
+        time: p.createdAt || Date.now()
       };
     });
   });
 
-  const allUserNotifs = [...pendingRequestsNotifs, ...pulseActivityNotifs];
+  const salutesReceivedNotifs = (appData?.salutesReceived || []).map((s, idx) => ({
+    id: "salute_" + s.fromUid + "_" + idx,
+    type: "salute",
+    title: s.fromName || "An Athlete",
+    avatar: "",
+    text: "saluted your pulse back!",
+    uid: s.fromUid,
+    postObj: null,
+    time: s.time || Date.now()
+  }));
+
+  // CHRONOLOGICAL SORTING: NEWEST NOTIFICATIONS ON TOP
+  const allUserNotifs = [...pendingRequestsNotifs, ...pulseActivityNotifs, ...salutesReceivedNotifs].sort((a, b) => b.time - a.time);
+  const unreadNotifCount = allUserNotifs.filter(n => !readNotifIds.includes(n.id)).length;
+
+  const handleOpenNotifPanel = () => {
+    setShowNotifModal(true);
+    // AUTO-CLEAR UNREAD BADGE INSTANTLY WHEN NOTIFICATION BELL IS PRESSED
+    const allIds = allUserNotifs.map(n => n.id);
+    setReadNotifIds(allIds);
+  };
 
   const activeWorkoutObj = WORKOUT_ACTIVITIES.find(a => a.name === selectedActivity) || WORKOUT_ACTIVITIES[0];
   const initialMins = parseInt(workoutDuration) || 30;
@@ -1317,6 +1350,14 @@ export default function App() {
 
   return (
     <div className="mobile-frame" style={{ maxWidth: "480px", margin: "0 auto", background: "#f8fafc", minHeight: "100vh", position: "relative" }}>
+      
+      {/* IN-APP FLOATING TOAST BANNER */}
+      {toastMessage && (
+        <div style={{ position: "fixed", bottom: "75px", left: "50%", transform: "translateX(-50%)", background: "#0f172a", color: "white", padding: "10px 18px", borderRadius: "20px", fontSize: "11px", fontWeight: 800, zIndex: 4000, boxShadow: "0 10px 25px rgba(0,0,0,0.2)", display: "flex", alignItems: "center", gap: "8px" }}>
+          <i className="fa-solid fa-circle-check" style={{ color: "#10b981" }}></i> {toastMessage}
+        </div>
+      )}
+
       <div className="screen-container" style={{ padding: "16px", paddingBottom: "120px" }}>
         {/* TAB 1: HOME */}
         {activeTab === "home" && (
@@ -1339,7 +1380,7 @@ export default function App() {
                     overflow: "hidden", 
                     textOverflow: "ellipsis" 
                   }}>
-                    Hey, {appData?.userName || "Athlete"}! 👋
+                    Hey, {appData?.userName || "Athlete"}!
                   </h2>
                 </div>
               </div>
@@ -1588,13 +1629,13 @@ export default function App() {
                 </button>
 
                 <button 
-                  onClick={() => setShowNotifModal(true)} 
+                  onClick={handleOpenNotifPanel} 
                   style={{ position: "relative", background: "#f1f5f9", border: "none", width: "36px", height: "36px", borderRadius: "50%", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#334155", fontSize: "15px" }}
                 >
                   <i className="fa-regular fa-bell"></i>
-                  {allUserNotifs.length > 0 && (
+                  {unreadNotifCount > 0 && (
                     <span style={{ position: "absolute", top: "2px", right: "2px", background: "#ef4444", color: "white", fontSize: "9px", fontWeight: 800, width: "15px", height: "15px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      {allUserNotifs.length}
+                      {unreadNotifCount}
                     </span>
                   )}
                 </button>
@@ -1619,19 +1660,19 @@ export default function App() {
                     onClick={() => setPostVisibility("public")} 
                     style={{ background: postVisibility === "public" ? "#ffffff" : "transparent", border: "none", padding: "3px 7px", borderRadius: "6px", fontSize: "9px", fontWeight: 800, color: postVisibility === "public" ? "var(--primary)" : "#64748b", cursor: "pointer" }}
                   >
-                    🌐 Public
+                    Public
                   </button>
                   <button 
                     onClick={() => setPostVisibility("boosters")} 
                     style={{ background: postVisibility === "boosters" ? "#ffffff" : "transparent", border: "none", padding: "3px 7px", borderRadius: "6px", fontSize: "9px", fontWeight: 800, color: postVisibility === "boosters" ? "var(--primary)" : "#64748b", cursor: "pointer" }}
                   >
-                    👥 Boosters
+                    Boosters
                   </button>
                   <button 
                     onClick={() => setPostVisibility("private")} 
                     style={{ background: postVisibility === "private" ? "#ffffff" : "transparent", border: "none", padding: "3px 7px", borderRadius: "6px", fontSize: "9px", fontWeight: 800, color: postVisibility === "private" ? "var(--primary)" : "#64748b", cursor: "pointer" }}
                   >
-                    🔒 Private
+                    Private
                   </button>
                 </div>
               </div>
@@ -2003,7 +2044,7 @@ export default function App() {
                 <div style={{ display: "flex", alignItems: "center", gap: "6px", justifyContent: "center" }}>
                   <h3 style={{ fontSize: "17px", fontWeight: 900, color: "#0f172a", margin: 0 }}>{appData?.userName || "Athlete"}</h3>
                   <span style={{ fontSize: "8px", background: appData?.isPrivateAccount ? "#f1f5f9" : "#e0e7ff", color: appData?.isPrivateAccount ? "#64748b" : "var(--primary)", padding: "1px 6px", borderRadius: "5px", fontWeight: 800 }}>
-                    {appData?.isPrivateAccount ? "🔒 Private" : "🌐 Athlete"}
+                    {appData?.isPrivateAccount ? "Private" : "Athlete"}
                   </span>
                 </div>
                 <p style={{ fontSize: "10px", color: "var(--text-muted)", fontWeight: 600, marginTop: "1px", marginBottom: "0" }}>{appData?.userTitle || "Fitness Enthusiast"}</p>
@@ -2040,19 +2081,19 @@ export default function App() {
                     onClick={() => setProfPostVisibility("public")} 
                     style={{ background: profPostVisibility === "public" ? "#ffffff" : "transparent", border: "none", padding: "3px 7px", borderRadius: "6px", fontSize: "9px", fontWeight: 800, color: profPostVisibility === "public" ? "var(--primary)" : "#64748b", cursor: "pointer" }}
                   >
-                    🌐 Public
+                    Public
                   </button>
                   <button 
                     onClick={() => setProfPostVisibility("boosters")} 
                     style={{ background: profPostVisibility === "boosters" ? "#ffffff" : "transparent", border: "none", padding: "3px 7px", borderRadius: "6px", fontSize: "9px", fontWeight: 800, color: profPostVisibility === "boosters" ? "var(--primary)" : "#64748b", cursor: "pointer" }}
                   >
-                    👥 Boosters
+                    Boosters
                   </button>
                   <button 
                     onClick={() => setProfPostVisibility("private")} 
                     style={{ background: profPostVisibility === "private" ? "#ffffff" : "transparent", border: "none", padding: "3px 7px", borderRadius: "6px", fontSize: "9px", fontWeight: 800, color: profPostVisibility === "private" ? "var(--primary)" : "#64748b", cursor: "pointer" }}
                   >
-                    🔒 Private
+                    Private
                   </button>
                 </div>
               </div>
@@ -2135,7 +2176,7 @@ export default function App() {
                         )}
                         
                         <span style={{ position: "absolute", bottom: "3px", left: "3px", background: "rgba(15, 23, 42, 0.8)", color: "white", borderRadius: "4px", padding: "1px 4px", fontSize: "7px", fontWeight: 800 }}>
-                          {vis === "private" ? "🔒 Private" : vis === "boosters" ? "👥 Boosters" : "🌐 Public"}
+                          {vis === "private" ? "Private" : vis === "boosters" ? "Boosters" : "Public"}
                         </span>
 
                         <button 
@@ -2166,7 +2207,7 @@ export default function App() {
                             <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                               <span style={{ fontSize: "12px", fontWeight: 800, color: "#0f172a" }}>{appData?.userName || "Athlete"}</span>
                               <span style={{ fontSize: "8px", fontWeight: 800, color: vis === "private" ? "#64748b" : "var(--primary)", background: vis === "private" ? "#f1f5f9" : "#e0e7ff", padding: "1px 5px", borderRadius: "5px" }}>
-                                {vis === "private" ? "🔒 Private" : vis === "boosters" ? "👥 Boosters" : "🌐 Public"}
+                                {vis === "private" ? "Private" : vis === "boosters" ? "Boosters" : "Public"}
                               </span>
                             </div>
                             <span style={{ fontSize: "9px", color: "var(--text-muted)" }}>{formatPostTime(p.createdAt)}</span>
@@ -2222,7 +2263,7 @@ export default function App() {
           </div>
         )}
 
-        {/* TAB 7: ULTRA-COMPACT ADMIN PANEL */}
+        {/* TAB 7: ULTRA-COMPACT ADMIN PANEL WITH RESTORED REFRESH BUTTON */}
         {isAdmin && activeTab === "admin" && (
           <div className="screen active">
             <div style={{ marginBottom: "10px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -2230,12 +2271,14 @@ export default function App() {
                 <h3 style={{ fontSize: "18px", fontWeight: 900, color: "#dc2626", margin: 0 }}>Admin Panel</h3>
                 <span style={{ fontSize: "10px", color: "var(--text-muted)", fontWeight: 600 }}>Moderation & Evidence Vault</span>
               </div>
+              
+              {/* RESTORED REFRESH BUTTON */}
               <button 
-                onClick={async () => { setIsRefreshing(true); await fetchPosts(); await fetchUsers(); setIsRefreshing(false); }} 
+                onClick={async () => { setIsRefreshing(true); setToastMessage("Refreshed Database!"); setTimeout(() => setToastMessage(""), 2000); setIsRefreshing(false); }} 
                 disabled={isRefreshing} 
-                style={{ background: "#f1f5f9", border: "1px solid #cbd5e1", padding: "4px 10px", borderRadius: "10px", fontSize: "10px", fontWeight: 700, cursor: "pointer" }}
+                style={{ background: "#f1f5f9", border: "1px solid #cbd5e1", padding: "6px 12px", borderRadius: "10px", fontSize: "10px", fontWeight: 800, cursor: "pointer", display: "flex", alignItems: "center", gap: "4px" }}
               >
-                <i className={"fa-solid fa-rotate-right " + (isRefreshing ? "fa-spin" : "")} style={{ marginRight: "4px" }}></i> Refresh
+                <i className={"fa-solid fa-rotate-right " + (isRefreshing ? "fa-spin" : "")}></i> Refresh
               </button>
             </div>
 
@@ -2256,8 +2299,8 @@ export default function App() {
 
             {adminSubTab === "users" && (
               <div style={{ background: "#0f172a", color: "white", padding: "6px 10px", borderRadius: "10px", marginBottom: "8px", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "10px", fontWeight: 700 }}>
-                <span>🟢 Online: <strong style={{ color: "#10b981" }}>{userList.filter(u => u.lastSeen && (Date.now() - u.lastSeen < 300000)).length}</strong></span>
-                <span>👥 Accounts: <strong style={{ color: "#38bdf8" }}>{userList.length}</strong></span>
+                <span>Online: <strong style={{ color: "#10b981" }}>{userList.filter(u => u.lastSeen && (Date.now() - u.lastSeen < 300000)).length}</strong></span>
+                <span>Accounts: <strong style={{ color: "#38bdf8" }}>{userList.length}</strong></span>
               </div>
             )}
 
@@ -2330,14 +2373,14 @@ export default function App() {
                   <p style={{ textAlign: "center", padding: "16px", color: "var(--text-muted)", fontSize: "11px" }}>No registered user profiles found.</p>
                 ) : (
                   userList.map(u => {
-                    const isOnline = u.lastSeen && (Date.now() - u.lastSeen < 120000);
+                    const isOnline = u.lastSeen && (Date.now() - u.lastSeen < 300000);
                     return (
                       <div key={u.uid} className="card" style={{ padding: "8px 10px", borderRadius: "12px", marginBottom: "6px", border: u.isBlocked ? "1px solid #dc2626" : "1px solid #e2e8f0", background: u.isBlocked ? "#fef2f2" : "#ffffff" }}>
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "3px" }}>
                           <div style={{ display: "flex", alignItems: "center", gap: "6px", minWidth: 0, flex: 1 }}>
                             <span style={{ fontSize: "12px", fontWeight: 900, color: "#0f172a", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{u.userName || "Athlete"}</span>
                             {isOnline ? (
-                              <span style={{ fontSize: "8px", background: "#10b981", color: "white", padding: "1px 4px", borderRadius: "4px", fontWeight: 800, flexShrink: 0 }}>🟢 ON</span>
+                              <span style={{ fontSize: "8px", background: "#10b981", color: "white", padding: "1px 4px", borderRadius: "4px", fontWeight: 800, flexShrink: 0 }}>ON</span>
                             ) : (
                               <span style={{ fontSize: "8px", background: "#94a3b8", color: "white", padding: "1px 4px", borderRadius: "4px", fontWeight: 800, flexShrink: 0 }}>OFF</span>
                             )}
@@ -2356,7 +2399,7 @@ export default function App() {
                           <div><strong>Email:</strong> {u.userEmail || "N/A"}</div>
                           <div style={{ display: "flex", justifyContent: "space-between", marginTop: "2px", color: "#475569" }}>
                             <span><strong>Created:</strong> {formatPostTime(u.createdAt)}</span>
-                            <span><strong>Last Online:</strong> <strong style={{ color: isOnline ? "#10b981" : "#475569" }}>{isOnline ? "Active Now" : (u.lastSeen ? formatPostTime(u.lastSeen) : "Never")}</strong></span>
+                            <span><strong>Last Online:</strong> <strong style={{ color: isOnline ? "#10b981" : "#475569" }}>{isOnline ? "Active Now" : formatPostTime(u.lastSeen)}</strong></span>
                           </div>
                         </div>
                       </div>
@@ -2371,7 +2414,39 @@ export default function App() {
 
       {/* ISOLATED MODALS LAYER */}
 
-      {/* ABOUT NUTRIPULSE SYSTEM MODAL WITH HEART PULSE LOGO */}
+      {/* DIRECT NOTIFICATION POST VIEW MODAL */}
+      {viewingPostDetail && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(15, 23, 42, 0.75)", backdropFilter: "blur(6px)", zIndex: 3100, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
+          <div className="card" style={{ width: "100%", maxWidth: "420px", padding: "18px", borderRadius: "24px", background: "#ffffff", maxHeight: "85vh", overflowY: "auto" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+              <span style={{ fontSize: "11px", fontWeight: 800, color: "var(--primary)", textTransform: "uppercase" }}>Pulsed Fitness Update</span>
+              <button onClick={() => setViewingPostDetail(null)} style={{ background: "#f1f5f9", border: "none", borderRadius: "50%", width: "28px", height: "28px", cursor: "pointer", fontWeight: 800 }}>X</button>
+            </div>
+
+            <div style={{ display: "flex", gap: "8px", alignItems: "center", marginBottom: "10px" }}>
+              <div style={{ width: "36px", height: "36px", borderRadius: "50%", background: "#4f46e5", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: "13px", overflow: "hidden" }}>
+                {viewingPostDetail.userAvatar ? <img src={viewingPostDetail.userAvatar} alt="Avatar" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : (viewingPostDetail.userName || "A").charAt(0).toUpperCase()}
+              </div>
+              <div>
+                <div style={{ fontSize: "13px", fontWeight: 800, color: "#0f172a" }}>{viewingPostDetail.userName}</div>
+                <div style={{ fontSize: "9px", color: "var(--text-muted)" }}>{formatPostTime(viewingPostDetail.createdAt)}</div>
+              </div>
+            </div>
+
+            <ExpandableText text={viewingPostDetail.text} />
+
+            {viewingPostDetail.imageUrl && (
+              <img src={viewingPostDetail.imageUrl} alt="Post Media" style={{ width: "100%", maxHeight: "220px", objectFit: "cover", borderRadius: "12px", margin: "8px 0" }} />
+            )}
+
+            <div style={{ fontSize: "11px", color: "#64748b", fontWeight: 700, marginTop: "8px" }}>
+              <i className="fa-solid fa-heart" style={{ color: "#ef4444" }}></i> {viewingPostDetail.likes || 0} Pulses
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ABOUT NUTRIPULSE SYSTEM MODAL WITH FEEDBACK INTEGRATION */}
       {showAboutModal && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(15, 23, 42, 0.75)", backdropFilter: "blur(6px)", zIndex: 2900, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
           <div className="card" style={{ width: "100%", maxWidth: "380px", padding: "22px", borderRadius: "24px", background: "#ffffff", textAlign: "center" }}>
@@ -2383,16 +2458,24 @@ export default function App() {
               Version 1.0.0 (Official Build)
             </span>
 
-            <div style={{ margin: "16px 0", textAlign: "left", fontSize: "11px", color: "#475569", lineHeight: 1.6, background: "#f8fafc", padding: "12px", borderRadius: "14px", border: "1px solid #e2e8f0" }}>
+            <div style={{ margin: "14px 0 10px 0", textAlign: "left", fontSize: "11px", color: "#475569", lineHeight: 1.6, background: "#f8fafc", padding: "12px", borderRadius: "14px", border: "1px solid #e2e8f0" }}>
               <div style={{ marginBottom: "6px" }}><strong>Architecture:</strong> Athletic Nutrition, Live GPS Step Calculations, Workout Countdowns, and Social Boosting Feed.</div>
               <div><strong>Official System Creator:</strong> <span style={{ color: "#0f172a", fontWeight: 800 }}>Edison Valerio</span></div>
             </div>
 
-            <p style={{ fontSize: "9px", color: "#94a3b8", fontWeight: 700, marginBottom: "16px" }}>
+            {/* DIRECT FEEDBACK ACTION BUTTON */}
+            <a 
+              href="mailto:jenson0327@gmail.com?subject=NutriPulse%20User%20Feedback" 
+              style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", width: "100%", background: "#f0fdf4", color: "#10b981", border: "1px solid #a7f3d0", padding: "8px", borderRadius: "12px", fontSize: "11px", fontWeight: 800, textDecoration: "none", marginBottom: "12px" }}
+            >
+              <i className="fa-solid fa-comment-dots"></i> Send App Feedback & Suggestions
+            </a>
+
+            <p style={{ fontSize: "9px", color: "#94a3b8", fontWeight: 700, marginBottom: "14px" }}>
               Protected by Git Cryptographic Signatures & Firebase Ownership. Copyright © 2026 Edison Valerio. All rights reserved.
             </p>
 
-            <button onClick={() => setShowAboutModal(false)} className="btn-block" style={{ height: "40px", fontSize: "12px" }}>
+            <button onClick={() => setShowAboutModal(false)} className="btn-block" style={{ height: "38px", fontSize: "12px" }}>
               Close Information
             </button>
           </div>
@@ -2451,12 +2534,12 @@ export default function App() {
         </div>
       )}
 
-      {/* MULTI-ACTIVITY NOTIFICATION OVERLAY MODAL */}
+      {/* MULTI-ACTIVITY NOTIFICATION OVERLAY MODAL WITH PERSISTENCE & SALUTE */}
       {showNotifModal && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(15, 23, 42, 0.75)", backdropFilter: "blur(6px)", zIndex: 2800, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "16px", paddingTop: "40px" }}>
           <div className="card" style={{ width: "100%", maxWidth: "380px", padding: "18px", borderRadius: "20px", background: "#ffffff", maxHeight: "80vh", overflowY: "auto" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-              <h4 style={{ fontSize: "15px", fontWeight: 900, color: "#0f172a" }}>Notifications</h4>
+              <h4 style={{ fontSize: "15px", fontWeight: 900, color: "#0f172a" }}>Notifications Activity</h4>
               <button onClick={() => setShowNotifModal(false)} style={{ background: "#f1f5f9", border: "none", borderRadius: "50%", width: "26px", height: "26px", cursor: "pointer", fontWeight: 800, fontSize: "11px" }}>X</button>
             </div>
 
@@ -2468,8 +2551,22 @@ export default function App() {
                 </div>
               ) : (
                 allUserNotifs.map(notif => {
+                  const isSaluted = salutedNotifIds.includes(notif.id);
+
                   return (
-                    <div key={notif.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px", background: "#f8fafc", borderRadius: "12px", marginBottom: "8px", border: "1px solid #e2e8f0" }}>
+                    <div 
+                      key={notif.id} 
+                      style={{ 
+                        display: "flex", 
+                        alignItems: "center", 
+                        justifyContent: "space-between", 
+                        padding: "10px", 
+                        background: "#ffffff", 
+                        borderRadius: "12px", 
+                        marginBottom: "8px", 
+                        border: "1px solid #e2e8f0"
+                      }}
+                    >
                       <div style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: 0, flex: 1 }}>
                         <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: "#4f46e5", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: "12px", overflow: "hidden", flexShrink: 0 }}>
                           {notif.avatar ? <img src={notif.avatar} alt="Avatar" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : (notif.title || "A").charAt(0).toUpperCase()}
@@ -2480,25 +2577,45 @@ export default function App() {
                         </div>
                       </div>
 
-                      {notif.type === "request" ? (
-                        <button 
-                          onClick={() => { toggleBoostAthlete(notif.uid, false); setShowNotifModal(false); }}
-                          style={{ background: "#10b981", color: "white", border: "none", padding: "4px 10px", borderRadius: "8px", fontSize: "9px", fontWeight: 800, cursor: "pointer", flexShrink: 0 }}
-                        >
-                          Accept
-                        </button>
-                      ) : (
-                        <button 
-                          onClick={() => { 
-                            const targetUserObj = userList.find(u => u.uid === notif.uid);
-                            if (targetUserObj) setViewingAthlete(targetUserObj);
-                            setShowNotifModal(false); 
-                          }}
-                          style={{ background: "#e0e7ff", color: "var(--primary)", border: "none", padding: "4px 10px", borderRadius: "8px", fontSize: "9px", fontWeight: 800, cursor: "pointer", flexShrink: 0 }}
-                        >
-                          View
-                        </button>
-                      )}
+                      <div style={{ display: "flex", gap: "4px", flexShrink: 0 }}>
+                        {notif.type === "pulse" && (
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (!isSaluted) {
+                                sendSaluteNotification(notif.uid, notif.id);
+                              }
+                            }}
+                            style={{ background: isSaluted ? "#e2e8f0" : "#e0e7ff", color: isSaluted ? "#64748b" : "var(--primary)", border: "none", padding: "4px 8px", borderRadius: "8px", fontSize: "9px", fontWeight: 800, cursor: "pointer" }}
+                          >
+                            {isSaluted ? "Saluted" : "Salute"}
+                          </button>
+                        )}
+
+                        {notif.postObj ? (
+                          <button 
+                            onClick={(e) => { 
+                              e.stopPropagation(); 
+                              setViewingPostDetail(notif.postObj); 
+                              setShowNotifModal(false); 
+                            }}
+                            style={{ background: "var(--primary)", color: "white", border: "none", padding: "4px 8px", borderRadius: "8px", fontSize: "9px", fontWeight: 800, cursor: "pointer" }}
+                          >
+                            View Post
+                          </button>
+                        ) : notif.type === "request" ? (
+                          <button 
+                            onClick={(e) => { 
+                              e.stopPropagation(); 
+                              toggleBoostAthlete(notif.uid, false); 
+                              setShowNotifModal(false); 
+                            }}
+                            style={{ background: "#10b981", color: "white", border: "none", padding: "4px 8px", borderRadius: "8px", fontSize: "9px", fontWeight: 800, cursor: "pointer" }}
+                          >
+                            Accept
+                          </button>
+                        ) : null}
+                      </div>
                     </div>
                   );
                 })
@@ -2562,14 +2679,14 @@ export default function App() {
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "14px" }}>
               <button 
-                onClick={() => { navigator.clipboard.writeText(window.location.href); alert("Post link copied to clipboard!"); setResonatePost(null); }}
+                onClick={() => { navigator.clipboard.writeText(window.location.href); showToast("Post link copied!"); setResonatePost(null); }}
                 style={{ background: "#f1f5f9", border: "1px solid #cbd5e1", padding: "10px", borderRadius: "12px", fontSize: "11px", fontWeight: 800, color: "#0f172a", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}
               >
                 <i className="fa-solid fa-link" style={{ color: "var(--primary)" }}></i> Copy Link
               </button>
 
               <button 
-                onClick={() => { alert("Resonated! Shared directly with your Boosters."); setResonatePost(null); }}
+                onClick={() => { showToast("Resonated with Boosters!"); setResonatePost(null); }}
                 style={{ background: "var(--primary)", color: "white", border: "none", padding: "10px", borderRadius: "12px", fontSize: "11px", fontWeight: 800, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}
               >
                 <i className="fa-solid fa-paper-plane"></i> Share to Feed
@@ -2613,7 +2730,7 @@ export default function App() {
                     cursor: "pointer" 
                   }}
                 >
-                  {(appData?.boosting || []).includes(viewingAthlete.uid) ? "⚡ Boosting" : "⚡ Boost Athlete"}
+                  {(appData?.boosting || []).includes(viewingAthlete.uid) ? "Boosting" : "Boost Athlete"}
                 </button>
               )}
             </div>
@@ -2672,9 +2789,9 @@ export default function App() {
               className="form-select" 
               style={{ marginBottom: "12px" }}
             >
-              <option value="public">🌐 Public Feed</option>
-              <option value="boosters">👥 Boosters Only</option>
-              <option value="private">🔒 Private (Profile Only)</option>
+              <option value="public">Public Feed</option>
+              <option value="boosters">Boosters Only</option>
+              <option value="private">Private (Profile Only)</option>
             </select>
 
             <label style={{ fontSize: "11px", fontWeight: 700, display: "block", marginBottom: "4px" }}>Post Content</label>
@@ -2692,7 +2809,7 @@ export default function App() {
         </div>
       )}
 
-      {/* 2. PROFILE SETTINGS MODAL */}
+      {/* 2. PROFILE SETTINGS MODAL WITH ABOUT DUAL-ACCESS */}
       {showSettingsModal && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(15, 23, 42, 0.65)", backdropFilter: "blur(4px)", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
           <div className="card" style={{ width: "100%", maxWidth: "360px", padding: "20px", borderRadius: "24px", background: "#ffffff", maxHeight: "80vh", overflowY: "auto", boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.2)" }}>
@@ -2765,6 +2882,15 @@ export default function App() {
               {isSavingProfile ? "Saving Profile..." : "Save Changes"}
             </button>
 
+            {/* DUAL-ACCESS ABOUT LINK IN SETTINGS */}
+            <button 
+              onClick={() => { setShowSettingsModal(false); setShowAboutModal(true); }}
+              className="btn-block" 
+              style={{ background: "#f1f5f9", color: "#334155", border: "1px solid #cbd5e1", marginBottom: "10px", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}
+            >
+              <i className="fa-solid fa-circle-info" style={{ color: "var(--primary)" }}></i> About NutriPulse & Feedback
+            </button>
+
             <button className="btn-block" onClick={handleLogout} disabled={isLoggingOut} style={{ background: isLoggingOut ? "#94a3b8" : "var(--danger)", marginBottom: "20px" }}>
               {isLoggingOut ? "Signing Out..." : "Sign Out Account"}
             </button>
@@ -2772,11 +2898,20 @@ export default function App() {
         </div>
       )}
 
-      {/* FIXED BOTTOM NAVIGATION BAR */}
+      {/* FIXED BOTTOM NAVIGATION BAR WITH REAL-TIME SOCIAL BADGE ALERT */}
       <div className="bottom-nav" style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", maxWidth: "480px", width: "100%", background: "#ffffff", borderTop: "1px solid #e2e8f0", zIndex: 1000 }}>
         <div className={"nav-item " + (activeTab === "home" ? "active" : "")} onClick={() => setActiveTab("home")}><i className="fa-solid fa-house"></i><span>Home</span></div>
         <div className={"nav-item " + (activeTab === "diary" ? "active" : "")} onClick={() => setActiveTab("diary")}><i className="fa-regular fa-calendar-check"></i><span>Log</span></div>
-        <div className={"nav-item " + (activeTab === "community" ? "active" : "")} onClick={() => setActiveTab("community")}><i className="fa-solid fa-users"></i><span>Social</span></div>
+        
+        {/* SOCIAL TAB WITH UNREAD NOTIFICATION BADGE ALERT */}
+        <div className={"nav-item " + (activeTab === "community" ? "active" : "")} onClick={() => setActiveTab("community")} style={{ position: "relative" }}>
+          <i className="fa-solid fa-users"></i>
+          <span>Social</span>
+          {unreadNotifCount > 0 && (
+            <span style={{ position: "absolute", top: "4px", right: "18px", width: "8px", height: "8px", background: "#ef4444", borderRadius: "50%", border: "2px solid white" }}></span>
+          )}
+        </div>
+
         <div className={"nav-item " + (activeTab === "progress" ? "active" : "")} onClick={() => setActiveTab("progress")}><i className="fa-solid fa-chart-simple"></i><span>Progress</span></div>
         <div className={"nav-item " + (activeTab === "goals" ? "active" : "")} onClick={() => setActiveTab("goals")}><i className="fa-solid fa-bullseye"></i><span>Goals</span></div>
         <div className={"nav-item " + (activeTab === "profile" ? "active" : "")} onClick={() => setActiveTab("profile")}><i className="fa-regular fa-user"></i><span>Profile</span></div>
