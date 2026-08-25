@@ -334,7 +334,6 @@ export default function App() {
     };
   }, []);
 
-  // REAL-TIME FIRESTORE SNAPSHOT LISTENER FOR POSTS & USERS
   useEffect(() => {
     const qPosts = query(collection(db, "posts"), orderBy("createdAt", "desc"), limit(50));
     const unsubscribePosts = onSnapshot(qPosts, (querySnapshot) => {
@@ -2380,7 +2379,7 @@ export default function App() {
                             {isOnline ? (
                               <span style={{ fontSize: "8px", background: "#10b981", color: "white", padding: "1px 4px", borderRadius: "4px", fontWeight: 800, flexShrink: 0 }}>🟢 ON</span>
                             ) : (
-                              <span style={{ fontSize: "8px", background: "#94a3b8", color: "white", padding: "1px 4px", borderRadius: "4px", fontWeight: 800, flexShrink: 0 }}>OFF</span>
+                              <span style={{ fontSize: "8px", background: "#94a3b8", color: "white", padding: "1px 4px", borderRadius: "4px", fontWeight 800, flexShrink: 0 }}>OFF</span>
                             )}
                             {u.isBlocked && <span style={{ fontSize: "8px", background: "#dc2626", color: "white", padding: "1px 4px", borderRadius: "4px", fontWeight: 800, flexShrink: 0 }}>BLOCKED (SAVED)</span>}
                           </div>
