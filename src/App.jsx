@@ -217,7 +217,7 @@ export default function App() {
   const [viewingAthlete, setViewingAthlete] = useState(null);
   const [viewingPostDetail, setViewingPostDetail] = useState(null);
   const [readNotifIds, setReadNotifIds] = useState([]);
-  const [salutedUsers, setSalutedUsers] = useState([]);
+  const [salutedNotifIds, setSalutedNotifIds] = useState([]);
   const [toastMessage, setToastMessage] = useState("");
 
   const [boosterListModalType, setBoosterListModalType] = useState(null);
@@ -496,17 +496,17 @@ export default function App() {
     await saveToCloud(updatedData);
   };
 
-  const sendSaluteNotification = async (targetUid) => {
+  const sendSaluteNotification = async (targetUid, notifId) => {
     try {
       const notifRef = doc(db, "users", targetUid);
       const targetUserDoc = await getDoc(notifRef);
       if (targetUserDoc.exists()) {
         const salutes = targetUserDoc.data()?.salutesReceived || [];
         await setDoc(notifRef, {
-          salutesReceived: [...salutes, { fromUid: user?.uid, fromName: appData?.userName || "Athlete", time: Date.now() }]
+          salutesReceived: [{ fromUid: user?.uid, fromName: appData?.userName || "Athlete", time: Date.now() }, ...salutes]
         }, { merge: true });
       }
-      setSalutedUsers(prev => [...prev, targetUid]);
+      setSalutedNotifIds(prev => [...prev, notifId]);
       showToast("Salute sent back! 🫡");
     } catch (e) {
       console.error("Salute error:", e);
@@ -1304,7 +1304,8 @@ export default function App() {
       avatar: reqUser?.avatarUrl || "",
       text: "sent a Booster Request",
       uid: reqUid,
-      postObj: null
+      postObj: null,
+      time: Date.now()
     };
   });
 
@@ -1318,7 +1319,8 @@ export default function App() {
         avatar: likerUser?.avatarUrl || "",
         text: "pulsed your fitness update",
         uid: likerUid,
-        postObj: p
+        postObj: p,
+        time: p.createdAt || Date.now()
       };
     });
   });
@@ -1330,10 +1332,12 @@ export default function App() {
     avatar: "",
     text: "saluted your pulse back! 🫡",
     uid: s.fromUid,
-    postObj: null
+    postObj: null,
+    time: s.time || Date.now()
   }));
 
-  const allUserNotifs = [...pendingRequestsNotifs, ...pulseActivityNotifs, ...salutesReceivedNotifs];
+  // CHRONOLOGICAL SORTING: NEWEST NOTIFICATIONS ON TOP
+  const allUserNotifs = [...pendingRequestsNotifs, ...pulseActivityNotifs, ...salutesReceivedNotifs].sort((a, b) => b.time - a.time);
   const unreadNotifCount = allUserNotifs.filter(n => !readNotifIds.includes(n.id)).length;
 
   const handleOpenNotifPanel = () => {
@@ -1346,7 +1350,7 @@ export default function App() {
   const activeWorkoutObj = WORKOUT_ACTIVITIES.find(a => a.name === selectedActivity) || WORKOUT_ACTIVITIES[0];
   const initialMins = parseInt(workoutDuration) || 30;
   const elapsedMins = Math.max(1, Math.round((initialMins * 60 - timerSeconds) / 60));
-  const estimatedWorkoutBurn = Math.round(elapsedMins * activeWorkoutObj.calPerMin);
+  const estimatedWorkoutBurn = Math.round(elapsedMins * actObj.calPerMin);
 
   const timerMinDisplay = String(Math.floor(timerSeconds / 60)).padStart(2, '0');
   const timerSecDisplay = String(timerSeconds % 60).padStart(2, '0');
@@ -2235,7 +2239,7 @@ export default function App() {
                               </button>
                               <button 
                                 onClick={() => handleDeletePost(p.id)} 
-                                style={{ width: "100%", padding: "8px 10px", background: "transparent", border: "none", textAlign: "left", fontSize: "10px", fontWeight: 700, color: "#ef4444", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px", borderTop: "1px solid #f1f5f9" }}
+                                style={{ width: "100%", padding: "8px 10px", background: "transparent", border: "none", textAlign: "left", fontSize: "10px", fontWeight 700, color: "#ef4444", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px", borderTop: "1px solid #f1f5f9" }}
                               >
                                 <i className="fa-solid fa-trash"></i> Delete
                               </button>
@@ -2545,7 +2549,7 @@ export default function App() {
                 </div>
               ) : (
                 allUserNotifs.map(notif => {
-                  const isSaluted = salutedUsers.includes(notif.uid);
+                  const isSaluted = salutedNotifIds.includes(notif.id);
 
                   return (
                     <div 
@@ -2577,7 +2581,7 @@ export default function App() {
                             onClick={(e) => {
                               e.stopPropagation();
                               if (!isSaluted) {
-                                sendSaluteNotification(notif.uid);
+                                sendSaluteNotification(notif.uid, notif.id);
                               }
                             }}
                             style={{ background: isSaluted ? "#e2e8f0" : "#e0e7ff", color: isSaluted ? "#64748b" : "var(--primary)", border: "none", padding: "4px 8px", borderRadius: "8px", fontSize: "9px", fontWeight: 800, cursor: "pointer" }}
