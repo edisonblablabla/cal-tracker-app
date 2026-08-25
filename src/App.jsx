@@ -284,7 +284,7 @@ export default function App() {
             };
 
             const handleBeforeUnload = () => {
-              setDoc(userDocRef, { lastSeen: 0 }, { merge: true });
+              setDoc(userDocRef, { lastSeen: Date.now() }, { merge: true });
             };
 
             window.addEventListener("visibilitychange", handleVisibilityChange);
@@ -447,7 +447,11 @@ export default function App() {
         snapshot.forEach((docSnap) => {
           list.push({ uid: docSnap.id, ...docSnap.data() });
         });
-        list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+        list.sort((a, b) => {
+        const timeA = a.createdAt || a.lastSeen || 0;
+        const timeB = b.createdAt || b.lastSeen || 0;
+        return timeB - timeA;
+      });
         setUserList(list);
       });
     } catch (err) {
@@ -805,7 +809,7 @@ export default function App() {
     if (user) {
       try {
         const userDocRef = doc(db, "users", user.uid);
-        await setDoc(userDocRef, { lastSeen: 0 }, { merge: true });
+        await setDoc(userDocRef, { lastSeen: Date.now() }, { merge: true });
       } catch (err) {
         console.error("Logout presence error:", err);
       }
@@ -2356,7 +2360,7 @@ export default function App() {
                           <div><strong>Email:</strong> {u.userEmail || "N/A"}</div>
                           <div style={{ display: "flex", justifyContent: "space-between", marginTop: "2px", color: "#475569" }}>
                             <span><strong>Created:</strong> {formatPostTime(u.createdAt)}</span>
-                            <span><strong>Last Online:</strong> <strong style={{ color: isOnline ? "#10b981" : "#475569" }}>{isOnline ? "Active Now" : (u.lastSeen ? formatPostTime(u.lastSeen) : "Never")}</strong></span>
+                            <span><strong>Last Online:</strong> <strong style={{ color: isOnline ? "#10b981" : "#475569" }}>{isOnline ? "Active Now" : ((u.lastSeen && u.lastSeen > 0) ? formatPostTime(u.lastSeen) : "Never")}</strong></span>
                           </div>
                         </div>
                       </div>
