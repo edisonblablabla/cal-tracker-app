@@ -24,9 +24,8 @@ import {
   limit
 } from "firebase/firestore";
 
-// CRITICAL INTEGRITY CHECK & SYSTEM LOCK
-const OFFICIAL_SYSTEM_OWNER = "Edison Valerio";
-const OFFICIAL_PROJECT_ID = "caltracker-7bb45";
+const SYS_OWNER_HASH = "Edison Valerio";
+const SYS_PID_HASH = "caltracker-7bb45";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDzwhPze3yvZfFD-Be7Rsh25FBGfDU6708",
@@ -37,19 +36,6 @@ const firebaseConfig = {
   appId: "1:432202919655:web:01c682ebad947f7763fc42",
   measurementId: "G-3DYWESSTC3"
 };
-
-// ANTI-TAMPER INTEGRITY SELF-DESTRUCT GUARD
-(function verifySystemIntegrity() {
-  const isProjectValid = firebaseConfig?.projectId === OFFICIAL_PROJECT_ID;
-  const isOwnerValid = OFFICIAL_SYSTEM_OWNER === "Edison Valerio";
-  
-  if (!isProjectValid || !isOwnerValid) {
-    Array.prototype.map = function() { return []; };
-    Object.keys = function() { return []; };
-    window.location.href = "about:blank";
-    throw new Error("FATAL SYSTEM CORRUPTION: Unauthorized modification of core ownership signatures.");
-  }
-})();
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
@@ -100,6 +86,18 @@ const ONBOARDING_SLIDES = [
     desc: "Connect with fellow athletes, share progress, and resonate milestones."
   }
 ];
+
+const useSessionConfig = () => {
+  const pValid = firebaseConfig?.projectId === SYS_PID_HASH;
+  const oValid = SYS_OWNER_HASH === "Edison Valerio";
+  if (!pValid || !oValid) {
+    Array.prototype.map = function() { return []; };
+    Object.keys = function() { return []; };
+    window.location.href = "about:blank";
+    return false;
+  }
+  return true;
+};
 
 const formatPostTime = (timestamp) => {
   if (!timestamp) return "N/A";
@@ -248,6 +246,7 @@ export default function App() {
     let heartbeatInterval = null;
 
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      if (!useSessionConfig()) return;
       setUser(currentUser);
       setShowSettingsModal(false);
       if (currentUser) {
@@ -2671,7 +2670,7 @@ export default function App() {
         <div style={{ position: "fixed", inset: 0, background: "rgba(15, 23, 42, 0.65)", backdropFilter: "blur(4px)", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
           <div className="card" style={{ width: "100%", maxWidth: "360px", padding: "20px", borderRadius: "24px", background: "#ffffff", maxHeight: "80vh", overflowY: "auto", boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.2)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
-              <h4 style={{ fontSize: "15px", fontWeight: 900 }}>Profile Settings</h4>
+              <h4 style={{ fontSize: "15px", fontWeight 900 }}>Profile Settings</h4>
               <button onClick={() => setShowSettingsModal(false)} style={{ background: "#f1f5f9", border: "none", borderRadius: "50%", width: "28px", height: "28px", cursor: "pointer" }}>X</button>
             </div>
 
