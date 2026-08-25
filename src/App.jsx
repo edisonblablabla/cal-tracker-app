@@ -2314,7 +2314,7 @@ export default function App() {
                             ) : (
                               <span style={{ fontSize: "8px", background: "#94a3b8", color: "white", padding: "1px 4px", borderRadius: "4px", fontWeight: 800, flexShrink: 0 }}>OFF</span>
                             )}
-                            {u.isBlocked && <span style={{ fontSize: "8px", background: "#dc2626", color: "white", padding: "1px 4px", borderRadius: "4px", fontWeight 800, flexShrink: 0 }}>BLOCKED (SAVED)</span>}
+                            {u.isBlocked && <span style={{ fontSize: "8px", background: "#dc2626", color: "white", padding: "1px 4px", borderRadius: "4px", fontWeight: 800, flexShrink: 0 }}>BLOCKED (SAVED)</span>}
                           </div>
 
                           <button 
