@@ -2790,36 +2790,37 @@ export default function App() {
       )}
 
 
-      {/* ABSOLUTE CENTERED FLOATING TOAST NOTIFICATION */}
+      {/* STRICT CENTERED FLOATING TOAST NOTIFICATION */}
       {toastMessage && (
         <div style={{
           position: "fixed",
           top: "20px",
           left: "0",
-          right: "0",
-          marginLeft: "auto",
-          marginRight: "auto",
-          width: "max-content",
-          maxWidth: "85vw",
-          zIndex: 99999,
+          width: "100vw",
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          zIndex: 999999,
           pointerEvents: "none"
         }}>
           <div style={{
             background: toastMessage.type === "info" ? "linear-gradient(135deg, #0284c7, #0369a1)" : "linear-gradient(135deg, #10b981, #059669)",
-            color: "white",
-            padding: "10px 20px",
+            color: "#ffffff",
+            padding: "10px 22px",
             borderRadius: "25px",
-            boxShadow: "0 10px 25px rgba(0, 0, 0, 0.25)",
+            boxShadow: "0 8px 25px rgba(0,0,0,0.25)",
             fontSize: "12px",
             fontWeight: 800,
-            display: "flex",
+            display: "inline-flex",
             alignItems: "center",
             gap: "8px",
             letterSpacing: "0.2px",
-            textAlign: "center"
+            textAlign: "center",
+            boxSizing: "border-box",
+            margin: "0 auto"
           }}>
             <i className={toastMessage.type === "info" ? "fa-solid fa-circle-info" : "fa-solid fa-circle-check"}></i>
-            {toastMessage.text}
+            <span>{toastMessage.text}</span>
           </div>
         </div>
       )}
