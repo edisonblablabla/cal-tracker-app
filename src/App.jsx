@@ -2091,8 +2091,8 @@ const pulseActivityNotifs = posts.filter(p => p.userId === user?.uid && Array.is
                     <div style={{ fontSize: "8px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase" }}>Streak</div>
                   </div>
                   <div>
-                    <div style={{ fontSize: "12px", fontWeight: 900, color: "#ef4444" }}>{myTotalPulses}</div>
-                    <div style={{ fontSize: "8px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase" }}>Pulses</div>
+                    <div style={{ fontSize: "12px", fontWeight: 900, color: "#ef4444" }} onClick={() => handleLike(post.id, post.likedBy || [])}>{myTotalPulses}</div>
+                    <div style={{ fontSize: "8px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase" }} onClick={() => handleLike(post.id, post.likedBy || [])}>Pulses</div>
                   </div>
                 </div>
               </div>
