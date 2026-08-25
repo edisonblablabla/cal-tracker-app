@@ -1346,7 +1346,7 @@ export default function App() {
   const activeWorkoutObj = WORKOUT_ACTIVITIES.find(a => a.name === selectedActivity) || WORKOUT_ACTIVITIES[0];
   const initialMins = parseInt(workoutDuration) || 30;
   const elapsedMins = Math.max(1, Math.round((initialMins * 60 - timerSeconds) / 60));
-  const estimatedWorkoutBurn = Math.round(elapsedMins * actObj.calPerMin);
+  const estimatedWorkoutBurn = Math.round(elapsedMins * activeWorkoutObj.calPerMin);
 
   const timerMinDisplay = String(Math.floor(timerSeconds / 60)).padStart(2, '0');
   const timerSecDisplay = String(timerSeconds % 60).padStart(2, '0');
