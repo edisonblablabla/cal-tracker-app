@@ -2525,6 +2525,7 @@ const pulseActivityNotifs = posts.filter(p => p.userId === user?.uid && Array.is
         <div style={{
           position: "fixed",
           top: 0,
+          pointerEvents: showNotifModal ? "auto" : "none",
           left: "50%",
           transform: "translateX(-50%)",
           maxWidth: "480px",
