@@ -287,10 +287,11 @@ export default function App() {
             setAvatarPreview(data?.avatarUrl || "");
             setCoverPreview(data?.coverUrl || "");
 
-            if (!data?.onboardingCompleted) {
-              setOnboardStep(1);
-            } else {
+            // DERECHONG DASHBOARD KAPAG COMPLETED NA ANG ONBOARDING
+            if (data?.onboardingCompleted) {
               setOnboardStep(0);
+            } else {
+              setOnboardStep(1);
             }
           } else {
             setSetupName(currentUser.displayName || "Athlete");
