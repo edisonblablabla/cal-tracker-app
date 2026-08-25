@@ -1306,15 +1306,19 @@ export default function App() {
     (u.userEmail || "").toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+
+
+  // SMART NOTIFICATION HUB WITH TIMESTAMPS & TOP-SORTING LOGIC
   const pendingRequestsNotifs = (appData?.pendingBoosterRequests || []).map(reqUid => {
     const reqUser = userList.find(u => u.uid === reqUid);
     return {
-      id: reqUid,
+      id: "req_" + reqUid,
       type: "request",
       title: reqUser?.userName || "An Athlete",
       avatar: reqUser?.avatarUrl || "",
       text: "sent you a booster request",
-      uid: reqUid
+      uid: reqUid,
+      timestamp: reqUser?.lastSeen || Date.now()
     };
   });
 
@@ -1322,17 +1326,17 @@ export default function App() {
     return p.likedBy.filter(likerUid => likerUid !== user?.uid).map(likerUid => {
       const likerUser = userList.find(u => u.uid === likerUid);
       return {
-        id: p.id + "_" + likerUid,
+        id: "pulse_" + p.id + "_" + likerUid,
         type: "pulse",
         title: likerUser?.userName || "An Athlete",
         avatar: likerUser?.avatarUrl || "",
         text: "pulsed your post",
-        uid: likerUid
+        uid: likerUid,
+        timestamp: p.createdAt || Date.now()
       };
     });
   });
 
-  // Cleaned Notification Hub
   const boosterNotifs = (appData?.myBoosters || []).map(bUid => {
     const uObj = userList.find(u => u.uid === bUid);
     return {
@@ -1341,11 +1345,13 @@ export default function App() {
       title: uObj?.userName || "An Athlete",
       avatar: uObj?.avatarUrl || "",
       text: "started boosting your profile! ⚡",
-      uid: bUid
+      uid: bUid,
+      timestamp: uObj?.createdAt || Date.now()
     };
   });
 
-  const allUserNotifs = [...pendingRequestsNotifs, ...pulseActivityNotifs, ...boosterNotifs];
+  // Combine and sort chronologically (Newest notifications strictly on top)
+  const allUserNotifs = [...pendingRequestsNotifs, ...pulseActivityNotifs, ...boosterNotifs].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
 
   const activeWorkoutObj = WORKOUT_ACTIVITIES.find(a => a.name === selectedActivity) || WORKOUT_ACTIVITIES[0];
   const initialMins = parseInt(workoutDuration) || 30;
@@ -2517,6 +2523,7 @@ export default function App() {
                         <div style={{ minWidth: 0, flex: 1 }}>
                           <div style={{ fontSize: "11px", fontWeight: 800, color: "#0f172a" }}>{notif.title}</div>
                           <div style={{ fontSize: "9px", color: "var(--text-muted)" }}>{notif.text}</div>
+                          <div style={{ fontSize: "8px", color: "#94a3b8", marginTop: "2px", fontWeight: 600 }}>{formatPostTime(notif.timestamp)}</div>
                         </div>
                       </div>
 
