@@ -1332,7 +1332,20 @@ export default function App() {
     });
   });
 
-  const allUserNotifs = [...pendingRequestsNotifs, ...pulseActivityNotifs];
+  // Cleaned Notification Hub
+  const boosterNotifs = (appData?.myBoosters || []).map(bUid => {
+    const uObj = userList.find(u => u.uid === bUid);
+    return {
+      id: "boost_" + bUid,
+      type: "boost",
+      title: uObj?.userName || "An Athlete",
+      avatar: uObj?.avatarUrl || "",
+      text: "started boosting your profile! ⚡",
+      uid: bUid
+    };
+  });
+
+  const allUserNotifs = [...pendingRequestsNotifs, ...pulseActivityNotifs, ...boosterNotifs];
 
   const activeWorkoutObj = WORKOUT_ACTIVITIES.find(a => a.name === selectedActivity) || WORKOUT_ACTIVITIES[0];
   const initialMins = parseInt(workoutDuration) || 30;
