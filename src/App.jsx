@@ -509,10 +509,10 @@ export default function App() {
       showToast("Unboosted athlete.", "info");
     } else if (targetIsPrivate && !isPending) {
       updatedRequests.push(targetUid);
-      showToast("Booster Request sent to athlete!");
+      showToast("Booster Request sent to athlete! ⚡", "info");
     } else {
       updatedBoosting.push(targetUid);
-      showToast("You are now Boosting this athlete!");
+      showToast("You are now Boosting this athlete! ⚡");
     }
 
     const updatedData = { ...appData, boosting: updatedBoosting, pendingBoosterRequests: updatedRequests };
@@ -557,7 +557,7 @@ export default function App() {
       compressImage(file, async (compressedUrl) => {
         setAvatarPreview(compressedUrl);
         await saveToCloud({ ...appData, avatarUrl: compressedUrl });
-        showToast("Profile avatar updated successfully!");
+        showToast("Profile avatar updated! 📸");
       });
     }
   };
@@ -568,7 +568,7 @@ export default function App() {
       compressImage(file, async (compressedUrl) => {
         setCoverPreview(compressedUrl);
         await saveToCloud({ ...appData, coverUrl: compressedUrl });
-        showToast("Cover banner updated successfully!");
+        showToast("Cover banner updated! 🖼️");
       });
     }
   };
@@ -623,7 +623,7 @@ export default function App() {
       }
 
       await fetchPosts();
-      showToast("Post published successfully!");
+      showToast("Post published to feed! 🚀");
     } catch (err) {
       console.error("Error creating post:", err);
       showToast("Failed to publish post: " + err.message);
@@ -650,7 +650,7 @@ export default function App() {
       });
       setEditingPost(null);
       await fetchPosts();
-      showToast("Post updated successfully!");
+      showToast("Post updated! ✏️");
     } catch (err) {
       console.error("Error updating post:", err);
     } finally {
@@ -881,6 +881,7 @@ export default function App() {
   const deleteMeal = (id) => {
     if (!appData) return;
     saveToCloud({ ...appData, meals: (appData.meals || []).filter(m => m.id !== id) });
+    showToast("Meal removed from log 🗑️", "info");
   };
 
   const handleUpdateWeight = async () => {
@@ -917,7 +918,7 @@ export default function App() {
       setAppData(updatedData);
       setProfWeight(w);
       setNewLogWeight("");
-      showToast("Weight logged & updated!");
+      showToast("Weight logged & trend updated! ⚖️");
     } catch (err) {
       console.error("Error updating weight:", err);
     } finally {
@@ -980,7 +981,7 @@ export default function App() {
         baseGoal: tdee,
         isPrivateAccount: profIsPrivate
       });
-      showToast("Profile settings saved successfully.");
+      showToast("Profile settings saved! 💾");
       setShowSettingsModal(false);
     } finally {
       setIsSavingProfile(false);
@@ -2578,14 +2579,14 @@ export default function App() {
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "14px" }}>
               <button 
-                onClick={() => { navigator.clipboard.writeText(window.location.href); showToast("Post link copied to clipboard!"); setResonatePost(null); }}
+                onClick={() => { navigator.clipboard.writeText(window.location.href); showToast("Link copied to clipboard! 🔗"); setResonatePost(null); }}
                 style={{ background: "#f1f5f9", border: "1px solid #cbd5e1", padding: "10px", borderRadius: "12px", fontSize: "11px", fontWeight: 800, color: "#0f172a", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}
               >
                 <i className="fa-solid fa-link" style={{ color: "var(--primary)" }}></i> Copy Link
               </button>
 
               <button 
-                onClick={() => { showToast("Resonated & shared successfully!"); setResonatePost(null); }}
+                onClick={() => { showToast("Resonated & shared to Boosters! 📢"); setResonatePost(null); }}
                 style={{ background: "var(--primary)", color: "white", border: "none", padding: "10px", borderRadius: "12px", fontSize: "11px", fontWeight: 800, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}
               >
                 <i className="fa-solid fa-paper-plane"></i> Share to Feed
