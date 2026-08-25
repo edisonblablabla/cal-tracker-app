@@ -2790,34 +2790,39 @@ export default function App() {
       )}
 
 
-      {/* MODERN FLOATING TOAST NOTIFICATION */}
+      {/* ABSOLUTE CENTERED FLOATING TOAST NOTIFICATION */}
       {toastMessage && (
         <div style={{
           position: "fixed",
           top: "20px",
-          left: 0,
-          right: 0,
-          display: "flex",
-          justifyContent: "center",
-          
-          background: toastMessage.type === "info" ? "#0284c7" : "#10b981",
-          color: "white",
-          padding: "10px 18px",
-          borderRadius: "20px",
-          boxShadow: "0 10px 25px rgba(0,0,0,0.2)",
-          zIndex: 4000,
-          fontSize: "12px",
-          fontWeight: 800,
-          display: "flex",
-          alignItems: "center",
-          gap: "8px",
-          animation: "fadeIn 0.3s ease-out"
+          left: "0",
+          right: "0",
+          marginLeft: "auto",
+          marginRight: "auto",
+          width: "max-content",
+          maxWidth: "85vw",
+          zIndex: 99999,
+          pointerEvents: "none"
         }}>
-          <i className={toastMessage.type === "info" ? "fa-solid fa-circle-info" : "fa-solid fa-circle-check"}></i>
-          {toastMessage.text}
+          <div style={{
+            background: toastMessage.type === "info" ? "linear-gradient(135deg, #0284c7, #0369a1)" : "linear-gradient(135deg, #10b981, #059669)",
+            color: "white",
+            padding: "10px 20px",
+            borderRadius: "25px",
+            boxShadow: "0 10px 25px rgba(0, 0, 0, 0.25)",
+            fontSize: "12px",
+            fontWeight: 800,
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            letterSpacing: "0.2px",
+            textAlign: "center"
+          }}>
+            <i className={toastMessage.type === "info" ? "fa-solid fa-circle-info" : "fa-solid fa-circle-check"}></i>
+            {toastMessage.text}
+          </div>
         </div>
       )}
-
       {/* FIXED BOTTOM NAVIGATION BAR */}
       <div className="bottom-nav" style={{ position: "fixed", bottom: 0, left: 0,
           right: 0,
