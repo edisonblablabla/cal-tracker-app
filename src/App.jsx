@@ -2825,7 +2825,7 @@ export default function App() {
         </div>
       )}
       {/* FIXED BOTTOM NAVIGATION BAR */}
-      <div className="bottom-nav" style={{ position: "fixed", bottom: 0, left: 0,
+      <div className="bottom-nav" style={{ boxSizing: "border-box", margin: "0 auto",  position: "fixed", bottom: 0, left: 0,
           right: 0,
           display: "flex",
           justifyContent: "center",  maxWidth: "480px", width: "100%", background: "#ffffff", borderTop: "1px solid #e2e8f0", zIndex: 1000 }}>
