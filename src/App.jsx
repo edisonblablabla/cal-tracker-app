@@ -2314,7 +2314,7 @@ export default function App() {
                             ) : (
                               <span style={{ fontSize: "8px", background: "#94a3b8", color: "white", padding: "1px 4px", borderRadius: "4px", fontWeight: 800, flexShrink: 0 }}>OFF</span>
                             )}
-                            {u.isBlocked && <span style={{ fontSize: "8px", background: "#dc2626", color: "white", padding: "1px 4px", borderRadius: "4px", fontWeight: 800, flexShrink: 0 }}>BLOCKED (SAVED)</span>}
+                            {u.isBlocked && <span style={{ fontSize: "8px", background: "#dc2626", color: "white", padding: "1px 4px", borderRadius: "4px", fontWeight 800, flexShrink: 0 }}>BLOCKED (SAVED)</span>}
                           </div>
 
                           <button 
@@ -2670,7 +2670,7 @@ export default function App() {
         <div style={{ position: "fixed", inset: 0, background: "rgba(15, 23, 42, 0.65)", backdropFilter: "blur(4px)", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
           <div className="card" style={{ width: "100%", maxWidth: "360px", padding: "20px", borderRadius: "24px", background: "#ffffff", maxHeight: "80vh", overflowY: "auto", boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.2)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
-              <h4 style={{ fontSize: "15px", fontWeight 900 }}>Profile Settings</h4>
+              <h4 style={{ fontSize: "15px", fontWeight: 900 }}>Profile Settings</h4>
               <button onClick={() => setShowSettingsModal(false)} style={{ background: "#f1f5f9", border: "none", borderRadius: "50%", width: "28px", height: "28px", cursor: "pointer" }}>X</button>
             </div>
 
