@@ -1322,21 +1322,23 @@ export default function App() {
     };
   });
 
-  const pulseActivityNotifs = posts.filter(p => p.userId === user?.uid && Array.isArray(p.likedBy) && p.likedBy.length > 0).flatMap(p => {
+const pulseActivityNotifs = posts.filter(p => p.userId === user?.uid && Array.isArray(p.likedBy) && p.likedBy.length > 0).flatMap(p => {
     return p.likedBy.filter(likerUid => likerUid !== user?.uid).map(likerUid => {
       const likerUser = userList.find(u => u.uid === likerUid);
+      const postSnippet = p.text ? (p.text.length > 25 ? p.text.substring(0, 25) + "..." : p.text) : "photo post";
       return {
         id: "pulse_" + p.id + "_" + likerUid,
         type: "pulse",
         title: likerUser?.userName || "An Athlete",
         avatar: likerUser?.avatarUrl || "",
-        text: "pulsed your post",
+        text: `pulsed your post: "${postSnippet}"`,
+        postImage: p.imageUrl || null,
+        postId: p.id,
         uid: likerUid,
         timestamp: p.createdAt || Date.now()
       };
     });
   });
-
   const boosterNotifs = (appData?.myBoosters || []).map(bUid => {
     const uObj = userList.find(u => u.uid === bUid);
     return {
@@ -2498,95 +2500,83 @@ export default function App() {
       )}
 
       {/* MULTI-ACTIVITY NOTIFICATION OVERLAY MODAL */}
+      {/* IN-APP NOTIFICATION PANEL / HUB (NO POPUP MODAL) */}
       {showNotifModal && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(15, 23, 42, 0.75)", backdropFilter: "blur(6px)", zIndex: 2800, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "16px", paddingTop: "40px" }}>
-          <div className="card" style={{ width: "100%", maxWidth: "380px", padding: "18px", borderRadius: "20px", background: "#ffffff", maxHeight: "80vh", overflowY: "auto" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-              <h4 style={{ fontSize: "15px", fontWeight: 900, color: "#0f172a" }}>Notifications</h4>
-              <button onClick={() => setShowNotifModal(false)} style={{ background: "#f1f5f9", border: "none", borderRadius: "50%", width: "26px", height: "26px", cursor: "pointer", fontWeight: 800, fontSize: "11px" }}>X</button>
+        <div style={{
+          position: "fixed",
+          top: 0,
+          left: "50%",
+          transform: "translateX(-50%)",
+          maxWidth: "480px",
+          width: "100%",
+          height: "100vh",
+          background: "#ffffff",
+          zIndex: 5000,
+          display: "flex",
+          flexDirection: "column",
+          boxSizing: "border-box"
+        }}>
+          {/* Header */}
+          <div style={{
+            padding: "16px",
+            borderBottom: "1px solid #e2e8f0",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            background: "#ffffff"
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <button onClick={() => setShowNotifModal(false)} style={{ background: "none", border: "none", fontSize: "18px", cursor: "pointer", color: "#334155" }}>
+                <i className="fa-solid fa-arrow-left"></i>
+              </button>
+              <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 800, color: "#0f172a" }}>Notifications</h3>
             </div>
-
-            <div>
-              {allUserNotifs.length === 0 ? (
-                <div style={{ textAlign: "center", padding: "24px 0", color: "var(--text-muted)" }}>
-                  <i className="fa-regular fa-bell-slash" style={{ fontSize: "28px", marginBottom: "8px", opacity: 0.5 }}></i>
-                  <p style={{ fontSize: "11px", fontWeight: 600 }}>No new notifications at the moment.</p>
-                </div>
-              ) : (
-                allUserNotifs.map(notif => {
-                  return (
-                    <div key={notif.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px", background: "#f8fafc", borderRadius: "12px", marginBottom: "8px", border: "1px solid #e2e8f0" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: 0, flex: 1 }}>
-                        <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: "#4f46e5", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: "12px", overflow: "hidden", flexShrink: 0 }}>
-                          {notif.avatar ? <img src={notif.avatar} alt="Avatar" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : (notif.title || "A").charAt(0).toUpperCase()}
-                        </div>
-                        <div style={{ minWidth: 0, flex: 1 }}>
-                          <div style={{ fontSize: "11px", fontWeight: 800, color: "#0f172a" }}>{notif.title}</div>
-                          <div style={{ fontSize: "9px", color: "var(--text-muted)" }}>{notif.text}</div>
-                          <div style={{ fontSize: "8px", color: "#94a3b8", marginTop: "2px", fontWeight: 600 }}>{formatPostTime(notif.timestamp)}</div>
-                        </div>
-                      </div>
-
-                      {notif.type === "request" ? (
-                        <button 
-                          onClick={() => { toggleBoostAthlete(notif.uid, false); setShowNotifModal(false); }}
-                          style={{ background: "#10b981", color: "white", border: "none", padding: "4px 10px", borderRadius: "8px", fontSize: "9px", fontWeight: 800, cursor: "pointer", flexShrink: 0 }}
-                        >
-                          Accept
-                        </button>
-                      ) : (
-                        <button 
-                          onClick={() => { 
-                            const targetUserObj = userList.find(u => u.uid === notif.uid);
-                            if (targetUserObj) setViewingAthlete(targetUserObj);
-                            setShowNotifModal(false); 
-                          }}
-                          style={{ background: "#e0e7ff", color: "var(--primary)", border: "none", padding: "4px 10px", borderRadius: "8px", fontSize: "9px", fontWeight: 800, cursor: "pointer", flexShrink: 0 }}
-                        >
-                          View
-                        </button>
-                      )}
-                    </div>
-                  );
-                })
-              )}
-            </div>
+            <span style={{ fontSize: "11px", fontWeight: 700, color: "#0284c7", background: "#e0f2fe", padding: "4px 10px", borderRadius: "12px" }}>
+              {allUserNotifs.length} New
+            </span>
           </div>
-        </div>
-      )}
 
-      {/* 1. BOOSTERS / BOOSTING LIST MODAL */}
-      {boosterListModalType && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(15, 23, 42, 0.75)", backdropFilter: "blur(6px)", zIndex: 2600, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
-          <div className="card" style={{ width: "100%", maxWidth: "360px", padding: "18px", borderRadius: "20px", background: "#ffffff", maxHeight: "75vh", overflowY: "auto" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-              <h4 style={{ fontSize: "14px", fontWeight: 900, textTransform: "capitalize", color: "#0f172a" }}>
-                {boosterListModalType === "boosting" ? "Athletes You're Boosting" : "Your Boosters"}
-              </h4>
-              <button onClick={() => setBoosterListModalType(null)} style={{ background: "#f1f5f9", border: "none", borderRadius: "50%", width: "26px", height: "26px", cursor: "pointer", fontWeight: 800, fontSize: "11px" }}>X</button>
-            </div>
-
-            {((boosterListModalType === "boosting" ? myRealtimeBoostingList : myRealtimeBoostersList).length === 0) ? (
-              <p style={{ fontSize: "11px", color: "var(--text-muted)", textAlign: "center", padding: "20px 0" }}>No athletes in this list yet.</p>
+          {/* Notifications List */}
+          <div style={{ flex: 1, overflowY: "auto", padding: "12px" }}>
+            {allUserNotifs.length === 0 ? (
+              <div style={{ textAlign: "center", padding: "40px 20px", color: "#94a3b8", fontSize: "13px" }}>
+                <i className="fa-regular fa-bell-slash" style={{ fontSize: "32px", marginBottom: "10px", display: "block" }}></i>
+                No notifications yet.
+              </div>
             ) : (
-              (boosterListModalType === "boosting" ? myRealtimeBoostingList : myRealtimeBoostersList).map(u => (
-                <div key={u.uid} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 10px", background: "#f8fafc", borderRadius: "12px", marginBottom: "6px", border: "1px solid #e2e8f0" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: 0, flex: 1 }}>
-                    <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: "#4f46e5", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: "12px", overflow: "hidden", flexShrink: 0 }}>
-                      {u.avatarUrl ? <img src={u.avatarUrl} alt="Avatar" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : (u.userName || "A").charAt(0).toUpperCase()}
-                    </div>
-                    <div style={{ minWidth: 0, flex: 1 }}>
-                      <div style={{ fontSize: "11px", fontWeight: 800, color: "#0f172a", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{u.userName}</div>
-                      <div style={{ fontSize: "9px", color: "var(--text-muted)" }}>{u.userTitle || "Athlete"}</div>
+              allUserNotifs.map(notif => (
+                <div key={notif.id} style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: "12px",
+                  borderRadius: "12px",
+                  background: "#f8fafc",
+                  marginBottom: "8px",
+                  border: "1px solid #f1f5f9"
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "12px", flex: 1 }}>
+                    {notif.avatar ? (
+                      <img src={notif.avatar} alt="" style={{ width: "38px", height: "38px", borderRadius: "50%", objectFit: "cover" }} />
+                    ) : (
+                      <div style={{ width: "38px", height: "38px", borderRadius: "50%", background: "#0284c7", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: "14px" }}>
+                        {notif.title.charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: "12px", color: "#0f172a" }}>
+                        <strong>{notif.title}</strong> {notif.text}
+                      </div>
+                      <div style={{ fontSize: "10px", color: "#94a3b8", marginTop: "3px", fontWeight: 600 }}>
+                        {formatPostTime(notif.timestamp)}
+                      </div>
                     </div>
                   </div>
 
-                  <button 
-                    onClick={() => { setViewingAthlete(u); setBoosterListModalType(null); }}
-                    style={{ background: "#e0e7ff", color: "var(--primary)", border: "none", padding: "4px 10px", borderRadius: "8px", fontSize: "9px", fontWeight: 800, cursor: "pointer", flexShrink: 0 }}
-                  >
-                    View
-                  </button>
+                  {/* Thumbnail Preview of Post if available */}
+                  {notif.postImage && (
+                    <img src={notif.postImage} alt="" style={{ width: "40px", height: "40px", borderRadius: "8px", objectFit: "cover", marginLeft: "8px" }} />
+                  )}
                 </div>
               ))
             )}
@@ -2594,266 +2584,6 @@ export default function App() {
         </div>
       )}
 
-      {/* 2. STYLED RESONATE / SHARE BOTTOM SHEET MODAL */}
-      {resonatePost && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(15, 23, 42, 0.75)", backdropFilter: "blur(6px)", zIndex: 2700, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
-          <div className="card" style={{ width: "100%", maxWidth: "480px", padding: "20px", borderRadius: "24px 24px 0 0", background: "#ffffff", boxShadow: "0 -10px 25px rgba(0,0,0,0.15)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
-              <h4 style={{ fontSize: "15px", fontWeight: 900, color: "#0f172a" }}>Resonate Fitness Post</h4>
-              <button onClick={() => setResonatePost(null)} style={{ background: "#f1f5f9", border: "none", borderRadius: "50%", width: "28px", height: "28px", cursor: "pointer", fontWeight: 800 }}>X</button>
-            </div>
-
-            <p style={{ fontSize: "11px", color: "var(--text-muted)", marginBottom: "12px", lineHeight: 1.4 }}>
-              Amplify <strong>{resonatePost.userName}'s</strong> fitness update to motivate fellow athletes.
-            </p>
-
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "14px" }}>
-              <button 
-                onClick={() => { navigator.clipboard.writeText(window.location.href); showToast("Link copied to clipboard! 🔗"); setResonatePost(null); }}
-                style={{ background: "#f1f5f9", border: "1px solid #cbd5e1", padding: "10px", borderRadius: "12px", fontSize: "11px", fontWeight: 800, color: "#0f172a", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}
-              >
-                <i className="fa-solid fa-link" style={{ color: "var(--primary)" }}></i> Copy Link
-              </button>
-
-              <button 
-                onClick={() => { showToast("Resonated & shared to Boosters! 📢"); setResonatePost(null); }}
-                style={{ background: "var(--primary)", color: "white", border: "none", padding: "10px", borderRadius: "12px", fontSize: "11px", fontWeight: 800, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}
-              >
-                <i className="fa-solid fa-paper-plane"></i> Share to Feed
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* VISITING ATHLETE PUBLIC PROFILE MODAL */}
-      {viewingAthlete && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(15, 23, 42, 0.75)", backdropFilter: "blur(6px)", zIndex: 2500, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
-          <div className="card" style={{ width: "100%", maxWidth: "380px", padding: "20px", borderRadius: "24px", background: "#ffffff", maxHeight: "85vh", overflowY: "auto" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-              <span style={{ fontSize: "11px", fontWeight: 800, color: "var(--text-muted)", textTransform: "uppercase" }}>Athlete Profile</span>
-              <button onClick={() => setViewingAthlete(null)} style={{ background: "#f1f5f9", border: "none", borderRadius: "50%", width: "28px", height: "28px", cursor: "pointer", fontWeight: 800 }}>X</button>
-            </div>
-
-            <div style={{ textAlign: "center", marginBottom: "16px" }}>
-              <div style={{ width: "68px", height: "68px", borderRadius: "50%", background: "linear-gradient(135deg, #4f46e5, #818cf8)", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: "22px", margin: "0 auto 8px auto", overflow: "hidden" }}>
-                {viewingAthlete.avatarUrl ? (
-                  <img src={viewingAthlete.avatarUrl} alt="Athlete" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                ) : (
-                  (viewingAthlete.userName || "A").charAt(0).toUpperCase()
-                )}
-              </div>
-              <h3 style={{ fontSize: "16px", fontWeight: 900, margin: 0, color: "#0f172a" }}>{viewingAthlete.userName}</h3>
-              <p style={{ fontSize: "10px", color: "var(--text-muted)", margin: "2px 0 10px 0", fontWeight: 600 }}>{viewingAthlete.userTitle || "Fitness Enthusiast"}</p>
-
-              {viewingAthlete.uid !== user?.uid && (
-                <button 
-                  onClick={() => toggleBoostAthlete(viewingAthlete.uid, viewingAthlete.isPrivateAccount)}
-                  style={{ 
-                    background: (appData?.boosting || []).includes(viewingAthlete.uid) ? "#10b981" : "var(--primary)", 
-                    color: "white", 
-                    border: "none", 
-                    padding: "8px 20px", 
-                    borderRadius: "12px", 
-                    fontWeight: 800, 
-                    fontSize: "12px", 
-                    cursor: "pointer" 
-                  }}
-                >
-                  {(appData?.boosting || []).includes(viewingAthlete.uid) ? "⚡ Boosting" : "⚡ Boost Athlete"}
-                </button>
-              )}
-            </div>
-
-            <div style={{ fontSize: "12px", fontWeight: 800, marginBottom: "8px", color: "#0f172a" }}>Public Fitness Posts</div>
-            <div>
-              {posts.filter(p => p.userId === viewingAthlete.uid && p.visibility === "public" && !p.isHidden).length === 0 ? (
-                <p style={{ fontSize: "11px", color: "var(--text-muted)", textAlign: "center", padding: "16px 0" }}>No public fitness posts shared yet.</p>
-              ) : (
-                posts.filter(p => p.userId === viewingAthlete.uid && p.visibility === "public" && !p.isHidden).map(p => (
-                  <div key={p.id} style={{ background: "#f8fafc", padding: "10px", borderRadius: "12px", marginBottom: "8px", border: "1px solid #e2e8f0" }}>
-                    <ExpandableText text={p.text} maxChars={100} />
-                    {p.imageUrl && (
-                      <img src={p.imageUrl} alt="Post" style={{ width: "100%", height: "110px", objectFit: "cover", borderRadius: "8px", marginTop: "4px" }} />
-                    )}
-                    <span style={{ fontSize: "8px", color: "var(--text-muted)", display: "block", marginTop: "4px" }}>{formatPostTime(p.createdAt)}</span>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* FULL-SCREEN LIGHTBOX IMAGE VIEWER MODAL */}
-      {viewingImage && (
-        <div 
-          onClick={() => setViewingImage(null)} 
-          style={{ position: "fixed", inset: 0, background: "rgba(15, 23, 42, 0.9)", backdropFilter: "blur(6px)", zIndex: 3000, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}
-        >
-          <div style={{ position: "relative", maxWidth: "100%", maxHeight: "100%", display: "flex", flexDirection: "column", alignItems: "center" }}>
-            <button 
-              onClick={() => setViewingImage(null)} 
-              style={{ position: "absolute", top: "-40px", right: "0", background: "rgba(255,255,255,0.2)", color: "white", border: "none", borderRadius: "50%", width: "32px", height: "32px", fontSize: "16px", fontWeight: 800, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
-            >
-              X
-            </button>
-            <img src={viewingImage} alt="Full View" style={{ maxWidth: "100%", maxHeight: "80vh", objectFit: "contain", borderRadius: "12px", boxShadow: "0 25px 50px -12px rgba(0,0,0,0.5)" }} />
-          </div>
-        </div>
-      )}
-
-      {/* 1. EDIT POST MODAL */}
-      {editingPost && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(15, 23, 42, 0.65)", backdropFilter: "blur(4px)", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
-          <div className="card" style={{ width: "100%", maxWidth: "360px", padding: "20px", borderRadius: "24px", background: "#ffffff", boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.2)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
-              <h4 style={{ fontSize: "15px", fontWeight: 900 }}>Edit Post</h4>
-              <button onClick={() => setEditingPost(null)} style={{ background: "#f1f5f9", border: "none", borderRadius: "50%", width: "28px", height: "28px", cursor: "pointer" }}>X</button>
-            </div>
-
-            <label style={{ fontSize: "11px", fontWeight: 700, display: "block", marginBottom: "4px" }}>Post Privacy</label>
-            <select 
-              value={editVisibility} 
-              onChange={e => setEditVisibility(e.target.value)}
-              className="form-select" 
-              style={{ marginBottom: "12px" }}
-            >
-              <option value="public">🌐 Public Feed</option>
-              <option value="boosters">👥 Boosters Only</option>
-              <option value="private">🔒 Private (Profile Only)</option>
-            </select>
-
-            <label style={{ fontSize: "11px", fontWeight: 700, display: "block", marginBottom: "4px" }}>Post Content</label>
-            <textarea 
-              className="form-input" 
-              style={{ height: "80px", borderRadius: "14px", padding: "12px", fontSize: "12px", border: "1px solid #e2e8f0", resize: "none", marginBottom: "14px" }} 
-              value={editText}
-              onChange={e => setEditText(e.target.value)}
-            />
-
-            <button className="btn-block" onClick={saveEditedPost} disabled={isSavingEditPost}>
-              {isSavingEditPost ? "Saving Changes..." : "Save Changes"}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* 2. PROFILE SETTINGS MODAL */}
-      {showSettingsModal && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(15, 23, 42, 0.65)", backdropFilter: "blur(4px)", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
-          <div className="card" style={{ width: "100%", maxWidth: "360px", padding: "20px", borderRadius: "24px", background: "#ffffff", maxHeight: "80vh", overflowY: "auto", boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.2)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
-              <h4 style={{ fontSize: "15px", fontWeight: 900 }}>Profile Settings</h4>
-              <button onClick={() => setShowSettingsModal(false)} style={{ background: "#f1f5f9", border: "none", borderRadius: "50%", width: "28px", height: "28px", cursor: "pointer" }}>X</button>
-            </div>
-
-            <div style={{ marginBottom: "14px" }}>
-              <label style={{ fontSize: "11px", fontWeight: 700, display: "block", marginBottom: "4px" }}>Profile Avatar</label>
-              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                {avatarPreview ? (
-                  <div style={{ width: "42px", height: "42px", borderRadius: "50%", overflow: "hidden", border: "2px solid #10b981", flexShrink: 0 }}>
-                    <img src={avatarPreview} alt="Avatar Preview" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                  </div>
-                ) : null}
-                <label style={{ display: "inline-flex", alignItems: "center", gap: "8px", padding: "8px 14px", background: avatarPreview ? "#f0fdf4" : "#f1f5f9", borderRadius: "12px", fontSize: "11px", fontWeight: 700, color: avatarPreview ? "#10b981" : "var(--primary)", cursor: "pointer", border: avatarPreview ? "1px solid #a7f3d0" : "1px solid #cbd5e1", flex: 1, justifyContent: "center" }}>
-                  <i className={avatarPreview ? "fa-solid fa-circle-check" : "fa-solid fa-camera"}></i> {avatarPreview ? "Avatar Selected (Tap to Change)" : "Upload Avatar"}
-                  <input type="file" accept="image/*" onChange={handleAvatarChange} style={{ display: "none" }} />
-                </label>
-              </div>
-            </div>
-
-            <div style={{ marginBottom: "14px" }}>
-              <label style={{ fontSize: "11px", fontWeight: 700, display: "block", marginBottom: "4px" }}>Cover Banner Photo</label>
-              {coverPreview && (
-                <div style={{ width: "100%", height: "55px", borderRadius: "10px", overflow: "hidden", marginBottom: "6px", border: "2px solid #10b981" }}>
-                  <img src={coverPreview} alt="Banner Preview" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                </div>
-              )}
-              <label style={{ display: "inline-flex", alignItems: "center", gap: "8px", padding: "8px 14px", background: coverPreview ? "#f0fdf4" : "#f1f5f9", borderRadius: "12px", fontSize: "11px", fontWeight: 700, color: coverPreview ? "#10b981" : "var(--primary)", cursor: "pointer", border: coverPreview ? "1px solid #a7f3d0" : "1px solid #cbd5e1", width: "100%", justifyContent: "center" }}>
-                <i className={coverPreview ? "fa-solid fa-circle-check" : "fa-solid fa-image"}></i> {coverPreview ? "Banner Selected (Tap to Change)" : "Upload Banner"}
-                <input type="file" accept="image/*" onChange={handleCoverChange} style={{ display: "none" }} />
-              </label>
-            </div>
-
-            <label style={{ fontSize: "11px", fontWeight: 700 }}>Your Name</label>
-            <input type="text" className="form-input" value={profName} onChange={e => setProfName(e.target.value)} />
-
-            <label style={{ fontSize: "11px", fontWeight: 700 }}>Bio / Title</label>
-            <input type="text" className="form-input" value={profTitle} onChange={e => setProfTitle(e.target.value)} />
-
-            <div style={{ marginBottom: "14px", display: "flex", alignItems: "center", justifyContent: "space-between", background: "#f8fafc", padding: "10px 12px", borderRadius: "12px", border: "1px solid #e2e8f0" }}>
-              <div>
-                <div style={{ fontSize: "11px", fontWeight: 800, color: "#0f172a" }}>Private Account</div>
-                <div style={{ fontSize: "9px", color: "var(--text-muted)" }}>Require Booster Approval to follow</div>
-              </div>
-              <input 
-                type="checkbox" 
-                checked={profIsPrivate} 
-                onChange={e => setProfIsBlocked(e.target.checked)}
-                style={{ width: "18px", height: "18px", cursor: "pointer" }}
-              />
-            </div>
-
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
-              <div><label style={{ fontSize: "11px", fontWeight: 700 }}>Height (cm)</label><input type="number" className="form-input" value={profHeight} onChange={e => setProfHeight(e.target.value)} /></div>
-              <div><label style={{ fontSize: "11px", fontWeight: 700 }}>Weight (kg)</label><input type="number" className="form-input" value={profWeight} onChange={e => setProfWeight(e.target.value)} /></div>
-            </div>
-
-            <label style={{ fontSize: "11px", fontWeight: 700 }}>Activity Level</label>
-            <select className="form-select" value={profActivity} onChange={e => setProfActivity(e.target.value)}>
-              <option value="1.2">Sedentary (Little or no exercise)</option>
-              <option value="1.375">Light Exercise (1-3 days/week)</option>
-              <option value="1.55">Moderate Exercise (3-5 days/week)</option>
-              <option value="1.725">Heavy Athlete (6-7 days/week)</option>
-            </select>
-
-            <button className="btn-block" onClick={saveUserProfile} disabled={isSavingProfile} style={{ marginBottom: "10px" }}>
-              {isSavingProfile ? "Saving Profile..." : "Save Changes"}
-            </button>
-
-            <button className="btn-block" onClick={handleLogout} disabled={isLoggingOut} style={{ background: isLoggingOut ? "#94a3b8" : "var(--danger)", marginBottom: "20px" }}>
-              {isLoggingOut ? "Signing Out..." : "Sign Out Account"}
-            </button>
-          </div>
-        </div>
-      )}
-
-
-      {/* STRICT CENTERED FLOATING TOAST NOTIFICATION */}
-      {toastMessage && (
-        <div style={{
-          position: "fixed",
-          top: "20px",
-          left: "0",
-          width: "100vw",
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          zIndex: 999999,
-          pointerEvents: "none"
-        }}>
-          <div style={{
-            background: toastMessage.type === "info" ? "linear-gradient(135deg, #0284c7, #0369a1)" : "linear-gradient(135deg, #10b981, #059669)",
-            color: "#ffffff",
-            padding: "10px 22px",
-            borderRadius: "25px",
-            boxShadow: "0 8px 25px rgba(0,0,0,0.25)",
-            fontSize: "12px",
-            fontWeight: 800,
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "8px",
-            letterSpacing: "0.2px",
-            textAlign: "center",
-            boxSizing: "border-box",
-            margin: "0 auto"
-          }}>
-            <i className={toastMessage.type === "info" ? "fa-solid fa-circle-info" : "fa-solid fa-circle-check"}></i>
-            <span>{toastMessage.text}</span>
-          </div>
-        </div>
-      )}
       {/* FIXED BOTTOM NAVIGATION BAR */}
       <div className="bottom-nav" style={{ boxSizing: "border-box", margin: "0 auto",  position: "fixed", bottom: 0, left: 0,
           right: 0,
