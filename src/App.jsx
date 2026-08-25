@@ -233,6 +233,7 @@ export default function App() {
   const [isSavingEditPost, setIsSavingEditPost] = useState(false);
   const [isSavingOnboarding, setIsSavingOnboarding] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const [editingPost, setEditingPost] = useState(null);
   const [editText, setEditText] = useState("");
@@ -260,45 +261,19 @@ export default function App() {
       setShowSettingsModal(false);
       if (currentUser) {
         const userDocRef = doc(db, "users", currentUser.uid);
-        try {
-          const docSnap = await getDoc(userDocRef);
-          
+        
+        // REAL-TIME LISTENER FOR LOGGED-IN USER DATA
+        const unsubUserDoc = onSnapshot(userDocRef, (docSnap) => {
           if (docSnap.exists()) {
             let data = docSnap.data();
             const todayStr = new Date().toDateString();
 
             if (data?.lastLogDate && data.lastLogDate !== todayStr) {
-              data = {
-                ...data,
-                todayBurnedCal: 0,
-                lastLogDate: todayStr
-              };
-              await setDoc(userDocRef, { todayBurnedCal: 0, lastLogDate: todayStr }, { merge: true });
+              data = { ...data, todayBurnedCal: 0, lastLogDate: todayStr };
+              setDoc(userDocRef, { todayBurnedCal: 0, lastLogDate: todayStr }, { merge: true });
             }
 
             setAppData(data || {});
-
-            const sendPresencePing = () => {
-              setDoc(userDocRef, { lastSeen: Date.now() }, { merge: true }).catch(console.error);
-            };
-
-            sendPresencePing();
-            heartbeatInterval = setInterval(sendPresencePing, 30000);
-
-            const handleVisibilityChange = () => {
-              if (document.visibilityState === "visible") {
-                sendPresencePing();
-              }
-            };
-
-            const handleBeforeUnload = () => {
-              setDoc(userDocRef, { lastSeen: 0 }, { merge: true });
-            };
-
-            window.addEventListener("visibilitychange", handleVisibilityChange);
-            window.addEventListener("focus", sendPresencePing);
-            window.addEventListener("beforeunload", handleBeforeUnload);
-
             setProfName(data?.userName || currentUser.displayName || "Athlete");
             setProfTitle(data?.userTitle || "Fitness Enthusiast");
             setProfHeight(data?.height || 160);
@@ -313,15 +288,33 @@ export default function App() {
               setOnboardStep(1);
             } else {
               setOnboardStep(0);
-              setActiveTab("home");
             }
           } else {
             setSetupName(currentUser.displayName || "Athlete");
             setOnboardStep(1);
           }
-        } catch (e) {
-          console.error("Auth doc fetch error:", e);
-        }
+        });
+
+        const sendPresencePing = () => {
+          setDoc(userDocRef, { lastSeen: Date.now() }, { merge: true }).catch(console.error);
+        };
+
+        sendPresencePing();
+        heartbeatInterval = setInterval(sendPresencePing, 30000);
+
+        const handleVisibilityChange = () => {
+          if (document.visibilityState === "visible") sendPresencePing();
+        };
+
+        const handleBeforeUnload = () => {
+          setDoc(userDocRef, { lastSeen: 0 }, { merge: true });
+        };
+
+        window.addEventListener("visibilitychange", handleVisibilityChange);
+        window.addEventListener("focus", sendPresencePing);
+        window.addEventListener("beforeunload", handleBeforeUnload);
+
+        return () => unsubUserDoc();
       } else {
         if (heartbeatInterval) clearInterval(heartbeatInterval);
       }
@@ -334,6 +327,7 @@ export default function App() {
     };
   }, []);
 
+  // REAL-TIME SNAPSHOT LISTENER FOR POSTS & ALL USER PROFILES
   useEffect(() => {
     const qPosts = query(collection(db, "posts"), orderBy("createdAt", "desc"), limit(50));
     const unsubscribePosts = onSnapshot(qPosts, (querySnapshot) => {
@@ -506,7 +500,7 @@ export default function App() {
         }, { merge: true });
       }
       setSalutedNotifIds(prev => [...prev, notifId]);
-      showToast("Salute sent back! 🫡");
+      showToast("Salute sent back!");
     } catch (e) {
       console.error("Salute error:", e);
     }
@@ -1329,7 +1323,7 @@ export default function App() {
     type: "salute",
     title: s.fromName || "An Athlete",
     avatar: "",
-    text: "saluted your pulse back! 🫡",
+    text: "saluted your pulse back!",
     uid: s.fromUid,
     postObj: null,
     time: s.time || Date.now()
@@ -1357,7 +1351,7 @@ export default function App() {
   return (
     <div className="mobile-frame" style={{ maxWidth: "480px", margin: "0 auto", background: "#f8fafc", minHeight: "100vh", position: "relative" }}>
       
-      {/* IN-APP FLOATING TOAST BANNER (NO MORE POPUPS) */}
+      {/* IN-APP FLOATING TOAST BANNER */}
       {toastMessage && (
         <div style={{ position: "fixed", bottom: "75px", left: "50%", transform: "translateX(-50%)", background: "#0f172a", color: "white", padding: "10px 18px", borderRadius: "20px", fontSize: "11px", fontWeight: 800, zIndex: 4000, boxShadow: "0 10px 25px rgba(0,0,0,0.2)", display: "flex", alignItems: "center", gap: "8px" }}>
           <i className="fa-solid fa-circle-check" style={{ color: "#10b981" }}></i> {toastMessage}
@@ -1386,7 +1380,7 @@ export default function App() {
                     overflow: "hidden", 
                     textOverflow: "ellipsis" 
                   }}>
-                    Hey, {appData?.userName || "Athlete"}! 👋
+                    Hey, {appData?.userName || "Athlete"}!
                   </h2>
                 </div>
               </div>
@@ -1666,19 +1660,19 @@ export default function App() {
                     onClick={() => setPostVisibility("public")} 
                     style={{ background: postVisibility === "public" ? "#ffffff" : "transparent", border: "none", padding: "3px 7px", borderRadius: "6px", fontSize: "9px", fontWeight: 800, color: postVisibility === "public" ? "var(--primary)" : "#64748b", cursor: "pointer" }}
                   >
-                    🌐 Public
+                    Public
                   </button>
                   <button 
                     onClick={() => setPostVisibility("boosters")} 
                     style={{ background: postVisibility === "boosters" ? "#ffffff" : "transparent", border: "none", padding: "3px 7px", borderRadius: "6px", fontSize: "9px", fontWeight: 800, color: postVisibility === "boosters" ? "var(--primary)" : "#64748b", cursor: "pointer" }}
                   >
-                    👥 Boosters
+                    Boosters
                   </button>
                   <button 
                     onClick={() => setPostVisibility("private")} 
                     style={{ background: postVisibility === "private" ? "#ffffff" : "transparent", border: "none", padding: "3px 7px", borderRadius: "6px", fontSize: "9px", fontWeight: 800, color: postVisibility === "private" ? "var(--primary)" : "#64748b", cursor: "pointer" }}
                   >
-                    🔒 Private
+                    Private
                   </button>
                 </div>
               </div>
@@ -2050,7 +2044,7 @@ export default function App() {
                 <div style={{ display: "flex", alignItems: "center", gap: "6px", justifyContent: "center" }}>
                   <h3 style={{ fontSize: "17px", fontWeight: 900, color: "#0f172a", margin: 0 }}>{appData?.userName || "Athlete"}</h3>
                   <span style={{ fontSize: "8px", background: appData?.isPrivateAccount ? "#f1f5f9" : "#e0e7ff", color: appData?.isPrivateAccount ? "#64748b" : "var(--primary)", padding: "1px 6px", borderRadius: "5px", fontWeight: 800 }}>
-                    {appData?.isPrivateAccount ? "🔒 Private" : "🌐 Athlete"}
+                    {appData?.isPrivateAccount ? "Private" : "Athlete"}
                   </span>
                 </div>
                 <p style={{ fontSize: "10px", color: "var(--text-muted)", fontWeight: 600, marginTop: "1px", marginBottom: "0" }}>{appData?.userTitle || "Fitness Enthusiast"}</p>
@@ -2087,19 +2081,19 @@ export default function App() {
                     onClick={() => setProfPostVisibility("public")} 
                     style={{ background: profPostVisibility === "public" ? "#ffffff" : "transparent", border: "none", padding: "3px 7px", borderRadius: "6px", fontSize: "9px", fontWeight: 800, color: profPostVisibility === "public" ? "var(--primary)" : "#64748b", cursor: "pointer" }}
                   >
-                    🌐 Public
+                    Public
                   </button>
                   <button 
                     onClick={() => setProfPostVisibility("boosters")} 
                     style={{ background: profPostVisibility === "boosters" ? "#ffffff" : "transparent", border: "none", padding: "3px 7px", borderRadius: "6px", fontSize: "9px", fontWeight: 800, color: profPostVisibility === "boosters" ? "var(--primary)" : "#64748b", cursor: "pointer" }}
                   >
-                    👥 Boosters
+                    Boosters
                   </button>
                   <button 
                     onClick={() => setProfPostVisibility("private")} 
                     style={{ background: profPostVisibility === "private" ? "#ffffff" : "transparent", border: "none", padding: "3px 7px", borderRadius: "6px", fontSize: "9px", fontWeight: 800, color: profPostVisibility === "private" ? "var(--primary)" : "#64748b", cursor: "pointer" }}
                   >
-                    🔒 Private
+                    Private
                   </button>
                 </div>
               </div>
@@ -2182,7 +2176,7 @@ export default function App() {
                         )}
                         
                         <span style={{ position: "absolute", bottom: "3px", left: "3px", background: "rgba(15, 23, 42, 0.8)", color: "white", borderRadius: "4px", padding: "1px 4px", fontSize: "7px", fontWeight: 800 }}>
-                          {vis === "private" ? "🔒 Private" : vis === "boosters" ? "👥 Boosters" : "🌐 Public"}
+                          {vis === "private" ? "Private" : vis === "boosters" ? "Boosters" : "Public"}
                         </span>
 
                         <button 
@@ -2213,7 +2207,7 @@ export default function App() {
                             <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                               <span style={{ fontSize: "12px", fontWeight: 800, color: "#0f172a" }}>{appData?.userName || "Athlete"}</span>
                               <span style={{ fontSize: "8px", fontWeight: 800, color: vis === "private" ? "#64748b" : "var(--primary)", background: vis === "private" ? "#f1f5f9" : "#e0e7ff", padding: "1px 5px", borderRadius: "5px" }}>
-                                {vis === "private" ? "🔒 Private" : vis === "boosters" ? "👥 Boosters" : "🌐 Public"}
+                                {vis === "private" ? "Private" : vis === "boosters" ? "Boosters" : "Public"}
                               </span>
                             </div>
                             <span style={{ fontSize: "9px", color: "var(--text-muted)" }}>{formatPostTime(p.createdAt)}</span>
@@ -2269,7 +2263,7 @@ export default function App() {
           </div>
         )}
 
-        {/* TAB 7: ULTRA-COMPACT ADMIN PANEL */}
+        {/* TAB 7: ULTRA-COMPACT ADMIN PANEL WITH RESTORED REFRESH BUTTON */}
         {isAdmin && activeTab === "admin" && (
           <div className="screen active">
             <div style={{ marginBottom: "10px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -2277,6 +2271,15 @@ export default function App() {
                 <h3 style={{ fontSize: "18px", fontWeight: 900, color: "#dc2626", margin: 0 }}>Admin Panel</h3>
                 <span style={{ fontSize: "10px", color: "var(--text-muted)", fontWeight: 600 }}>Moderation & Evidence Vault</span>
               </div>
+              
+              {/* RESTORED REFRESH BUTTON */}
+              <button 
+                onClick={async () => { setIsRefreshing(true); setToastMessage("Refreshed Database!"); setTimeout(() => setToastMessage(""), 2000); setIsRefreshing(false); }} 
+                disabled={isRefreshing} 
+                style={{ background: "#f1f5f9", border: "1px solid #cbd5e1", padding: "6px 12px", borderRadius: "10px", fontSize: "10px", fontWeight: 800, cursor: "pointer", display: "flex", alignItems: "center", gap: "4px" }}
+              >
+                <i className={"fa-solid fa-rotate-right " + (isRefreshing ? "fa-spin" : "")}></i> Refresh
+              </button>
             </div>
 
             <div style={{ display: "flex", gap: "6px", marginBottom: "10px" }}>
@@ -2296,8 +2299,8 @@ export default function App() {
 
             {adminSubTab === "users" && (
               <div style={{ background: "#0f172a", color: "white", padding: "6px 10px", borderRadius: "10px", marginBottom: "8px", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "10px", fontWeight: 700 }}>
-                <span>🟢 Online: <strong style={{ color: "#10b981" }}>{userList.filter(u => u.lastSeen && (Date.now() - u.lastSeen < 300000)).length}</strong></span>
-                <span>👥 Accounts: <strong style={{ color: "#38bdf8" }}>{userList.length}</strong></span>
+                <span>Online: <strong style={{ color: "#10b981" }}>{userList.filter(u => u.lastSeen && (Date.now() - u.lastSeen < 300000)).length}</strong></span>
+                <span>Accounts: <strong style={{ color: "#38bdf8" }}>{userList.length}</strong></span>
               </div>
             )}
 
@@ -2377,7 +2380,7 @@ export default function App() {
                           <div style={{ display: "flex", alignItems: "center", gap: "6px", minWidth: 0, flex: 1 }}>
                             <span style={{ fontSize: "12px", fontWeight: 900, color: "#0f172a", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{u.userName || "Athlete"}</span>
                             {isOnline ? (
-                              <span style={{ fontSize: "8px", background: "#10b981", color: "white", padding: "1px 4px", borderRadius: "4px", fontWeight: 800, flexShrink: 0 }}>🟢 ON</span>
+                              <span style={{ fontSize: "8px", background: "#10b981", color: "white", padding: "1px 4px", borderRadius: "4px", fontWeight: 800, flexShrink: 0 }}>ON</span>
                             ) : (
                               <span style={{ fontSize: "8px", background: "#94a3b8", color: "white", padding: "1px 4px", borderRadius: "4px", fontWeight: 800, flexShrink: 0 }}>OFF</span>
                             )}
@@ -2585,7 +2588,7 @@ export default function App() {
                             }}
                             style={{ background: isSaluted ? "#e2e8f0" : "#e0e7ff", color: isSaluted ? "#64748b" : "var(--primary)", border: "none", padding: "4px 8px", borderRadius: "8px", fontSize: "9px", fontWeight: 800, cursor: "pointer" }}
                           >
-                            {isSaluted ? "Saluted 🫡" : "Salute 🫡"}
+                            {isSaluted ? "Saluted" : "Salute"}
                           </button>
                         )}
 
@@ -2727,7 +2730,7 @@ export default function App() {
                     cursor: "pointer" 
                   }}
                 >
-                  {(appData?.boosting || []).includes(viewingAthlete.uid) ? "⚡ Boosting" : "⚡ Boost Athlete"}
+                  {(appData?.boosting || []).includes(viewingAthlete.uid) ? "Boosting" : "Boost Athlete"}
                 </button>
               )}
             </div>
@@ -2786,9 +2789,9 @@ export default function App() {
               className="form-select" 
               style={{ marginBottom: "12px" }}
             >
-              <option value="public">🌐 Public Feed</option>
-              <option value="boosters">👥 Boosters Only</option>
-              <option value="private">🔒 Private (Profile Only)</option>
+              <option value="public">Public Feed</option>
+              <option value="boosters">Boosters Only</option>
+              <option value="private">Private (Profile Only)</option>
             </select>
 
             <label style={{ fontSize: "11px", fontWeight: 700, display: "block", marginBottom: "4px" }}>Post Content</label>
@@ -2895,11 +2898,20 @@ export default function App() {
         </div>
       )}
 
-      {/* FIXED BOTTOM NAVIGATION BAR */}
+      {/* FIXED BOTTOM NAVIGATION BAR WITH REAL-TIME SOCIAL BADGE ALERT */}
       <div className="bottom-nav" style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", maxWidth: "480px", width: "100%", background: "#ffffff", borderTop: "1px solid #e2e8f0", zIndex: 1000 }}>
         <div className={"nav-item " + (activeTab === "home" ? "active" : "")} onClick={() => setActiveTab("home")}><i className="fa-solid fa-house"></i><span>Home</span></div>
         <div className={"nav-item " + (activeTab === "diary" ? "active" : "")} onClick={() => setActiveTab("diary")}><i className="fa-regular fa-calendar-check"></i><span>Log</span></div>
-        <div className={"nav-item " + (activeTab === "community" ? "active" : "")} onClick={() => setActiveTab("community")}><i className="fa-solid fa-users"></i><span>Social</span></div>
+        
+        {/* SOCIAL TAB WITH UNREAD NOTIFICATION BADGE ALERT */}
+        <div className={"nav-item " + (activeTab === "community" ? "active" : "")} onClick={() => setActiveTab("community")} style={{ position: "relative" }}>
+          <i className="fa-solid fa-users"></i>
+          <span>Social</span>
+          {unreadNotifCount > 0 && (
+            <span style={{ position: "absolute", top: "4px", right: "18px", width: "8px", height: "8px", background: "#ef4444", borderRadius: "50%", border: "2px solid white" }}></span>
+          )}
+        </div>
+
         <div className={"nav-item " + (activeTab === "progress" ? "active" : "")} onClick={() => setActiveTab("progress")}><i className="fa-solid fa-chart-simple"></i><span>Progress</span></div>
         <div className={"nav-item " + (activeTab === "goals" ? "active" : "")} onClick={() => setActiveTab("goals")}><i className="fa-solid fa-bullseye"></i><span>Goals</span></div>
         <div className={"nav-item " + (activeTab === "profile" ? "active" : "")} onClick={() => setActiveTab("profile")}><i className="fa-regular fa-user"></i><span>Profile</span></div>
