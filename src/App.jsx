@@ -159,6 +159,8 @@ export default function App() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+  const [toastMessage, setToastMessage] = useState(null);
+  const [confirmModal, setConfirmModal] = useState(null);
 
   const [appData, setAppData] = useState(null);
   const [activeTab, setActiveTab] = useState("home");
@@ -239,6 +241,12 @@ export default function App() {
 
   const [avatarPreview, setAvatarPreview] = useState("");
   const [coverPreview, setCoverPreview] = useState("");
+
+  
+  const showToast = (msg, type = "success") => {
+    setToastMessage({ text: msg, type });
+    setTimeout(() => setToastMessage(null), 3000);
+  };
 
   const isAdmin = user?.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase();
 
@@ -400,7 +408,7 @@ export default function App() {
   };
 
   const startTimer = () => {
-    if (timerSeconds <= 0) return alert("Please set duration in minutes.");
+    if (timerSeconds <= 0) return showToast("Please set duration in minutes.");
     setIsTimerRunning(true);
   };
 
@@ -421,7 +429,7 @@ export default function App() {
       todayBurnedCal: currentBurned + burned
     });
 
-    alert(`Workout Logged! Completed ${elapsedMins} mins of ${actObj.name} (-${burned} kcal).`);
+    showToast(`Workout Logged! Completed ${elapsedMins} mins of ${actObj.name} (-${burned} kcal).`);
     setTimerSeconds(initialMins * 60);
   };
 
@@ -466,7 +474,7 @@ export default function App() {
         await setDoc(doc(db, "users", targetUid), { isBlocked: !isCurrentlyBlocked }, { merge: true });
         await fetchUsers();
         await fetchPosts();
-        alert(isCurrentlyBlocked ? "User unblocked successfully." : "User blocked! Account restricted & record preserved.");
+        showToast(isCurrentlyBlocked ? "User unblocked successfully." : "User blocked! Account restricted & record preserved.");
       } catch (err) {
         console.error("Error updating user block status:", err);
       }
@@ -480,7 +488,7 @@ export default function App() {
         const postRef = doc(db, "posts", postId);
         await updateDoc(postRef, { isHidden: !currentlyHidden });
         await fetchPosts();
-        alert(currentlyHidden ? "Post is now visible to users again." : "Post hidden from feed and saved for evidence.");
+        showToast(currentlyHidden ? "Post is now visible to users again." : "Post hidden from feed and saved for evidence.");
       } catch (err) {
         console.error("Error toggling post visibility:", err);
       }
@@ -498,13 +506,13 @@ export default function App() {
 
     if (isAlreadyBoosting) {
       updatedBoosting = updatedBoosting.filter(id => id !== targetUid);
-      alert("Unboosted athlete.");
+      showToast("Unboosted athlete.", "info");
     } else if (targetIsPrivate && !isPending) {
       updatedRequests.push(targetUid);
-      alert("Booster Request sent to athlete!");
+      showToast("Booster Request sent to athlete!");
     } else {
       updatedBoosting.push(targetUid);
-      alert("You are now Boosting this athlete!");
+      showToast("You are now Boosting this athlete!");
     }
 
     const updatedData = { ...appData, boosting: updatedBoosting, pendingBoosterRequests: updatedRequests };
@@ -549,7 +557,7 @@ export default function App() {
       compressImage(file, async (compressedUrl) => {
         setAvatarPreview(compressedUrl);
         await saveToCloud({ ...appData, avatarUrl: compressedUrl });
-        alert("Profile avatar updated successfully!");
+        showToast("Profile avatar updated successfully!");
       });
     }
   };
@@ -560,7 +568,7 @@ export default function App() {
       compressImage(file, async (compressedUrl) => {
         setCoverPreview(compressedUrl);
         await saveToCloud({ ...appData, coverUrl: compressedUrl });
-        alert("Cover banner updated successfully!");
+        showToast("Cover banner updated successfully!");
       });
     }
   };
@@ -580,13 +588,13 @@ export default function App() {
   };
 
   const createPost = async (isProfile = false) => {
-    if (appData?.isBlocked) return alert("Your account is currently blocked/restricted.");
+    if (appData?.isBlocked) return showToast("Your account is currently blocked/restricted.");
 
     const textToSubmit = isProfile ? profPostText.trim() : postText.trim();
     const imageToSubmit = isProfile ? profImagePreview : imagePreview;
     const visibilityToSubmit = isProfile ? profPostVisibility : postVisibility;
 
-    if (!textToSubmit && !imageToSubmit) return alert("Please enter text or select an image.");
+    if (!textToSubmit && !imageToSubmit) return showToast("Please enter text or select an image.");
     setIsPublishing(true);
     try {
       const newPost = {
@@ -615,10 +623,10 @@ export default function App() {
       }
 
       await fetchPosts();
-      alert("Post published successfully!");
+      showToast("Post published successfully!");
     } catch (err) {
       console.error("Error creating post:", err);
-      alert("Failed to publish post: " + err.message);
+      showToast("Failed to publish post: " + err.message);
     } finally {
       setIsPublishing(false);
     }
@@ -642,7 +650,7 @@ export default function App() {
       });
       setEditingPost(null);
       await fetchPosts();
-      alert("Post updated successfully!");
+      showToast("Post updated successfully!");
     } catch (err) {
       console.error("Error updating post:", err);
     } finally {
@@ -832,7 +840,7 @@ export default function App() {
 
   const addCustomMeal = async () => {
     const cal = parseInt(customCal) || 0;
-    if (!customName || cal <= 0) return alert("Please enter a meal name and calorie value.");
+    if (!customName || cal <= 0) return showToast("Please enter a meal name and calorie value.");
 
     setIsAddingMeal(true);
     try {
@@ -876,7 +884,7 @@ export default function App() {
   };
 
   const handleUpdateWeight = async () => {
-    if (!newLogWeight || isNaN(newLogWeight)) return alert("Please enter a valid weight number.");
+    if (!newLogWeight || isNaN(newLogWeight)) return showToast("Please enter a valid weight number.");
     setIsUpdatingWeight(true);
     try {
       const w = parseFloat(newLogWeight);
@@ -909,7 +917,7 @@ export default function App() {
       setAppData(updatedData);
       setProfWeight(w);
       setNewLogWeight("");
-      alert("Weight logged & 5-entry trend updated!");
+      showToast("Weight logged & updated!");
     } catch (err) {
       console.error("Error updating weight:", err);
     } finally {
@@ -972,7 +980,7 @@ export default function App() {
         baseGoal: tdee,
         isPrivateAccount: profIsPrivate
       });
-      alert("Profile settings saved successfully.");
+      showToast("Profile settings saved successfully.");
       setShowSettingsModal(false);
     } finally {
       setIsSavingProfile(false);
@@ -2570,14 +2578,14 @@ export default function App() {
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "14px" }}>
               <button 
-                onClick={() => { navigator.clipboard.writeText(window.location.href); alert("Post link copied to clipboard!"); setResonatePost(null); }}
+                onClick={() => { navigator.clipboard.writeText(window.location.href); showToast("Post link copied to clipboard!"); setResonatePost(null); }}
                 style={{ background: "#f1f5f9", border: "1px solid #cbd5e1", padding: "10px", borderRadius: "12px", fontSize: "11px", fontWeight: 800, color: "#0f172a", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}
               >
                 <i className="fa-solid fa-link" style={{ color: "var(--primary)" }}></i> Copy Link
               </button>
 
               <button 
-                onClick={() => { alert("Resonated! Shared directly with your Boosters."); setResonatePost(null); }}
+                onClick={() => { showToast("Resonated & shared successfully!"); setResonatePost(null); }}
                 style={{ background: "var(--primary)", color: "white", border: "none", padding: "10px", borderRadius: "12px", fontSize: "11px", fontWeight: 800, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}
               >
                 <i className="fa-solid fa-paper-plane"></i> Share to Feed
@@ -2777,6 +2785,32 @@ export default function App() {
               {isLoggingOut ? "Signing Out..." : "Sign Out Account"}
             </button>
           </div>
+        </div>
+      )}
+
+
+      {/* MODERN FLOATING TOAST NOTIFICATION */}
+      {toastMessage && (
+        <div style={{
+          position: "fixed",
+          top: "20px",
+          left: "50%",
+          transform: "translateX(-50%)",
+          background: toastMessage.type === "info" ? "#0284c7" : "#10b981",
+          color: "white",
+          padding: "10px 18px",
+          borderRadius: "20px",
+          boxShadow: "0 10px 25px rgba(0,0,0,0.2)",
+          zIndex: 4000,
+          fontSize: "12px",
+          fontWeight: 800,
+          display: "flex",
+          alignItems: "center",
+          gap: "8px",
+          animation: "fadeIn 0.3s ease-out"
+        }}>
+          <i className={toastMessage.type === "info" ? "fa-solid fa-circle-info" : "fa-solid fa-circle-check"}></i>
+          {toastMessage.text}
         </div>
       )}
 
