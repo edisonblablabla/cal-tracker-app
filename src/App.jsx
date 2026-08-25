@@ -1349,7 +1349,7 @@ export default function App() {
   const activeWorkoutObj = WORKOUT_ACTIVITIES.find(a => a.name === selectedActivity) || WORKOUT_ACTIVITIES[0];
   const initialMins = parseInt(workoutDuration) || 30;
   const elapsedMins = Math.max(1, Math.round((initialMins * 60 - timerSeconds) / 60));
-  const estimatedWorkoutBurn = Math.round(elapsedMins * actObj.calPerMin);
+  const estimatedWorkoutBurn = Math.round(elapsedMins * activeWorkoutObj.calPerMin);
 
   const timerMinDisplay = String(Math.floor(timerSeconds / 60)).padStart(2, '0');
   const timerSecDisplay = String(timerSeconds % 60).padStart(2, '0');
@@ -2379,7 +2379,7 @@ export default function App() {
                             {isOnline ? (
                               <span style={{ fontSize: "8px", background: "#10b981", color: "white", padding: "1px 4px", borderRadius: "4px", fontWeight: 800, flexShrink: 0 }}>🟢 ON</span>
                             ) : (
-                              <span style={{ fontSize: "8px", background: "#94a3b8", color: "white", padding: "1px 4px", borderRadius: "4px", fontWeight 800, flexShrink: 0 }}>OFF</span>
+                              <span style={{ fontSize: "8px", background: "#94a3b8", color: "white", padding: "1px 4px", borderRadius: "4px", fontWeight: 800, flexShrink: 0 }}>OFF</span>
                             )}
                             {u.isBlocked && <span style={{ fontSize: "8px", background: "#dc2626", color: "white", padding: "1px 4px", borderRadius: "4px", fontWeight: 800, flexShrink: 0 }}>BLOCKED (SAVED)</span>}
                           </div>
