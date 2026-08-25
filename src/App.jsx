@@ -2537,7 +2537,7 @@ export default function App() {
         <div style={{ position: "fixed", inset: 0, background: "rgba(15, 23, 42, 0.75)", backdropFilter: "blur(6px)", zIndex: 2700, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
           <div className="card" style={{ width: "100%", maxWidth: "480px", padding: "20px", borderRadius: "24px 24px 0 0", background: "#ffffff", boxShadow: "0 -10px 25px rgba(0,0,0,0.15)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
-              <h4 style={{ fontSize: "15px", fontWeight 900, color: "#0f172a" }}>Resonate Fitness Post</h4>
+              <h4 style={{ fontSize: "15px", fontWeight: 900, color: "#0f172a" }}>Resonate Fitness Post</h4>
               <button onClick={() => setResonatePost(null)} style={{ background: "#f1f5f9", border: "none", borderRadius: "50%", width: "28px", height: "28px", cursor: "pointer", fontWeight: 800 }}>X</button>
             </div>
 
