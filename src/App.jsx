@@ -226,6 +226,7 @@ export default function App() {
   const [showNotifModal, setShowNotifModal] = useState(false);
   // SLIDE-OVER PANEL CENTRAL CONTROLLER
   const [activePanel, setActivePanel] = useState(null);
+  const [firestoreNotifs, setFirestoreNotifs] = useState([]);
   const [lastSeenNotifTime, setLastSeenNotifTime] = useState(() => parseInt(localStorage.getItem('np_last_seen_notif') || '0')); // 'notif', 'post_detail', 'boosters', 'boosting', 'settings', 'visitor_profile'
   const [selectedPost, setSelectedPost] = useState(null);
   const [selectedVisitor, setSelectedVisitor] = useState(null);
@@ -741,7 +742,7 @@ export default function App() {
   };
 
   
-  const handleAddComment = async (postId) => {
+    const handleAddComment = async (postId) => {
     if (!newCommentText.trim() || !user) return;
     const commentAuthorName = appData?.userName || user?.displayName || "Athlete";
     const commentAuthorAvatar = appData?.avatarUrl || avatarPreview || "";
@@ -773,7 +774,7 @@ export default function App() {
           senderName: commentAuthorName,
           senderAvatar: commentAuthorAvatar,
           type: "comment",
-          text: `commented on your post: "${cText.slice(0, 20)}..."`,
+          text: `commented: "${cText.slice(0, 20)}..."`,
           postId: postId,
           timestamp: Date.now()
         });
