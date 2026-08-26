@@ -1399,10 +1399,11 @@ export default function App() {
     };
   });
 
-const pulseActivityNotifs = posts.filter(p => p.userId === user?.uid && Array.isArray(p.likedBy) && p.likedBy.length > 0).flatMap(p => {
+  // Upgraded Pulse Activity Notification Generator
+  const pulseActivityNotifs = (posts || []).filter(p => p.userId === user?.uid && Array.isArray(p.likedBy)).flatMap(p => {
     return p.likedBy.filter(likerUid => likerUid !== user?.uid).map(likerUid => {
-      const likerUser = userList.find(u => u.uid === likerUid);
-      const postSnippet = p.text ? (p.text.length > 25 ? p.text.substring(0, 25) + "..." : p.text) : "photo post";
+      const likerUser = (userList || []).find(u => u.uid === likerUid);
+      const postSnippet = p.text ? (p.text.length > 20 ? p.text.substring(0, 20) + "..." : p.text) : "photo post";
       return {
         id: "pulse_" + p.id + "_" + likerUid,
         type: "pulse",
