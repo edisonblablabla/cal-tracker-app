@@ -800,8 +800,6 @@ export default function App() {
       await updateDoc(postRef, {
         commentsCount: ((targetPost?.commentsCount) || 0) + 1
       });
-
-      const targetPost = posts.find(p => p.id === postId);
       if (targetPost && targetPost.userId !== user?.uid) {
         await addDoc(collection(db, "notifications"), {
           recipientUid: targetPost.userId,
