@@ -2766,18 +2766,6 @@ const pulseActivityNotifs = posts.filter(p => p.userId === user?.uid && Array.is
               </div>
             )}
 
-            {/* UPGRADED VISITOR PROFILE PANEL */}
-            {activePanel === 'visitor_profile' && selectedVisitor && (
-              <div style={{ background: "#ffffff", borderRadius: "18px", overflow: "hidden", border: "1px solid #e2e8f0", boxShadow: "0 4px 12px rgba(0,0,0,0.03)" }}>
-                {/* Banner */}
-                <div style={{ height: "70px", background: selectedVisitor.coverUrl ? "url(" + selectedVisitor.coverUrl + ") center/cover" : "linear-gradient(135deg, #4f46e5, #0284c7)" }}></div>
-                
-                <div style={{ padding: "0 16px 16px 16px", textAlign: "center", marginTop: "-32px" }}>
-                  {selectedVisitor.avatarUrl ? (
-                    <img src={selectedVisitor.avatarUrl} alt="" style={{ width: "64px", height: "64px", borderRadius: "50%", objectFit: "cover", border: "3px solid #ffffff", boxShadow: "0 4px 10px rgba(0,0,0,0.1)", margin: "0 auto 8px auto" }} />
-                  ) : (
-                    <div style={{ width: "64px", height: "64px", borderRadius: "50%", background: "#4f46e5", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "22px", fontWeight: 900, border: "3px solid #ffffff", margin: "0 auto 8px auto" }}>
-                      {(selectedVisitor.userName || "A").charAt(0).toUpperCase()}
                     </div>
                   )}
 
@@ -2794,6 +2782,77 @@ const pulseActivityNotifs = posts.filter(p => p.userId === user?.uid && Array.is
         </div>
       )}
 
+                  {/* MODERN ATHLETIC VISITOR PROFILE PANEL */}
+            {activePanel === 'visitor_profile' && selectedVisitor && (
+              <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                {/* Hero Header Card */}
+                <div style={{ background: "#ffffff", borderRadius: "18px", overflow: "hidden", border: "1px solid #e2e8f0", boxShadow: "0 2px 8px rgba(0,0,0,0.03)" }}>
+                  <div style={{ height: "75px", background: selectedVisitor.coverUrl ? "url(" + selectedVisitor.coverUrl + ") center/cover" : "linear-gradient(135deg, #0284c7, #4f46e5)", position: "relative" }}></div>
+                  
+                  <div style={{ padding: "0 16px 14px 16px" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginTop: "-30px", marginBottom: "8px" }}>
+                      {selectedVisitor.avatarUrl ? (
+                        <img src={selectedVisitor.avatarUrl} alt="" style={{ width: "60px", height: "60px", borderRadius: "50%", objectFit: "cover", border: "3px solid #ffffff", boxShadow: "0 4px 10px rgba(0,0,0,0.1)" }} />
+                      ) : (
+                        <div style={{ width: "60px", height: "60px", borderRadius: "50%", background: "linear-gradient(135deg, #4f46e5, #0284c7)", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "20px", fontWeight: 900, border: "3px solid #ffffff", boxShadow: "0 4px 10px rgba(0,0,0,0.1)" }}>
+                          {(selectedVisitor.userName || "A").charAt(0).toUpperCase()}
+                        </div>
+                      )}
+
+                      {/* COMPACT PILLED ACTION BUTTONS */}
+                      <div style={{ display: "flex", gap: "6px" }}>
+                        <button onClick={() => toggleBoostAthlete(selectedVisitor.uid, selectedVisitor.isPrivateAccount)} style={{
+                          padding: "6px 14px",
+                          borderRadius: "20px",
+                          border: "none",
+                          fontSize: "11px",
+                          fontWeight: 800,
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "4px",
+                          background: (appData?.boosting || []).includes(selectedVisitor.uid) ? "#f1f5f9" : "var(--primary)",
+                          color: (appData?.boosting || []).includes(selectedVisitor.uid) ? "#334155" : "#ffffff",
+                          boxShadow: "0 2px 6px rgba(0,0,0,0.05)"
+                        }}>
+                          {(appData?.boosting || []).includes(selectedVisitor.uid) ? "✓ Boosting" : "⚡ Boost"}
+                        </button>
+                        
+                        <button onClick={() => showToast("Direct Messages coming soon! 💬")} style={{ padding: "6px 10px", borderRadius: "20px", background: "#f1f5f9", border: "1px solid #cbd5e1", color: "#334155", fontSize: "11px", cursor: "pointer", fontWeight: 800 }}>
+                          <i className="fa-regular fa-paper-plane"></i>
+                        </button>
+                      </div>
+                    </div>
+
+                    <h3 style={{ margin: 0, fontSize: "15px", fontWeight: 900, color: "#0f172a" }}>{selectedVisitor.userName || "Athlete"}</h3>
+                    <p style={{ margin: "1px 0 10px 0", fontSize: "10px", color: "#64748b", fontWeight: 600 }}>{selectedVisitor.userTitle || "Fitness Enthusiast"}</p>
+
+                    {/* Compact Visitor Stats */}
+                    <div style={{ display: "flex", gap: "16px", borderTop: "1px solid #f1f5f9", paddingTop: "8px", fontSize: "11px" }}>
+                      <div><strong style={{ color: "#0f172a" }}>{(posts.filter(p => p.userId === selectedVisitor.uid) || []).length}</strong> <span style={{ color: "#94a3b8", fontSize: "10px" }}>Posts</span></div>
+                      <div><strong style={{ color: "#0f172a" }}>{(userList.filter(u => (u.boosting || []).includes(selectedVisitor.uid)) || []).length}</strong> <span style={{ color: "#94a3b8", fontSize: "10px" }}>Boosters</span></div>
+                      <div><strong style={{ color: "#0f172a" }}>{(selectedVisitor.boosting || []).length}</strong> <span style={{ color: "#94a3b8", fontSize: "10px" }}>Boosting</span></div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* VISITOR POSTS FEED */}
+                <div style={{ background: "#ffffff", borderRadius: "18px", padding: "14px", border: "1px solid #e2e8f0" }}>
+                  <h4 style={{ margin: "0 0 10px 0", fontSize: "12px", color: "#0f172a", fontWeight: 800 }}>Athlete Posts</h4>
+                  {posts.filter(p => p.userId === selectedVisitor.uid).length === 0 ? (
+                    <div style={{ textAlign: "center", padding: "20px", color: "#94a3b8", fontSize: "11px" }}>No posts published yet.</div>
+                  ) : (
+                    posts.filter(p => p.userId === selectedVisitor.uid).map(p => (
+                      <div key={p.id} onClick={() => { setSelectedPost(p); setActivePanel('post_detail'); }} style={{ padding: "10px", borderRadius: "12px", background: "#f8fafc", marginBottom: "8px", border: "1px solid #f1f5f9", cursor: "pointer" }}>
+                        <p style={{ margin: "0 0 4px 0", fontSize: "12px", color: "#334155" }}>{p.text}</p>
+                        {p.imageUrl && <img src={p.imageUrl} alt="" style={{ width: "100%", borderRadius: "8px", maxHeight: "120px", objectFit: "cover" }} />}
+                        <span style={{ fontSize: "9px", color: "#94a3b8", display: "block", marginTop: "4px" }}>{formatPostTime(p.createdAt)}</span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
       {/* FIXED BOTTOM NAVIGATION BAR */}
       <div className="bottom-nav" style={{ boxSizing: "border-box", margin: "0 auto",  position: "fixed", bottom: 0, left: 0,
           right: 0,
