@@ -223,14 +223,14 @@ export default function App() {
 
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-
-  // SLIDE-OVER PANEL & NOTIFICATION STATE
-  const [activePanel, setActivePanel] = useState(null);
-  const [lastSeenNotifTime, setLastSeenNotifTime] = useState(() => parseInt(localStorage.getItem('np_last_seen_notif') || '0'));
+  const [showNotifModal, setShowNotifModal] = useState(false);
+  // SLIDE-OVER PANEL CENTRAL CONTROLLER
+  const [activePanel, setActivePanel] = useState(null); // 'notif', 'post_detail', 'boosters', 'boosting', 'settings', 'visitor_profile'
   const [selectedPost, setSelectedPost] = useState(null);
   const [selectedVisitor, setSelectedVisitor] = useState(null);
+  const [postComments, setPostComments] = useState({});
   const [newCommentText, setNewCommentText] = useState('');
-  const [realtimeNotifs, setRealtimeNotifs] = useState([]);
+
 
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [isAddingMeal, setIsAddingMeal] = useState(false);
@@ -244,10 +244,12 @@ export default function App() {
   const [editText, setEditText] = useState("");
   const [editVisibility, setEditVisibility] = useState("public");
   const [activeMenuPostId, setActiveMenuPostId] = useState(null);
+  const [viewingImage, setViewingImage] = useState(null);
 
   const [avatarPreview, setAvatarPreview] = useState("");
   const [coverPreview, setCoverPreview] = useState("");
 
+  
   const showToast = (msg, type = "success") => {
     setToastMessage({ text: msg, type });
     setTimeout(() => setToastMessage(null), 3000);
@@ -290,6 +292,20 @@ export default function App() {
             sendPresencePing();
             heartbeatInterval = setInterval(sendPresencePing, 30000);
 
+            const handleVisibilityChange = () => {
+              if (document.visibilityState === "visible") {
+                sendPresencePing();
+              }
+            };
+
+            const handleBeforeUnload = () => {
+              setDoc(userDocRef, { lastSeen: Date.now() }, { merge: true });
+            };
+
+            window.addEventListener("visibilitychange", handleVisibilityChange);
+            window.addEventListener("focus", sendPresencePing);
+            window.addEventListener("beforeunload", handleBeforeUnload);
+
             setProfName(data?.userName || currentUser.displayName || "Athlete");
             setProfTitle(data?.userTitle || "Fitness Enthusiast");
             setProfHeight(data?.height || 160);
@@ -305,7 +321,6 @@ export default function App() {
             } else {
               setOnboardStep(0);
               setActiveTab("home");
-              setActivePanel(null);
             }
           } else {
             setSetupName(currentUser.displayName || "Athlete");
@@ -325,22 +340,6 @@ export default function App() {
       if (heartbeatInterval) clearInterval(heartbeatInterval);
     };
   }, []);
-
-  // FIRESTORE REALTIME NOTIFICATIONS LISTENER
-  useEffect(() => {
-    if (!user) return;
-    const q = query(collection(db, "notifications"), orderBy("timestamp", "desc"), limit(40));
-    return onSnapshot(q, (snapshot) => {
-      const notifList = [];
-      snapshot.forEach((docSnap) => {
-        const data = docSnap.data();
-        if (data.recipientUid === user.uid) {
-          notifList.push({ id: docSnap.id, ...data });
-        }
-      });
-      setRealtimeNotifs(notifList);
-    });
-  }, [user]);
 
   useEffect(() => {
     if (activeTab === "home" && "geolocation" in navigator) {
@@ -445,6 +444,26 @@ export default function App() {
     setTimerSeconds(initialMins * 60);
   };
 
+  const handleBoostUser = async (targetUid) => {
+    if (!user || user.uid === targetUid) return;
+    try {
+      const myRef = doc(db, "users", user.uid);
+      const currentBoosters = appData?.myBoosters || [];
+      const isBoosting = currentBoosters.includes(targetUid);
+
+      const updated = isBoosting
+        ? currentBoosters.filter(id => id !== targetUid)
+        : [...currentBoosters, targetUid];
+
+      await updateDoc(myRef, { myBoosters: updated });
+      setAppData(prev => ({ ...prev, myBoosters: updated }));
+      showToast(isBoosting ? "Unboosted athlete." : "You are now Boosting this athlete! ");
+    } catch (err) {
+      console.error("Error boosting user:", err);
+      showToast("Failed to update boost status", "info");
+    }
+  };
+
   const fetchPosts = () => {
     try {
       const q = query(collection(db, "posts"), orderBy("createdAt", "desc"), limit(50));
@@ -471,10 +490,10 @@ export default function App() {
           list.push({ uid: docSnap.id, ...docSnap.data() });
         });
         list.sort((a, b) => {
-          const timeA = a.createdAt || a.lastSeen || 0;
-          const timeB = b.createdAt || b.lastSeen || 0;
-          return timeB - timeA;
-        });
+        const timeA = a.createdAt || a.lastSeen || 0;
+        const timeB = b.createdAt || b.lastSeen || 0;
+        return timeB - timeA;
+      });
         setUserList(list);
       });
     } catch (err) {
@@ -483,13 +502,13 @@ export default function App() {
   };
 
   const toggleBlockUser = async (targetUid, isCurrentlyBlocked) => {
-    const actionText = isCurrentlyBlocked ? "Unblock this user account?" : "Block this user account?";
+    const actionText = isCurrentlyBlocked ? "Unblock this user account?" : "Block this user account? (Account will be frozen, but data saved for evidence)";
     if (window.confirm(actionText)) {
       try {
         await setDoc(doc(db, "users", targetUid), { isBlocked: !isCurrentlyBlocked }, { merge: true });
         await fetchUsers();
         await fetchPosts();
-        showToast(isCurrentlyBlocked ? "User unblocked successfully." : "User blocked!");
+        showToast(isCurrentlyBlocked ? "User unblocked successfully." : "User blocked! Account restricted & record preserved.");
       } catch (err) {
         console.error("Error updating user block status:", err);
       }
@@ -497,13 +516,13 @@ export default function App() {
   };
 
   const toggleHidePost = async (postId, currentlyHidden) => {
-    const actionText = currentlyHidden ? "Unhide this post?" : "Hide this post?";
+    const actionText = currentlyHidden ? "Unhide this post and make it visible again?" : "Hide this post for evidence/investigation? (Will be hidden from users but saved in Admin)";
     if (window.confirm(actionText)) {
       try {
         const postRef = doc(db, "posts", postId);
         await updateDoc(postRef, { isHidden: !currentlyHidden });
         await fetchPosts();
-        showToast(currentlyHidden ? "Post is visible again." : "Post hidden.");
+        showToast(currentlyHidden ? "Post is now visible to users again." : "Post hidden from feed and saved for evidence.");
       } catch (err) {
         console.error("Error toggling post visibility:", err);
       }
@@ -524,10 +543,10 @@ export default function App() {
       showToast("Unboosted athlete.", "info");
     } else if (targetIsPrivate && !isPending) {
       updatedRequests.push(targetUid);
-      showToast("Booster Request sent!", "info");
+      showToast("Booster Request sent to athlete! ", "info");
     } else {
       updatedBoosting.push(targetUid);
-      showToast("You are now Boosting this athlete!");
+      showToast("You are now Boosting this athlete! ");
     }
 
     const updatedData = { ...appData, boosting: updatedBoosting, pendingBoosterRequests: updatedRequests };
@@ -572,7 +591,7 @@ export default function App() {
       compressImage(file, async (compressedUrl) => {
         setAvatarPreview(compressedUrl);
         await saveToCloud({ ...appData, avatarUrl: compressedUrl });
-        showToast("Profile avatar updated!");
+        showToast("Profile avatar updated! ");
       });
     }
   };
@@ -583,8 +602,22 @@ export default function App() {
       compressImage(file, async (compressedUrl) => {
         setCoverPreview(compressedUrl);
         await saveToCloud({ ...appData, coverUrl: compressedUrl });
-        showToast("Cover banner updated!");
+        showToast("Cover banner updated! ");
       });
+    }
+  };
+
+  const handleAvatarChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      compressImage(file, (compressedUrl) => setAvatarPreview(compressedUrl));
+    }
+  };
+
+  const handleCoverChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      compressImage(file, (compressedUrl) => setCoverPreview(compressedUrl));
     }
   };
 
@@ -608,7 +641,6 @@ export default function App() {
         visibility: visibilityToSubmit,
         likes: 0,
         likedBy: [],
-        comments: [],
         createdAt: Date.now(),
         isHidden: false
       };
@@ -625,7 +657,7 @@ export default function App() {
       }
 
       await fetchPosts();
-      showToast("Post published to feed!");
+      showToast("Post published to feed! ");
     } catch (err) {
       console.error("Error creating post:", err);
       showToast("Failed to publish post: " + err.message);
@@ -652,7 +684,7 @@ export default function App() {
       });
       setEditingPost(null);
       await fetchPosts();
-      showToast("Post updated!");
+      showToast("Post updated! ");
     } catch (err) {
       console.error("Error updating post:", err);
     } finally {
@@ -660,77 +692,44 @@ export default function App() {
     }
   };
 
-  // UNIFIED PULSE ACTION WITH REALTIME NOTIFICATION TRIGGER
-  const handleLike = async (postId, currentLikes, likedBy = [], e = null) => {
-    if (e) e.stopPropagation();
-    if (!user) return;
-
+  const handleLike = async (postId, currentLikes, likedBy = []) => {
     const isAlreadyLiked = likedBy.includes(user.uid);
-    let updatedLikedBy = isAlreadyLiked ? likedBy.filter(uid => uid !== user.uid) : [...likedBy, user.uid];
-    let updatedLikesCount = isAlreadyLiked ? Math.max(0, currentLikes - 1) : currentLikes + 1;
+    let updatedLikedBy = [];
+    let updatedLikesCount = currentLikes;
+
+    if (isAlreadyLiked) {
+      updatedLikedBy = likedBy.filter(uid => uid !== user.uid);
+      updatedLikesCount = Math.max(0, currentLikes - 1);
+    } else {
+      updatedLikedBy = [...likedBy, user.uid];
+      updatedLikesCount = currentLikes + 1;
+    }
 
     try {
       const postRef = doc(db, "posts", postId);
-      await setDoc(postRef, { likes: updatedLikesCount, likedBy: updatedLikedBy }, { merge: true });
-
-      const targetPost = posts.find(p => p.id === postId);
-      if (!isAlreadyLiked && targetPost && targetPost.userId !== user.uid) {
-        await addDoc(collection(db, "notifications"), {
-          recipientUid: targetPost.userId,
-          senderUid: user.uid,
-          senderName: appData?.userName || user.displayName || "Athlete",
-          senderAvatar: appData?.avatarUrl || avatarPreview || "",
-          type: "pulse",
-          text: `pulsed your post: "${(targetPost.text || "photo post").slice(0, 20)}..."`,
-          postId: postId,
-          timestamp: Date.now()
-        });
-      }
-    } catch (err) {
+      await setDoc(postRef, { 
+        likes: updatedLikesCount, 
+        likedBy: updatedLikedBy 
+      }, { merge: true });
+      } catch (err) {
       console.error("Error toggling pulse:", err);
     }
   };
 
-  // UNIFIED FIRESTORE REALTIME COMMENT HANDLER
-  const handleAddComment = async (postId) => {
-    if (!newCommentText.trim() || !user) return;
-    const commentAuthorName = appData?.userName || user?.displayName || "Athlete";
-    const commentAuthorAvatar = appData?.avatarUrl || avatarPreview || "";
-    const cText = newCommentText.trim();
-    
+  
+  const handleAddComment = (postId) => {
+    if (!newCommentText.trim()) return;
+    const existing = postComments[postId] || [];
     const newComment = {
       id: Date.now(),
-      userId: user.uid,
-      userName: commentAuthorName,
-      avatarUrl: commentAuthorAvatar,
-      text: cText,
+      userName: appData?.userName || user?.displayName || "Athlete",
+      avatarUrl: appData?.avatarUrl || avatarPreview || "",
+      text: newCommentText.trim(),
       createdAt: Date.now()
     };
-    
-    try {
-      const targetPost = posts.find(p => p.id === postId);
-      const existingComments = Array.isArray(targetPost?.comments) ? targetPost.comments : [];
-      const updatedComments = [newComment, ...existingComments];
-
-      await updateDoc(doc(db, "posts", postId), { comments: updatedComments });
-      setNewCommentText("");
-      showToast("Comment added!");
-
-      if (targetPost && targetPost.userId !== user.uid) {
-        await addDoc(collection(db, "notifications"), {
-          recipientUid: targetPost.userId,
-          senderUid: user.uid,
-          senderName: commentAuthorName,
-          senderAvatar: commentAuthorAvatar,
-          type: "comment",
-          text: `commented: "${cText.slice(0, 20)}..."`,
-          postId: postId,
-          timestamp: Date.now()
-        });
-      }
-    } catch (err) {
-      console.error("Error adding comment:", err);
-    }
+    setPostComments({ ...postComments, [postId]: [newComment, ...existing] });
+    setNewCommentText("");
+    showToast("Comment added!");
   };
 
   const handleDeletePost = async (postId) => {
@@ -836,9 +835,17 @@ export default function App() {
       } else {
         await signInWithEmailAndPassword(auth, email, password);
       }
-      setActiveTab("home"); setActivePanel(null);
+      setActiveTab("home");
     } catch (error) {
-      setErrorMessage(error.message);
+      if (error.code === "auth/invalid-credential" || error.code === "auth/user-not-found" || error.code === "auth/wrong-password") {
+        setErrorMessage("Invalid email or password. Please try again.");
+      } else if (error.code === "auth/email-already-in-use") {
+        setErrorMessage("An account is already registered with this email.");
+      } else if (error.code === "auth/weak-password") {
+        setErrorMessage("Password must be at least 6 characters long.");
+      } else {
+        setErrorMessage(error.message);
+      }
     }
   };
 
@@ -847,7 +854,7 @@ export default function App() {
     setShowSettingsModal(false);
     try {
       await signInWithPopup(auth, googleProvider);
-      setActiveTab("home"); setActivePanel(null);
+      setActiveTab("home");
     } catch (error) {
       setErrorMessage("Google Login Error: " + error.message);
     }
@@ -859,6 +866,7 @@ export default function App() {
     if (user) {
       try {
         const userDocRef = doc(db, "users", user.uid);
+        // I-set sa 1 ang presence indicator para agad maging OFFLINE sa realtime listener, at itala ang exact logout time
         await setDoc(userDocRef, { 
           lastSeen: 1, 
           lastLoggedOutAt: Date.now() 
@@ -875,7 +883,7 @@ export default function App() {
     setProfImagePreview(null);
     setOnboardStep(0);
     setShowAuthForm(false);
-    setActiveTab("home"); setActivePanel(null);
+    setActiveTab("home");
     setIsLoggingOut(false);
   };
 
@@ -1028,7 +1036,6 @@ export default function App() {
       });
       showToast("Profile settings saved! ");
       setShowSettingsModal(false);
-      setActivePanel(null);
     } finally {
       setIsSavingProfile(false);
     }
@@ -1196,7 +1203,7 @@ export default function App() {
             </div>
           </div>
 
-          <label style={{ fontSize: "11px", fontWeight 700 }}>Activity Level</label>
+          <label style={{ fontSize: "11px", fontWeight: 700 }}>Activity Level</label>
           <select className="form-select" value={setupActivity} onChange={e => setSetupActivity(e.target.value)}>
             <option value="1.2">Sedentary (Little or no exercise)</option>
             <option value="1.375">Light Exercise (1-3 days/week)</option>
@@ -1325,7 +1332,7 @@ export default function App() {
   const myBoostingList = appData?.boosting || [];
   const publicCommunityPosts = posts.filter(p => {
     if (p.isHidden) return false;
-    if (p.visibility === "private" && p.userId !== user?.uid) return false;
+    if (p.visibility === "private") return false;
     if (p.visibility === "boosters" && p.userId !== user?.uid && !myBoostingList.includes(p.userId)) return false;
     return true;
   });
@@ -1342,16 +1349,70 @@ export default function App() {
     (u.userEmail || "").toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // REALTIME UNREAD NOTIFICATIONS COUNT
-  const unreadNotifsCount = realtimeNotifs.filter(n => (n.timestamp || 0) > lastSeenNotifTime).length;
+
+
+  // SMART NOTIFICATION HUB WITH TIMESTAMPS & TOP-SORTING LOGIC
+  const pendingRequestsNotifs = (appData?.pendingBoosterRequests || []).map(reqUid => {
+    const reqUser = userList.find(u => u.uid === reqUid);
+    return {
+      id: "req_" + reqUid,
+      type: "request",
+      title: reqUser?.userName || "An Athlete",
+      avatar: reqUser?.avatarUrl || "",
+      text: "sent you a booster request",
+      uid: reqUid,
+      timestamp: reqUser?.lastSeen || Date.now()
+    };
+  });
+
+const pulseActivityNotifs = posts.filter(p => p.userId === user?.uid && Array.isArray(p.likedBy) && p.likedBy.length > 0).flatMap(p => {
+    return p.likedBy.filter(likerUid => likerUid !== user?.uid).map(likerUid => {
+      const likerUser = userList.find(u => u.uid === likerUid);
+      const postSnippet = p.text ? (p.text.length > 25 ? p.text.substring(0, 25) + "..." : p.text) : "photo post";
+      return {
+        id: "pulse_" + p.id + "_" + likerUid,
+        type: "pulse",
+        title: likerUser?.userName || "An Athlete",
+        avatar: likerUser?.avatarUrl || "",
+        text: `pulsed your post: "${postSnippet}"`,
+        postImage: p.imageUrl || null,
+        postId: p.id,
+        uid: likerUid,
+        timestamp: p.createdAt || Date.now()
+      };
+    });
+  });
+  const boosterNotifs = (appData?.myBoosters || []).map(bUid => {
+    const uObj = userList.find(u => u.uid === bUid);
+    return {
+      id: "boost_" + bUid,
+      type: "boost",
+      title: uObj?.userName || "An Athlete",
+      avatar: uObj?.avatarUrl || "",
+      text: "started boosting your profile! ",
+      uid: bUid,
+      timestamp: uObj?.createdAt || Date.now()
+    };
+  });
+
+  // Combine and sort chronologically (Newest notifications strictly on top)
+  const allUserNotifs = [...pendingRequestsNotifs, ...pulseActivityNotifs, ...boosterNotifs].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+
+  const activeWorkoutObj = WORKOUT_ACTIVITIES.find(a => a.name === selectedActivity) || WORKOUT_ACTIVITIES[0];
+  const initialMins = parseInt(workoutDuration) || 30;
+  const elapsedMins = Math.max(1, Math.round((initialMins * 60 - timerSeconds) / 60));
+  const estimatedWorkoutBurn = Math.round(elapsedMins * activeWorkoutObj.calPerMin);
+
+  const timerMinDisplay = String(Math.floor(timerSeconds / 60)).padStart(2, '0');
+  const timerSecDisplay = String(timerSeconds % 60).padStart(2, '0');
 
   return (
     <div className="mobile-frame" style={{ maxWidth: "480px", margin: "0 auto", background: "#f8fafc", minHeight: "100vh", position: "relative" }}>
       <div className="screen-container" style={{ padding: "16px", paddingBottom: "120px" }}>
-        
         {/* TAB 1: HOME */}
         {activeTab === "home" && (
           <div className="screen active">
+            {/* ULTRA-COMPACT HEADER WITH AUTO-ELLIPSIS & PULSE LOGO */}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px", gap: "8px" }}>
               <div style={{ minWidth: 0, flex: 1, display: "flex", alignItems: "center", gap: "6px" }}>
                 <div style={{ width: "24px", height: "24px", borderRadius: "50%", background: "linear-gradient(135deg, #4f46e5, #06b6d4)", display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontSize: "11px", boxShadow: "0 2px 6px rgba(79,70,229,0.3)", flexShrink: 0 }}>
@@ -1598,7 +1659,7 @@ export default function App() {
           </div>
         )}
 
-        {/* TAB 3: SOCIAL TAB */}
+        {/* TAB 3: REDESIGNED SOCIAL TAB */}
         {activeTab === "community" && (
           <div className="screen active">
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
@@ -1618,13 +1679,13 @@ export default function App() {
                 </button>
 
                 <button 
-                  onClick={() => { setActivePanel("notif"); const nowT = Date.now(); setLastSeenNotifTime(nowT); localStorage.setItem("np_last_seen_notif", nowT.toString()); }} 
+                  onClick={() => setActivePanel("notif")} 
                   style={{ position: "relative", background: "#f1f5f9", border: "none", width: "36px", height: "36px", borderRadius: "50%", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#334155", fontSize: "15px" }}
                 >
                   <i className="fa-regular fa-bell"></i>
-                  {unreadNotifsCount > 0 && (
+                  {allUserNotifs.length > 0 && (
                     <span style={{ position: "absolute", top: "2px", right: "2px", background: "#ef4444", color: "white", fontSize: "9px", fontWeight: 800, width: "15px", height: "15px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      {unreadNotifsCount}
+                      {allUserNotifs.length}
                     </span>
                   )}
                 </button>
@@ -1778,19 +1839,19 @@ export default function App() {
 
                       <div style={{ display: "flex", alignItems: "center", gap: "10px", borderTop: "1px solid #f1f5f9", paddingTop: "8px", marginTop: "4px" }}>
                         <button 
-                          onClick={(e) => handleLike(p.id, p.likes || 0, p.likedBy || [], e)}
+                          onClick={() => handleLike(p.id, p.likes || 0, p.likedBy || [])}
                           style={{ 
                             background: isLiked ? "#fef2f2" : "transparent", 
-                            border: "none", 
+                            border: "none",
                             color: isLiked ? "#ef4444" : "#64748b", 
                             padding: "4px 8px", 
                             fontSize: "11px", 
                             fontWeight: 800, 
-                            cursor: "pointer", 
-                            display: "flex", 
-                            alignItems: "center", 
-                            gap: "5px", 
-                            borderRadius: "10px" 
+                            cursor: "pointer",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "5px",
+                            borderRadius: "10px"
                           }}
                         >
                           <i className={isLiked ? "fa-solid fa-heart" : "fa-regular fa-heart"} style={{ fontSize: "13px", color: isLiked ? "#ef4444" : "#64748b" }}></i>
@@ -1801,11 +1862,11 @@ export default function App() {
                           onClick={() => { setSelectedPost(p); setActivePanel("post_detail"); }}
                           style={{ background: "transparent", border: "none", color: "#64748b", padding: "4px 8px", fontSize: "11px", fontWeight: 800, cursor: "pointer", display: "flex", alignItems: "center", gap: "5px" }}
                         >
-                          <i className="fa-regular fa-comment" style={{ fontSize: "12px" }}></i> {(p.comments || []).length}
+                          <i className="fa-regular fa-comment" style={{ fontSize: "12px" }}></i> {(postComments[p.id] || []).length}
                         </button>
 
                         <button 
-                          onClick={() => { setResonatePost(p); navigator.clipboard.writeText(window.location.href); showToast("Link copied to clipboard!"); }}
+                          onClick={() => setResonatePost(p)}
                           style={{ background: "transparent", border: "none", color: "#64748b", padding: "4px 8px", fontSize: "11px", fontWeight: 800, cursor: "pointer", display: "flex", alignItems: "center", gap: "5px" }}
                         >
                           <i className="fa-solid fa-share-nodes" style={{ fontSize: "12px" }}></i> Resonate
@@ -1994,9 +2055,10 @@ export default function App() {
           </div>
         )}
 
-        {/* TAB 6: PROFILE TAB */}
+        {/* TAB 6: SAFE ULTRA-COMPACT ATHLETIC PROFILE DESIGN */}
         {activeTab === "profile" && (
           <div className="screen active">
+            {/* HERO PROFILE HEADER */}
             <div className="card" style={{ padding: 0, overflow: "hidden", borderRadius: "20px", marginBottom: "12px", boxShadow: "0 6px 18px rgba(0,0,0,0.06)", position: "relative", border: "none" }}>
               <div style={{ 
                 height: "85px", 
@@ -2005,6 +2067,7 @@ export default function App() {
               }}>
                 <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, rgba(0,0,0,0.1), rgba(15,23,42,0.35))" }}></div>
                 
+                {/* DIRECT BANNER CAMERA BUTTON */}
                 <label style={{ position: "absolute", bottom: "8px", right: "50px", background: "rgba(0,0,0,0.55)", color: "white", padding: "4px 8px", borderRadius: "8px", cursor: "pointer", fontSize: "10px", fontWeight: 700, backdropFilter: "blur(4px)", border: "1px solid rgba(255,255,255,0.3)", zIndex: 10 }}>
                   <i className="fa-solid fa-camera"></i> Cover
                   <input type="file" accept="image/*" onChange={handleDirectCoverChange} style={{ display: "none" }} />
@@ -2019,6 +2082,7 @@ export default function App() {
               </div>
 
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "0 12px 12px 12px", textAlign: "center" }}>
+                {/* AVATAR WITH DIRECT CAMERA BUTTON */}
                 <div style={{ width: "66px", height: "68px", borderRadius: "50%", background: "#ffffff", padding: "2px", boxShadow: "0 4px 14px rgba(0,0,0,0.12)", overflow: "hidden", marginTop: "-34px", marginBottom: "6px", zIndex: 10, position: "relative" }}>
                   {(avatarPreview || appData?.avatarUrl) ? (
                     <img src={avatarPreview || appData?.avatarUrl} alt="Profile Avatar" style={{ width: "100%", height: "100%", borderRadius: "50%", objectFit: "cover" }} />
@@ -2042,6 +2106,7 @@ export default function App() {
                 </div>
                 <p style={{ fontSize: "10px", color: "var(--text-muted)", fontWeight: 600, marginTop: "1px", marginBottom: "0" }}>{appData?.userTitle || "Fitness Enthusiast"}</p>
 
+                {/* ATHLETIC STATS GRID */}
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "4px", background: "#f8fafc", padding: "8px", borderRadius: "14px", marginTop: "10px", width: "100%", border: "1px solid #f1f5f9" }}>
                   <div onClick={() => setActivePanel("boosting")} style={{ cursor: "pointer" }}>
                     <div style={{ fontSize: "12px", fontWeight: 900, color: "var(--primary)" }}>{(appData?.boosting || []).length}</div>
@@ -2063,6 +2128,7 @@ export default function App() {
               </div>
             </div>
 
+            {/* CREATE POST CARD */}
             <div className="card" style={{ padding: "12px", borderRadius: "18px", boxShadow: "0 4px 16px rgba(0,0,0,0.04)", marginBottom: "12px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
                 <span style={{ fontSize: "12px", fontWeight: 800, color: "#0f172a" }}>Create Post</span>
@@ -2125,6 +2191,7 @@ export default function App() {
               </div>
             </div>
 
+            {/* MY POSTS FEED HEADER & VIEW SWITCHER */}
             <div className="card" style={{ padding: "14px", borderRadius: "18px", marginBottom: "16px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
                 <span style={{ fontSize: "13px", fontWeight: 800, color: "#0f172a" }}>My Fitness Feed</span>
@@ -2182,7 +2249,6 @@ export default function App() {
               ) : (
                 myPosts.map(p => {
                   const vis = p?.visibility || "public";
-                  const isLiked = (p.likedBy || []).includes(user?.uid);
                   return (
                     <div key={p.id} style={{ background: "#ffffff", border: "1px solid #f1f5f9", borderRadius: "14px", padding: "12px", marginBottom: "12px", boxShadow: "0 2px 8px rgba(0,0,0,0.02)", position: "relative" }}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "8px" }}>
@@ -2243,40 +2309,8 @@ export default function App() {
                         </div>
                       )}
 
-                      <div style={{ display: "flex", alignItems: "center", gap: "10px", borderTop: "1px solid #f1f5f9", paddingTop: "8px", marginTop: "4px" }}>
-                        <button 
-                          onClick={(e) => handleLike(p.id, p.likes || 0, p.likedBy || [], e)}
-                          style={{ 
-                            background: isLiked ? "#fef2f2" : "transparent", 
-                            border: "none", 
-                            color: isLiked ? "#ef4444" : "#64748b", 
-                            padding: "4px 8px", 
-                            fontSize: "11px", 
-                            fontWeight: 800, 
-                            cursor: "pointer", 
-                            display: "flex", 
-                            alignItems: "center", 
-                            gap: "5px", 
-                            borderRadius: "10px" 
-                          }}
-                        >
-                          <i className={isLiked ? "fa-solid fa-heart" : "fa-regular fa-heart"} style={{ fontSize: "13px", color: isLiked ? "#ef4444" : "#64748b" }}></i>
-                          {p.likes || 0} {(p.likes === 1) ? "Pulse" : "Pulses"}
-                        </button>
-
-                        <button 
-                          onClick={() => { setSelectedPost(p); setActivePanel("post_detail"); }}
-                          style={{ background: "transparent", border: "none", color: "#64748b", padding: "4px 8px", fontSize: "11px", fontWeight: 800, cursor: "pointer", display: "flex", alignItems: "center", gap: "5px" }}
-                        >
-                          <i className="fa-regular fa-comment" style={{ fontSize: "12px" }}></i> {(p.comments || []).length}
-                        </button>
-
-                        <button 
-                          onClick={() => { setResonatePost(p); navigator.clipboard.writeText(window.location.href); showToast("Link copied to clipboard!"); }}
-                          style={{ background: "transparent", border: "none", color: "#64748b", padding: "4px 8px", fontSize: "11px", fontWeight: 800, cursor: "pointer", display: "flex", alignItems: "center", gap: "5px" }}
-                        >
-                          <i className="fa-solid fa-share-nodes" style={{ fontSize: "12px" }}></i> Resonate
-                        </button>
+                      <div style={{ fontSize: "10px", color: "var(--text-muted)", fontWeight: 700, display: "flex", alignItems: "center", gap: "4px", borderTop: "1px solid #f8fafc", paddingTop: "6px", marginTop: "4px" }}>
+                        <i className="fa-solid fa-heart" style={{ color: "#ef4444" }}></i> {p.likes || 0} {(p.likes === 1) ? "Pulse" : "Pulses"}
                       </div>
                     </div>
                   );
@@ -2286,7 +2320,7 @@ export default function App() {
           </div>
         )}
 
-        {/* TAB 7: ADMIN PANEL */}
+        {/* TAB 7: ULTRA-COMPACT ADMIN PANEL */}
         {isAdmin && activeTab === "admin" && (
           <div className="screen active">
             <div style={{ marginBottom: "10px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -2325,6 +2359,7 @@ export default function App() {
               </div>
             )}
 
+            {/* ADMIN CONTENT LISTINGS */}
             {adminSubTab === "posts" ? (
               <div>
                 {posts.length === 0 ? (
@@ -2433,6 +2468,8 @@ export default function App() {
       </div>
 
       {/* ISOLATED MODALS LAYER */}
+
+      {/* ABOUT NUTRIPULSE SYSTEM MODAL WITH HEART PULSE LOGO */}
       {showAboutModal && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(15, 23, 42, 0.75)", backdropFilter: "blur(6px)", zIndex: 2900, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
           <div className="card" style={{ width: "100%", maxWidth: "380px", padding: "22px", borderRadius: "24px", background: "#ffffff", textAlign: "center" }}>
@@ -2460,7 +2497,7 @@ export default function App() {
         </div>
       )}
 
-      {/* SEARCH ATHLETES MODAL */}
+      {/* SEARCH ATHLETES OVERLAY MODAL */}
       {showSearchModal && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(15, 23, 42, 0.75)", backdropFilter: "blur(6px)", zIndex: 2800, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "16px", paddingTop: "40px" }}>
           <div className="card" style={{ width: "100%", maxWidth: "380px", padding: "18px", borderRadius: "20px", background: "#ffffff", maxHeight: "80vh", overflowY: "auto" }}>
@@ -2499,7 +2536,7 @@ export default function App() {
                     </div>
 
                     <button 
-                      onClick={() => { setSelectedVisitor(u); setActivePanel("visitor_profile"); setShowSearchModal(false); setSearchQuery(""); }}
+                      onClick={() => { setViewingAthlete(u); setShowSearchModal(false); setSearchQuery(""); }}
                       style={{ background: "var(--primary)", color: "white", border: "none", padding: "4px 10px", borderRadius: "8px", fontSize: "9px", fontWeight: 800, cursor: "pointer", flexShrink: 0 }}
                     >
                       View
@@ -2512,6 +2549,7 @@ export default function App() {
         </div>
       )}
 
+      
       {/* UNIFORM SLIDE-OVER PANEL ENGINE */}
       {activePanel && (
         <div style={{
@@ -2535,7 +2573,7 @@ export default function App() {
             borderBottom: "1px solid #e2e8f0",
             display: "flex",
             alignItems: "center",
-            justify: "space-between",
+            justifyContent: "space-between",
             background: "#ffffff"
           }}>
             <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
@@ -2553,34 +2591,34 @@ export default function App() {
             </div>
             {activePanel === 'notif' && (
               <span style={{ fontSize: "11px", fontWeight: 700, color: "#0284c7", background: "#e0f2fe", padding: "4px 10px", borderRadius: "12px" }}>
-                {unreadNotifsCount} New
+                {allUserNotifs.length} New
               </span>
             )}
           </div>
 
           {/* Panel Body */}
-          <div style={{ flex: 1, overflowY: "auto", padding: "16px", paddingBottom: "140px" }}>
+          <div style={{ flex: 1, overflowY: "auto", padding: "16px" }}>
             {/* NOTIFICATION PANEL */}
             {activePanel === 'notif' && (
-              realtimeNotifs.length === 0 ? (
+              allUserNotifs.length === 0 ? (
                 <div style={{ textAlign: "center", padding: "40px 20px", color: "#94a3b8", fontSize: "13px" }}>
                   <i className="fa-regular fa-bell-slash" style={{ fontSize: "32px", marginBottom: "10px", display: "block" }}></i>
                   No notifications yet.
                 </div>
               ) : (
-                realtimeNotifs.map(notif => (
+                allUserNotifs.map(notif => (
                   <div key={notif.id} onClick={() => {
                     if (notif.postId) {
                       const found = posts.find(p => p.id === notif.postId);
                       if (found) { setSelectedPost(found); setActivePanel('post_detail'); }
-                    } else if (notif.senderUid) {
-                      const foundU = userList.find(u => u.uid === notif.senderUid);
+                    } else if (notif.uid) {
+                      const foundU = userList.find(u => u.uid === notif.uid);
                       if (foundU) { setSelectedVisitor(foundU); setActivePanel('visitor_profile'); }
                     }
                   }} style={{
                     display: "flex",
                     alignItems: "center",
-                    justify: "space-between",
+                    justifyContent: "space-between",
                     padding: "12px",
                     borderRadius: "12px",
                     background: "#f8fafc",
@@ -2589,16 +2627,16 @@ export default function App() {
                     cursor: "pointer"
                   }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "12px", flex: 1 }}>
-                      {notif.senderAvatar ? (
-                        <img src={notif.senderAvatar} alt="" style={{ width: "38px", height: "38px", borderRadius: "50%", objectFit: "cover" }} />
+                      {notif.avatar ? (
+                        <img src={notif.avatar} alt="" style={{ width: "38px", height: "38px", borderRadius: "50%", objectFit: "cover" }} />
                       ) : (
                         <div style={{ width: "38px", height: "38px", borderRadius: "50%", background: "#0284c7", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: "14px" }}>
-                          {(notif.senderName || "N").charAt(0).toUpperCase()}
+                          {(notif.title || "N").charAt(0).toUpperCase()}
                         </div>
                       )}
                       <div style={{ flex: 1 }}>
                         <div style={{ fontSize: "12px", color: "#0f172a" }}>
-                          <strong>{notif.senderName}</strong> {notif.text}
+                          <strong>{notif.title}</strong> {notif.text}
                         </div>
                         <div style={{ fontSize: "10px", color: "#94a3b8", marginTop: "3px", fontWeight: 600 }}>
                           {formatPostTime(notif.timestamp)}
@@ -2613,71 +2651,62 @@ export default function App() {
             {/* UPGRADED POST DETAIL PANEL WITH REALTIME COMMENTS */}
             {activePanel === 'post_detail' && selectedPost && (
               <div style={{ background: "#ffffff", borderRadius: "16px", padding: "14px", border: "1px solid #e2e8f0" }}>
-                {(() => {
-                  const livePost = posts.find(p => p.id === selectedPost.id) || selectedPost;
-                  const isLiked = (livePost.likedBy || []).includes(user?.uid);
-                  return (
-                    <>
-                      <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
-                        {livePost.userAvatar ? (
-                          <img src={livePost.userAvatar} alt="" style={{ width: "40px", height: "40px", borderRadius: "50%", objectFit: "cover" }} />
-                        ) : (
-                          <div style={{ width: "40px", height: "40px", borderRadius: "50%", background: "#0284c7", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: "14px" }}>
-                            {(livePost.userName || "A").charAt(0).toUpperCase()}
+                <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
+                  {selectedPost.userAvatar ? (
+                    <img src={selectedPost.userAvatar} alt="" style={{ width: "40px", height: "40px", borderRadius: "50%", objectFit: "cover" }} />
+                  ) : (
+                    <div style={{ width: "40px", height: "40px", borderRadius: "50%", background: "#0284c7", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: "14px" }}>
+                      {(selectedPost.userName || "A").charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                  <div>
+                    <strong style={{ fontSize: "14px", color: "#0f172a", display: "block" }}>{selectedPost.userName || "Athlete"}</strong>
+                    <span style={{ fontSize: "10px", color: "#94a3b8" }}>{formatPostTime(selectedPost.createdAt)}</span>
+                  </div>
+                </div>
+                {selectedPost.text && <p style={{ fontSize: "13px", color: "#334155", lineHeight: "1.5", marginBottom: "12px", wordBreak: "break-word" }}>{selectedPost.text}</p>}
+                {selectedPost.imageUrl && <img src={selectedPost.imageUrl} alt="" style={{ width: "100%", borderRadius: "12px", marginBottom: "12px", objectFit: "cover" }} />}
+                
+                <div style={{ display: "flex", gap: "16px", padding: "10px 0", borderTop: "1px solid #f1f5f9", borderBottom: "1px solid #f1f5f9" }}>
+                  <button onClick={() => handleLike(selectedPost.id, selectedPost.likes || 0, selectedPost.likedBy || [])} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "12px", fontWeight: 700, color: (selectedPost.likedBy || []).includes(user?.uid) ? "#ef4444" : "#64748b" }}>
+                    <i className="fa-solid fa-heart" style={{ marginRight: "4px" }}></i> Pulse ({selectedPost.likes || 0})
+                  </button>
+                  <button onClick={() => { navigator.clipboard.writeText(window.location.href); showToast("Link copied to clipboard!"); }} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "12px", fontWeight: 700, color: "#64748b" }}>
+                    <i className="fa-solid fa-share-nodes" style={{ marginRight: "4px" }}></i> Resonate
+                  </button>
+                </div>
+
+                {/* Realtime Comments Section */}
+                <div style={{ marginTop: "14px" }}>
+                  <h4 style={{ fontSize: "12px", fontWeight: 800, color: "#0f172a", marginBottom: "8px" }}>Comments ({(postComments[selectedPost.id] || []).length})</h4>
+                  
+                  <div style={{ display: "flex", gap: "8px", marginBottom: "12px" }}>
+                    <input 
+                      type="text" 
+                      placeholder="Write a comment..." 
+                      value={newCommentText}
+                      onChange={(e) => setNewCommentText(e.target.value)}
+                      style={{ flex: 1, padding: "8px 12px", borderRadius: "10px", border: "1px solid #cbd5e1", fontSize: "11px", outline: "none" }} 
+                    />
+                    <button onClick={() => handleAddComment(selectedPost.id)} style={{ padding: "8px 14px", background: "#0284c7", color: "white", border: "none", borderRadius: "10px", fontWeight: 800, fontSize: "11px", cursor: "pointer" }}>Post</button>
+                  </div>
+
+                  <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                    {(postComments[selectedPost.id] || []).length === 0 ? (
+                      <p style={{ fontSize: "11px", color: "#94a3b8", textAlign: "center", padding: "10px 0" }}>No comments yet. Be the first to comment!</p>
+                    ) : (
+                      (postComments[selectedPost.id] || []).map(c => (
+                        <div key={c.id} style={{ background: "#f8fafc", padding: "8px 10px", borderRadius: "10px", border: "1px solid #f1f5f9" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "2px" }}>
+                            <strong style={{ fontSize: "11px", color: "#0f172a" }}>{c.userName}</strong>
+                            <span style={{ fontSize: "9px", color: "#94a3b8" }}>{formatPostTime(c.createdAt)}</span>
                           </div>
-                        )}
-                        <div>
-                          <strong style={{ fontSize: "14px", color: "#0f172a", display: "block" }}>{livePost.userName || "Athlete"}</strong>
-                          <span style={{ fontSize: "10px", color: "#94a3b8" }}>{formatPostTime(livePost.createdAt)}</span>
+                          <p style={{ fontSize: "11px", color: "#334155", margin: 0 }}>{c.text}</p>
                         </div>
-                      </div>
-
-                      {livePost.text && <p style={{ fontSize: "13px", color: "#334155", lineHeight: "1.5", marginBottom: "12px", wordBreak: "break-word" }}>{livePost.text}</p>}
-                      {livePost.imageUrl && <img src={livePost.imageUrl} alt="" style={{ width: "100%", borderRadius: "12px", marginBottom: "12px", objectFit: "cover" }} />}
-                      
-                      <div style={{ display: "flex", gap: "16px", padding: "10px 0", borderTop: "1px solid #f1f5f9", borderBottom: "1px solid #f1f5f9" }}>
-                        <button onClick={(e) => handleLike(livePost.id, livePost.likes || 0, livePost.likedBy || [], e)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "12px", fontWeight: 700, color: isLiked ? "#ef4444" : "#64748b" }}>
-                          <i className={isLiked ? "fa-solid fa-heart" : "fa-regular fa-heart"} style={{ marginRight: "4px" }}></i> Pulse ({livePost.likes || 0})
-                        </button>
-                        <button onClick={() => { navigator.clipboard.writeText(window.location.href); showToast("Link copied to clipboard!"); }} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "12px", fontWeight: 700, color: "#64748b" }}>
-                          <i className="fa-solid fa-share-nodes" style={{ marginRight: "4px" }}></i> Resonate
-                        </button>
-                      </div>
-
-                      {/* Realtime Comments Section */}
-                      <div style={{ marginTop: "14px" }}>
-                        <h4 style={{ fontSize: "12px", fontWeight: 800, color: "#0f172a", marginBottom: "8px" }}>Comments ({(livePost.comments || []).length})</h4>
-                        
-                        <div style={{ display: "flex", gap: "8px", marginBottom: "12px" }}>
-                          <input 
-                            type="text" 
-                            placeholder="Write a comment..." 
-                            value={newCommentText}
-                            onChange={(e) => setNewCommentText(e.target.value)}
-                            style={{ flex: 1, padding: "8px 12px", borderRadius: "10px", border: "1px solid #cbd5e1", fontSize: "11px", outline: "none" }} 
-                          />
-                          <button onClick={() => handleAddComment(livePost.id)} style={{ padding: "8px 14px", background: "#0284c7", color: "white", border: "none", borderRadius: "10px", fontWeight: 800, fontSize: "11px", cursor: "pointer" }}>Post</button>
-                        </div>
-
-                        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                          {(livePost.comments || []).length === 0 ? (
-                            <p style={{ fontSize: "11px", color: "#94a3b8", textAlign: "center", padding: "10px 0" }}>No comments yet. Be the first to comment!</p>
-                          ) : (
-                            (livePost.comments || []).map(c => (
-                              <div key={c.id} style={{ background: "#f8fafc", padding: "8px 10px", borderRadius: "10px", border: "1px solid #f1f5f9" }}>
-                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "2px" }}>
-                                  <strong style={{ fontSize: "11px", color: "#0f172a" }}>{c.userName}</strong>
-                                  <span style={{ fontSize: "9px", color: "#94a3b8" }}>{formatPostTime(c.createdAt)}</span>
-                                </div>
-                                <p style={{ fontSize: "11px", color: "#334155", margin: 0 }}>{c.text}</p>
-                              </div>
-                            ))
-                          )}
-                        </div>
-                      </div>
-                    </>
-                  );
-                })()}
+                      ))
+                    )}
+                  </div>
+                </div>
               </div>
             )}
 
@@ -2711,7 +2740,7 @@ export default function App() {
               </div>
             )}
 
-            {/* BOOSTERS LIST PANEL */}
+            {/* BOOSTERS LIST PANEL WITH AVATAR FALLBACK & BOOST ACTION */}
             {activePanel === 'boosters' && (
               <div>
                 <h4 style={{ margin: "0 0 12px 0", fontSize: "12px", color: "#64748b", fontWeight: 800 }}>Athletes boosting you</h4>
@@ -2749,7 +2778,7 @@ export default function App() {
               </div>
             )}
 
-            {/* BOOSTING LIST PANEL */}
+            {/* BOOSTING LIST PANEL WITH AVATAR FALLBACK */}
             {activePanel === 'boosting' && (
               <div>
                 <h4 style={{ margin: "0 0 12px 0", fontSize: "12px", color: "#64748b", fontWeight: 800 }}>Athletes you are boosting</h4>
@@ -2793,6 +2822,7 @@ export default function App() {
         </div>
       )}
 
+      
       {/* EDIT POST OVERLAY MODAL */}
       {editingPost && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(15, 23, 42, 0.75)", backdropFilter: "blur(6px)", zIndex: 999999, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
@@ -2823,10 +2853,10 @@ export default function App() {
       )}
 
       {/* FIXED BOTTOM NAVIGATION BAR */}
-      <div className="bottom-nav" style={{ boxSizing: "border-box", margin: "0 auto", position: "fixed", bottom: 0, left: 0,
+      <div className="bottom-nav" style={{ boxSizing: "border-box", margin: "0 auto",  position: "fixed", bottom: 0, left: 0,
           right: 0,
           display: "flex",
-          justify: "center", maxWidth: "480px", width: "100%", background: "#ffffff", borderTop: "1px solid #e2e8f0", zIndex: 1000 }}>
+          justifyContent: "center",  maxWidth: "480px", width: "100%", background: "#ffffff", borderTop: "1px solid #e2e8f0", zIndex: 1000 }}>
         <div className={"nav-item " + (activeTab === "home" ? "active" : "")} onClick={() => setActiveTab("home")}><i className="fa-solid fa-house"></i><span>Home</span></div>
         <div className={"nav-item " + (activeTab === "diary" ? "active" : "")} onClick={() => setActiveTab("diary")}><i className="fa-regular fa-calendar-check"></i><span>Log</span></div>
         <div className={"nav-item " + (activeTab === "community" ? "active" : "")} onClick={() => setActiveTab("community")}><i className="fa-solid fa-users"></i><span>Social</span></div>
