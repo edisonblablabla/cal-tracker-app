@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
 import { initializeApp } from "firebase/app";
 import { 
   getAuth, 
@@ -180,8 +182,13 @@ export default function App() {
   const [isTimerRunning, setIsTimerRunning] = useState(false);
   const timerRef = useRef(null);
 
-  const [gpsStatus, setGpsStatus] = useState("GPS Tracker Inactive");
+    const [gpsStatus, setGpsStatus] = useState("GPS Tracker Inactive");
   const [isGpsTracking, setIsGpsTracking] = useState(false);
+  const [waypoints, setWaypoints] = useState([]);
+  const mapRef = useRef(null);
+  const mapContainerRef = useRef(null);
+  const polylineRef = useRef(null);
+  const markerRef = useRef(null);
   const [totalGpsDistanceKm, setTotalGpsDistanceKm] = useState(0);
   const lastPosRef = useRef(null);
 
@@ -399,11 +406,14 @@ export default function App() {
   useEffect(() => {
     let watchId = null;
     if (activeTab === "home" && isGpsTracking && "geolocation" in navigator) {
-      setGpsStatus("Searching GPS...");
+      setGpsStatus("Searching GPS Signal...");
       watchId = navigator.geolocation.watchPosition(
         (position) => {
           setGpsStatus("GPS Tracking Active");
           const { latitude, longitude } = position.coords;
+          const newCoord = [latitude, longitude];
+
+          setWaypoints(prev => [...prev, newCoord]);
 
           if (lastPosRef.current) {
             const dist = getDistanceFromLatLonInKm(
@@ -412,7 +422,7 @@ export default function App() {
               latitude,
               longitude
             );
-            if (dist > 0.003 && dist < 0.1) {
+            if (dist > 0.002 && dist < 0.2) {
               setTotalGpsDistanceKm(prev => prev + dist);
             }
           }
@@ -425,11 +435,55 @@ export default function App() {
         { enableHighAccuracy: true, timeout: 10000, maximumAge: 1000 }
       );
     } else if (!isGpsTracking) {
-      setGpsStatus("Tracker Inactive");
+      setGpsStatus(waypoints.length > 0 ? "Tracking Paused" : "Tracker Inactive");
       lastPosRef.current = null;
     }
     return () => { if (watchId !== null) navigator.geolocation.clearWatch(watchId); };
   }, [activeTab, isGpsTracking]);
+
+  // Leaflet Map Initialization & Realtime Polyline Drawing
+  useEffect(() => {
+    if (activeTab === "home" && mapContainerRef.current) {
+      if (!mapRef.current) {
+        const initialCenter = waypoints.length > 0 ? waypoints[waypoints.length - 1] : [14.5995, 120.9842];
+        const map = L.map(mapContainerRef.current, { zoomControl: false }).setView(initialCenter, 16);
+        
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          attribution: '&copy; OpenStreetMap'
+        }).addTo(map);
+
+        mapRef.current = map;
+        polylineRef.current = L.polyline([], { color: "#38bdf8", weight: 5, opacity: 0.9 }).addTo(map);
+      }
+
+      if (waypoints.length > 0 && mapRef.current) {
+        const latestPoint = waypoints[waypoints.length - 1];
+        polylineRef.current.setLatLngs(waypoints);
+        mapRef.current.panTo(latestPoint);
+
+        if (!markerRef.current) {
+          const pulseIcon = L.divIcon({
+            className: "gps-pulse-marker",
+            html: '<div style="width:14px;height:14px;background:#0284c7;border:2px solid white;border-radius:50%;box-shadow:0 0 8px rgba(2,132,199,0.8);"></div>',
+            iconSize: [14, 14],
+            iconAnchor: [7, 7]
+          });
+          markerRef.current = L.marker(latestPoint, { icon: pulseIcon }).addTo(mapRef.current);
+        } else {
+          markerRef.current.setLatLng(latestPoint);
+        }
+      }
+    }
+
+    return () => {
+      if (activeTab !== "home" && mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
+        polylineRef.current = null;
+        markerRef.current = null;
+      }
+    };
+  }, [activeTab, waypoints]);
 
   useEffect(() => {
     if (isTimerRunning) {
@@ -1625,6 +1679,16 @@ export default function App() {
                 </span>
               </div>
 
+              {/* LEAFLET INTERACTIVE ROUTE MAP CONTAINER */}
+              <div style={{ borderRadius: "14px", overflow: "hidden", border: "1px solid rgba(255,255,255,0.2)", marginBottom: "12px", height: "150px", position: "relative", background: "#0f172a" }}>
+                <div ref={mapContainerRef} style={{ width: "100%", height: "100%" }}></div>
+                {waypoints.length === 0 && !isGpsTracking && (
+                  <div style={{ position: "absolute", inset: 0, background: "rgba(15,23,42,0.65)", backdropFilter: "blur(2px)", display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontSize: "11px", fontWeight: 700, pointerEvents: "none" }}>
+                    <i className="fa-solid fa-map-location-dot" style={{ marginRight: "6px", color: "#38bdf8" }}></i> Click "Start GPS" to display live route
+                  </div>
+                )}
+              </div>
+
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "10px" }}>
                 <div style={{ background: "rgba(255,255,255,0.1)", padding: "10px", borderRadius: "12px", textAlign: "center" }}>
                   <div style={{ fontSize: "10px", opacity: 0.8, fontWeight: 700 }}>Estimated Steps</div>
@@ -1667,6 +1731,7 @@ export default function App() {
                       showToast(`GPS Walk Logged! (+${gpsCalBurned} kcal burned)`);
                     }
                     setTotalGpsDistanceKm(0);
+                    setWaypoints([]);
                     setIsGpsTracking(false);
                   }} 
                   style={{ flex: 1, padding: "8px", background: "#ffffff", color: "#0f172a", border: "none", borderRadius: "10px", fontWeight: 800, fontSize: "11px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "5px" }}
