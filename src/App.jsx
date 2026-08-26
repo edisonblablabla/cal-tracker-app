@@ -1445,7 +1445,23 @@ export default function App() {
     }));
   });
 
-  const allUserNotifs = [...pendingRequestsNotifs, ...pulseActivityNotifs, ...boosterNotifs, ...commentActivityNotifs].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+  // Resonate Activity Notifications
+  const resonateActivityNotifs = (posts || []).filter(p => p.userId === user?.uid).flatMap(p => {
+    return (p.resonatedBy || []).filter(uid => uid !== user?.uid).map(resUid => {
+      const resUser = (userList || []).find(u => u.uid === resUid);
+      return {
+        id: "resonate_" + p.id + "_" + resUid,
+        type: "resonate",
+        title: resUser?.userName || "An Athlete",
+        avatar: resUser?.avatarUrl || "",
+        text: `resonated your post: "${(p.text || "photo post").slice(0, 20)}..."`,
+        postId: p.id,
+        timestamp: p.createdAt || Date.now()
+      };
+    });
+  });
+
+  const allUserNotifs = [...pendingRequestsNotifs, ...pulseActivityNotifs, ...boosterNotifs, ...commentActivityNotifs, ...resonateActivityNotifs].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
 
   const activeWorkoutObj = WORKOUT_ACTIVITIES.find(a => a.name === selectedActivity) || WORKOUT_ACTIVITIES[0];
   const initialMins = parseInt(workoutDuration) || 30;
@@ -1915,7 +1931,24 @@ export default function App() {
                         </button>
 
                         <button 
-                          onClick={() => setResonatePost(p)}
+                          onClick={() => {
+                            setResonatePost(p);
+                            navigator.clipboard.writeText(window.location.href);
+                            showToast("Link copied & post resonated!");
+                            if (p.userId !== user?.uid) {
+                              try {
+                                addDoc(collection(db, "notifications"), {
+                                  recipientUid: p.userId,
+                                  senderName: appData?.userName || user?.displayName || "Athlete",
+                                  senderAvatar: appData?.avatarUrl || avatarPreview || "",
+                                  type: "resonate",
+                                  text: `resonated your post: "${(p.text || "photo post").slice(0, 20)}..."`,
+                                  postId: p.id,
+                                  timestamp: Date.now()
+                                });
+                              } catch (e) { console.error(e); }
+                            }
+                          }}
                           style={{ background: "transparent", border: "none", color: "#64748b", padding: "4px 8px", fontSize: "11px", fontWeight: 800, cursor: "pointer", display: "flex", alignItems: "center", gap: "5px" }}
                         >
                           <i className="fa-solid fa-share-nodes" style={{ fontSize: "12px" }}></i> Resonate
@@ -2387,7 +2420,24 @@ export default function App() {
                         </button>
 
                         <button 
-                          onClick={() => setResonatePost(p)}
+                          onClick={() => {
+                            setResonatePost(p);
+                            navigator.clipboard.writeText(window.location.href);
+                            showToast("Link copied & post resonated!");
+                            if (p.userId !== user?.uid) {
+                              try {
+                                addDoc(collection(db, "notifications"), {
+                                  recipientUid: p.userId,
+                                  senderName: appData?.userName || user?.displayName || "Athlete",
+                                  senderAvatar: appData?.avatarUrl || avatarPreview || "",
+                                  type: "resonate",
+                                  text: `resonated your post: "${(p.text || "photo post").slice(0, 20)}..."`,
+                                  postId: p.id,
+                                  timestamp: Date.now()
+                                });
+                              } catch (e) { console.error(e); }
+                            }
+                          }}
                           style={{ background: "transparent", border: "none", color: "#64748b", padding: "4px 8px", fontSize: "11px", fontWeight: 800, cursor: "pointer", display: "flex", alignItems: "center", gap: "5px" }}
                         >
                           <i className="fa-solid fa-share-nodes" style={{ fontSize: "12px" }}></i> Resonate
