@@ -601,6 +601,16 @@ export default function App() {
     } else {
       updatedBoosting.push(targetUid);
       showToast("You are now Boosting this athlete! ");
+      try {
+        addDoc(collection(db, "notifications"), {
+          recipientUid: targetUid,
+          senderName: appData?.userName || user?.displayName || "Athlete",
+          senderAvatar: appData?.avatarUrl || avatarPreview || "",
+          type: "boost",
+          text: "started boosting your profile!",
+          timestamp: Date.now()
+        });
+      } catch (e) { console.error(e); }
     }
 
     const updatedData = { ...appData, boosting: updatedBoosting, pendingBoosterRequests: updatedRequests };
@@ -783,6 +793,12 @@ export default function App() {
         avatarUrl: commentAuthorAvatar,
         text: newCommentText.trim(),
         createdAt: Date.now()
+      });
+
+      const postRef = doc(db, "posts", postId);
+      const targetPost = posts.find(p => p.id === postId);
+      await updateDoc(postRef, {
+        commentsCount: ((targetPost?.commentsCount) || 0) + 1
       });
 
       const targetPost = posts.find(p => p.id === postId);
@@ -1906,7 +1922,7 @@ export default function App() {
                           onClick={() => { setSelectedPost(p); setActivePanel("post_detail"); }}
                           style={{ background: "transparent", border: "none", color: "#64748b", padding: "4px 8px", fontSize: "11px", fontWeight: 800, cursor: "pointer", display: "flex", alignItems: "center", gap: "5px" }}
                         >
-                          <i className="fa-regular fa-comment" style={{ fontSize: "12px" }}></i> Comment
+                          <i className="fa-regular fa-comment" style={{ fontSize: "12px" }}></i> {p.commentsCount || 0}
                         </button>
 
                         <button 
@@ -2389,7 +2405,7 @@ export default function App() {
                           onClick={() => { setSelectedPost(p); setActivePanel("post_detail"); }}
                           style={{ background: "transparent", border: "none", color: "#64748b", padding: "4px 8px", fontSize: "11px", fontWeight: 800, cursor: "pointer", display: "flex", alignItems: "center", gap: "5px" }}
                         >
-                          <i className="fa-regular fa-comment" style={{ fontSize: "12px" }}></i> Comment
+                          <i className="fa-regular fa-comment" style={{ fontSize: "12px" }}></i> {p.commentsCount || 0}
                         </button>
 
                         <button 
