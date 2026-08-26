@@ -2520,19 +2520,18 @@ const pulseActivityNotifs = posts.filter(p => p.userId === user?.uid && Array.is
       )}
 
       {/* MULTI-ACTIVITY NOTIFICATION OVERLAY MODAL */}
-      {/* IN-APP NOTIFICATION PANEL / HUB (NO POPUP MODAL) */}
+      {/* MODERN IN-APP NOTIFICATION PANEL (NON-BLOCKING OVERLAY) */}
       {showNotifModal && (
         <div style={{
           position: "fixed",
           top: 0,
-          pointerEvents: showNotifModal ? "auto" : "none",
           left: "50%",
           transform: "translateX(-50%)",
           maxWidth: "480px",
           width: "100%",
           height: "100vh",
           background: "#ffffff",
-          zIndex: 5000,
+          zIndex: 9999,
           display: "flex",
           flexDirection: "column",
           boxSizing: "border-box"
@@ -2594,7 +2593,6 @@ const pulseActivityNotifs = posts.filter(p => p.userId === user?.uid && Array.is
                     </div>
                   </div>
 
-                  {/* Thumbnail Preview of Post if available */}
                   {notif.postImage && (
                     <img src={notif.postImage} alt="" style={{ width: "40px", height: "40px", borderRadius: "8px", objectFit: "cover", marginLeft: "8px" }} />
                   )}
@@ -2604,7 +2602,6 @@ const pulseActivityNotifs = posts.filter(p => p.userId === user?.uid && Array.is
           </div>
         </div>
       )}
-
       {/* FIXED BOTTOM NAVIGATION BAR */}
       <div className="bottom-nav" style={{ boxSizing: "border-box", margin: "0 auto",  position: "fixed", bottom: 0, left: 0,
           right: 0,
