@@ -1689,6 +1689,16 @@ export default function App() {
                 )}
               </div>
 
+              {/* LEAFLET INTERACTIVE ROUTE MAP CONTAINER */}
+              <div style={{ borderRadius: "14px", overflow: "hidden", border: "1px solid rgba(255,255,255,0.2)", marginBottom: "12px", height: "150px", position: "relative", background: "#0f172a" }}>
+                <div ref={mapContainerRef} style={{ width: "100%", height: "100%" }}></div>
+                {waypoints.length === 0 && !isGpsTracking && (
+                  <div style={{ position: "absolute", inset: 0, background: "rgba(15,23,42,0.65)", backdropFilter: "blur(2px)", display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontSize: "11px", fontWeight: 700, pointerEvents: "none" }}>
+                    <i className="fa-solid fa-map-location-dot" style={{ marginRight: "6px", color: "#38bdf8" }}></i> Click "Start GPS" to display live route
+                  </div>
+                )}
+              </div>
+
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "10px" }}>
                 <div style={{ background: "rgba(255,255,255,0.1)", padding: "10px", borderRadius: "12px", textAlign: "center" }}>
                   <div style={{ fontSize: "10px", opacity: 0.8, fontWeight: 700 }}>Estimated Steps</div>
@@ -1731,6 +1741,7 @@ export default function App() {
                       showToast(`GPS Walk Logged! (+${gpsCalBurned} kcal burned)`);
                     }
                     setTotalGpsDistanceKm(0);
+                    setWaypoints([]);
                     setWaypoints([]);
                     setIsGpsTracking(false);
                   }} 
