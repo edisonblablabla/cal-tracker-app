@@ -702,6 +702,7 @@ export default function App() {
   };
 
   const handleLike = async (postId, currentLikes, likedBy = []) => {
+    if (!user) return;
     const isAlreadyLiked = likedBy.includes(user.uid);
     let updatedLikedBy = [];
     let updatedLikesCount = currentLikes;
@@ -720,7 +721,21 @@ export default function App() {
         likes: updatedLikesCount, 
         likedBy: updatedLikedBy 
       }, { merge: true });
-      } catch (err) {
+
+      // Trigger realtime notification on Pulse if liking someone else's post
+      const targetPost = posts.find(p => p.id === postId);
+      if (!isAlreadyLiked && targetPost && targetPost.userId !== user.uid) {
+        await addDoc(collection(db, "notifications"), {
+          recipientUid: targetPost.userId,
+          senderName: appData?.userName || user.displayName || "Athlete",
+          senderAvatar: appData?.avatarUrl || avatarPreview || "",
+          type: "pulse",
+          text: `pulsed your post: "${(targetPost.text || "photo post").slice(0, 20)}..."`,
+          postId: postId,
+          timestamp: Date.now()
+        });
+      }
+    } catch (err) {
       console.error("Error toggling pulse:", err);
     }
   };
