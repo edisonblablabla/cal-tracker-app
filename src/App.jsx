@@ -321,7 +321,7 @@ export default function App() {
               setOnboardStep(1);
             } else {
               setOnboardStep(0);
-              setActiveTab("home");
+              setActiveTab("home"); setActivePanel(null);
             }
           } else {
             setSetupName(currentUser.displayName || "Athlete");
@@ -845,7 +845,7 @@ export default function App() {
       setProfActivity(act);
       setOnboardStep(0);
       setShowSettingsModal(false);
-      setActiveTab("home");
+      setActiveTab("home"); setActivePanel(null);
     } finally {
       setIsSavingOnboarding(false);
     }
@@ -864,8 +864,9 @@ export default function App() {
         await createUserWithEmailAndPassword(auth, email, password);
       } else {
         await signInWithEmailAndPassword(auth, email, password);
+      setActivePanel(null);
       }
-      setActiveTab("home");
+      setActiveTab("home"); setActivePanel(null);
     } catch (error) {
       if (error.code === "auth/invalid-credential" || error.code === "auth/user-not-found" || error.code === "auth/wrong-password") {
         setErrorMessage("Invalid email or password. Please try again.");
@@ -884,7 +885,8 @@ export default function App() {
     setShowSettingsModal(false);
     try {
       await signInWithPopup(auth, googleProvider);
-      setActiveTab("home");
+      setActivePanel(null);
+      setActiveTab("home"); setActivePanel(null);
     } catch (error) {
       setErrorMessage("Google Login Error: " + error.message);
     }
@@ -913,7 +915,7 @@ export default function App() {
     setProfImagePreview(null);
     setOnboardStep(0);
     setShowAuthForm(false);
-    setActiveTab("home");
+    setActiveTab("home"); setActivePanel(null);
     setIsLoggingOut(false);
   };
 
