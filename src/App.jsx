@@ -1765,20 +1765,25 @@ export default function App() {
         {/* TAB 3: SOCIAL TAB */}
         {activeTab === "community" && (
           <div className="screen active">
-            {/* FROZEN STICKY SOCIAL HEADER */}
+            {/* FROZEN STICKY SOCIAL HEADER - ZERO GAP FIX */}
             <div style={{ 
               position: "sticky", 
-              top: 0, 
+              top: "-16px", 
+              marginTop: "-16px",
+              paddingTop: "24px",
+              paddingBottom: "12px",
+              paddingLeft: "16px",
+              paddingRight: "16px",
+              marginLeft: "-16px",
+              marginRight: "-16px",
               zIndex: 900, 
-              background: "rgba(248, 250, 252, 0.92)", 
-              backdropFilter: "blur(10px)", 
-              WebkitBackdropFilter: "blur(10px)", 
-              padding: "10px 0 12px 0", 
+              background: "#f8fafc", 
+              boxShadow: "0 4px 12px rgba(15, 23, 42, 0.05)",
               marginBottom: "12px", 
               display: "flex", 
               justifyContent: "space-between", 
               alignItems: "center",
-              borderBottom: "1px solid rgba(226, 232, 240, 0.6)"
+              borderBottom: "1px solid #e2e8f0"
             }}>
               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                 <div style={{ width: "30px", height: "30px", borderRadius: "50%", background: "linear-gradient(135deg, #4f46e5, #06b6d4)", display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontSize: "13px", boxShadow: "0 2px 8px rgba(79,70,229,0.3)" }}>
