@@ -224,15 +224,17 @@ export default function App() {
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [showNotifModal, setShowNotifModal] = useState(false);
+  
   // SLIDE-OVER PANEL CENTRAL CONTROLLER
   const [activePanel, setActivePanel] = useState(null);
   const [firestoreNotifs, setFirestoreNotifs] = useState([]);
-  const [lastSeenNotifTime, setLastSeenNotifTime] = useState(() => parseInt(localStorage.getItem('np_last_seen_notif') || '0')); // 'notif', 'post_detail', 'boosters', 'boosting', 'settings', 'visitor_profile'
+  const [lastSeenNotifTime, setLastSeenNotifTime] = useState(() => parseInt(localStorage.getItem('np_last_seen_notif') || '0'));
   const [selectedPost, setSelectedPost] = useState(null);
   const [selectedVisitor, setSelectedVisitor] = useState(null);
-  const [postComments, setPostComments] = useState(() => JSON.parse(localStorage.getItem('np_post_comments') || '{}'));
+  
+  // REAL-TIME FIRESTORE COMMENTS STATE
+  const [postComments, setPostComments] = useState([]);
   const [newCommentText, setNewCommentText] = useState('');
-
 
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [isAddingMeal, setIsAddingMeal] = useState(false);
@@ -251,13 +253,59 @@ export default function App() {
   const [avatarPreview, setAvatarPreview] = useState("");
   const [coverPreview, setCoverPreview] = useState("");
 
-  
   const showToast = (msg, type = "success") => {
     setToastMessage({ text: msg, type });
     setTimeout(() => setToastMessage(null), 3000);
   };
 
   const isAdmin = user?.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase();
+
+  // REALTIME COMMENTS LISTENER FOR SELECTED POST IN SLIDE-OVER
+  useEffect(() => {
+    let unsubComments = null;
+    if (activePanel === 'post_detail' && selectedPost?.id) {
+      try {
+        const commentsRef = collection(db, "posts", selectedPost.id, "comments");
+        const q = query(commentsRef, orderBy("createdAt", "desc"));
+        unsubComments = onSnapshot(q, (snapshot) => {
+          const list = [];
+          snapshot.forEach((docSnap) => {
+            list.push({ id: docSnap.id, ...docSnap.data() });
+          });
+          setPostComments(list);
+        });
+      } catch (e) {
+        console.error("Comments listener error:", e);
+      }
+    } else {
+      setPostComments([]);
+    }
+    return () => { if (unsubComments) unsubComments(); };
+  }, [activePanel, selectedPost]);
+
+  // REALTIME FIRESTORE NOTIFICATIONS LISTENER
+  useEffect(() => {
+    let unsubNotifs = null;
+    if (user) {
+      try {
+        const notifRef = collection(db, "notifications");
+        const q = query(notifRef, orderBy("timestamp", "desc"), limit(40));
+        unsubNotifs = onSnapshot(q, (snapshot) => {
+          const list = [];
+          snapshot.forEach((docSnap) => {
+            const data = docSnap.data();
+            if (data.recipientUid === user.uid) {
+              list.push({ id: docSnap.id, ...data });
+            }
+          });
+          setFirestoreNotifs(list);
+        });
+      } catch (e) {
+        console.error("Notif listener error:", e);
+      }
+    }
+    return () => { if (unsubNotifs) unsubNotifs(); };
+  }, [user]);
 
   useEffect(() => {
     document.title = "NutriPulse - Health Dashboard";
@@ -392,28 +440,24 @@ export default function App() {
     return () => clearInterval(timerRef.current);
   }, [isTimerRunning]);
 
+  // ALL-TIME REALTIME LISTENERS FOR POSTS & USERS (To keep stats real-time anywhere)
   useEffect(() => {
     if (activeTab === "home") {
       shuffleQuote();
     }
-    let unsubUsers = null;
-    let unsubPosts = null;
-    if (activeTab === "community" || activeTab === "profile" || activeTab === "admin") {
-      unsubPosts = fetchPosts();
-      unsubUsers = fetchUsers();
-    }
+    const unsubPosts = fetchPosts();
+    const unsubUsers = fetchUsers();
     return () => { 
       if (unsubUsers) unsubUsers(); 
       if (unsubPosts) unsubPosts();
     };
-  }, [activeTab]);
+  }, []);
 
   const shuffleQuote = () => {
     const randomIndex = Math.floor(Math.random() * FITNESS_QUOTES.length);
     setQuote(FITNESS_QUOTES[randomIndex]);
   };
 
-  
   const handleTabChange = (tabName) => {
     setActiveTab(tabName);
     window.scrollTo({ top: 0, behavior: "instant" });
@@ -500,10 +544,10 @@ export default function App() {
           list.push({ uid: docSnap.id, ...docSnap.data() });
         });
         list.sort((a, b) => {
-        const timeA = a.createdAt || a.lastSeen || 0;
-        const timeB = b.createdAt || b.lastSeen || 0;
-        return timeB - timeA;
-      });
+          const timeA = a.createdAt || a.lastSeen || 0;
+          const timeB = b.createdAt || b.lastSeen || 0;
+          return timeB - timeA;
+        });
         setUserList(list);
       });
     } catch (err) {
@@ -617,20 +661,6 @@ export default function App() {
     }
   };
 
-  const handleAvatarChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      compressImage(file, (compressedUrl) => setAvatarPreview(compressedUrl));
-    }
-  };
-
-  const handleCoverChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      compressImage(file, (compressedUrl) => setCoverPreview(compressedUrl));
-    }
-  };
-
   const createPost = async (isProfile = false) => {
     if (appData?.isBlocked) return showToast("Your account is currently blocked/restricted.");
 
@@ -702,6 +732,7 @@ export default function App() {
     }
   };
 
+  // UPGRADED REAL-TIME HANDLE LIKE WITH FIRESTORE NOTIFICATIONS
   const handleLike = async (postId, currentLikes, likedBy = []) => {
     const isAlreadyLiked = likedBy.includes(user.uid);
     let updatedLikedBy = [];
@@ -717,41 +748,47 @@ export default function App() {
 
     try {
       const postRef = doc(db, "posts", postId);
-      await setDoc(postRef, { 
+      await updateDoc(postRef, { 
         likes: updatedLikesCount, 
         likedBy: updatedLikedBy 
-      }, { merge: true });
-      } catch (err) {
+      });
+
+      // TRIGGER REALTIME FIRESTORE NOTIFICATION IF PULSED (LIKED)
+      const targetPost = posts.find(p => p.id === postId);
+      if (!isAlreadyLiked && targetPost && targetPost.userId !== user?.uid) {
+        await addDoc(collection(db, "notifications"), {
+          recipientUid: targetPost.userId,
+          senderName: appData?.userName || user?.displayName || "Athlete",
+          senderAvatar: appData?.avatarUrl || avatarPreview || "",
+          type: "pulse",
+          text: `pulsed your post: "${(targetPost.text || "photo post").slice(0, 20)}..."`,
+          postId: postId,
+          timestamp: Date.now()
+        });
+      }
+    } catch (err) {
       console.error("Error toggling pulse:", err);
     }
   };
 
-  
-  const handleAddComment = (postId) => {
+  // UPGRADED FIRESTORE REALTIME ADD COMMENT
+  const handleAddComment = async (postId) => {
     if (!newCommentText.trim()) return;
-    const existing = postComments[postId] || [];
     const commentAuthorName = appData?.userName || user?.displayName || "Athlete";
     const commentAuthorAvatar = appData?.avatarUrl || avatarPreview || "";
     
-    const newComment = {
-      id: Date.now(),
-      userName: commentAuthorName,
-      avatarUrl: commentAuthorAvatar,
-      text: newCommentText.trim(),
-      createdAt: Date.now()
-    };
-    
-    const updated = { ...postComments, [postId]: [newComment, ...existing] };
-    setPostComments(updated);
-    localStorage.setItem("np_post_comments", JSON.stringify(updated));
-    setNewCommentText("");
-    showToast("Comment added!");
+    try {
+      await addDoc(collection(db, "posts", postId, "comments"), {
+        userName: commentAuthorName,
+        avatarUrl: commentAuthorAvatar,
+        text: newCommentText.trim(),
+        createdAt: Date.now()
+      });
 
-    // Realtime Notification Trigger
-    if (selectedPost && selectedPost.userId !== user?.uid) {
-      try {
-        addDoc(collection(db, "notifications"), {
-          recipientUid: selectedPost.userId,
+      const targetPost = posts.find(p => p.id === postId);
+      if (targetPost && targetPost.userId !== user?.uid) {
+        await addDoc(collection(db, "notifications"), {
+          recipientUid: targetPost.userId,
           senderName: commentAuthorName,
           senderAvatar: commentAuthorAvatar,
           type: "comment",
@@ -759,9 +796,13 @@ export default function App() {
           postId: postId,
           timestamp: Date.now()
         });
-      } catch (err) {
-        console.error("Comment notif error:", err);
       }
+
+      setNewCommentText("");
+      showToast("Comment added!");
+    } catch (err) {
+      console.error("Comment submit error:", err);
+      showToast("Failed to post comment", "info");
     }
   };
 
@@ -867,7 +908,7 @@ export default function App() {
         await createUserWithEmailAndPassword(auth, email, password);
       } else {
         await signInWithEmailAndPassword(auth, email, password);
-      setActivePanel(null);
+        setActivePanel(null);
       }
       setActiveTab("home"); setActivePanel(null);
     } catch (error) {
@@ -901,7 +942,6 @@ export default function App() {
     if (user) {
       try {
         const userDocRef = doc(db, "users", user.uid);
-        // I-set sa 1 ang presence indicator para agad maging OFFLINE sa realtime listener, at itala ang exact logout time
         await setDoc(userDocRef, { 
           lastSeen: 1, 
           lastLoggedOutAt: Date.now() 
@@ -1384,9 +1424,7 @@ export default function App() {
     (u.userEmail || "").toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-
-
-  // SMART NOTIFICATION HUB WITH TIMESTAMPS & TOP-SORTING LOGIC
+  // COMBINE LOCAL ENGINE & FIRESTORE REALTIME NOTIFICATIONS
   const pendingRequestsNotifs = (appData?.pendingBoosterRequests || []).map(reqUid => {
     const reqUser = userList.find(u => u.uid === reqUid);
     return {
@@ -1400,69 +1438,7 @@ export default function App() {
     };
   });
 
-  // Upgraded Pulse Activity Notification Generator
-  const pulseActivityNotifs = (posts || []).filter(p => p.userId === user?.uid && Array.isArray(p.likedBy)).flatMap(p => {
-    return p.likedBy.filter(likerUid => likerUid !== user?.uid).map(likerUid => {
-      const likerUser = (userList || []).find(u => u.uid === likerUid);
-      const postSnippet = p.text ? (p.text.length > 20 ? p.text.substring(0, 20) + "..." : p.text) : "photo post";
-      return {
-        id: "pulse_" + p.id + "_" + likerUid,
-        type: "pulse",
-        title: likerUser?.userName || "An Athlete",
-        avatar: likerUser?.avatarUrl || "",
-        text: `pulsed your post: "${postSnippet}"`,
-        postImage: p.imageUrl || null,
-        postId: p.id,
-        uid: likerUid,
-        timestamp: p.createdAt || Date.now()
-      };
-    });
-  });
-  const boosterNotifs = (appData?.myBoosters || []).map(bUid => {
-    const uObj = userList.find(u => u.uid === bUid);
-    return {
-      id: "boost_" + bUid,
-      type: "boost",
-      title: uObj?.userName || "An Athlete",
-      avatar: uObj?.avatarUrl || "",
-      text: "started boosting your profile! ",
-      uid: bUid,
-      timestamp: uObj?.createdAt || Date.now()
-    };
-  });
-
-  // Combine and sort chronologically (Newest notifications strictly on top)
-    // Comment Activity Notifications
-  const commentActivityNotifs = (posts || []).filter(p => p.userId === user?.uid).flatMap(p => {
-    const list = postComments[p.id] || [];
-    return list.filter(c => c.userName !== (appData?.userName || user?.displayName)).map(c => ({
-      id: "comment_" + c.id,
-      type: "comment",
-      title: c.userName,
-      avatar: c.avatarUrl,
-      text: `commented: "${c.text.slice(0, 25)}..."`,
-      postId: p.id,
-      timestamp: c.createdAt
-    }));
-  });
-
-  // Resonate Activity Notifications
-  const resonateActivityNotifs = (posts || []).filter(p => p.userId === user?.uid).flatMap(p => {
-    return (p.resonatedBy || []).filter(uid => uid !== user?.uid).map(resUid => {
-      const resUser = (userList || []).find(u => u.uid === resUid);
-      return {
-        id: "resonate_" + p.id + "_" + resUid,
-        type: "resonate",
-        title: resUser?.userName || "An Athlete",
-        avatar: resUser?.avatarUrl || "",
-        text: `resonated your post: "${(p.text || "photo post").slice(0, 20)}..."`,
-        postId: p.id,
-        timestamp: p.createdAt || Date.now()
-      };
-    });
-  });
-
-  const allUserNotifs = [...pendingRequestsNotifs, ...pulseActivityNotifs, ...boosterNotifs, ...commentActivityNotifs, ...resonateActivityNotifs].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+  const allUserNotifs = [...firestoreNotifs, ...pendingRequestsNotifs].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
 
   const activeWorkoutObj = WORKOUT_ACTIVITIES.find(a => a.name === selectedActivity) || WORKOUT_ACTIVITIES[0];
   const initialMins = parseInt(workoutDuration) || 30;
@@ -1472,13 +1448,15 @@ export default function App() {
   const timerMinDisplay = String(Math.floor(timerSeconds / 60)).padStart(2, '0');
   const timerSecDisplay = String(timerSeconds % 60).padStart(2, '0');
 
+  // LIVE SELECTED POST IN SLIDE-OVER FOR INSTANT REAL-TIME PULSE/COMMENT UPDATES
+  const liveSelectedPost = posts.find(p => p.id === selectedPost?.id) || selectedPost;
+
   return (
     <div className="mobile-frame" style={{ maxWidth: "480px", margin: "0 auto", background: "#f8fafc", minHeight: "100vh", position: "relative" }}>
       <div className="screen-container" style={{ padding: "16px", paddingBottom: "120px" }}>
         {/* TAB 1: HOME */}
         {activeTab === "home" && (
           <div className="screen active">
-            {/* ULTRA-COMPACT HEADER WITH AUTO-ELLIPSIS & PULSE LOGO */}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px", gap: "8px" }}>
               <div style={{ minWidth: 0, flex: 1, display: "flex", alignItems: "center", gap: "6px" }}>
                 <div style={{ width: "24px", height: "24px", borderRadius: "50%", background: "linear-gradient(135deg, #4f46e5, #06b6d4)", display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontSize: "11px", boxShadow: "0 2px 6px rgba(79,70,229,0.3)", flexShrink: 0 }}>
@@ -1725,7 +1703,7 @@ export default function App() {
           </div>
         )}
 
-        {/* TAB 3: REDESIGNED SOCIAL TAB */}
+        {/* TAB 3: SOCIAL TAB */}
         {activeTab === "community" && (
           <div className="screen active">
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
@@ -1928,7 +1906,7 @@ export default function App() {
                           onClick={() => { setSelectedPost(p); setActivePanel("post_detail"); }}
                           style={{ background: "transparent", border: "none", color: "#64748b", padding: "4px 8px", fontSize: "11px", fontWeight: 800, cursor: "pointer", display: "flex", alignItems: "center", gap: "5px" }}
                         >
-                          <i className="fa-regular fa-comment" style={{ fontSize: "12px" }}></i> {(postComments[p.id] || []).length}
+                          <i className="fa-regular fa-comment" style={{ fontSize: "12px" }}></i> Comment
                         </button>
 
                         <button 
@@ -2138,10 +2116,9 @@ export default function App() {
           </div>
         )}
 
-        {/* TAB 6: SAFE ULTRA-COMPACT ATHLETIC PROFILE DESIGN */}
+        {/* TAB 6: PROFILE */}
         {activeTab === "profile" && (
           <div className="screen active">
-            {/* HERO PROFILE HEADER */}
             <div className="card" style={{ padding: 0, overflow: "hidden", borderRadius: "20px", marginBottom: "12px", boxShadow: "0 6px 18px rgba(0,0,0,0.06)", position: "relative", border: "none" }}>
               <div style={{ 
                 height: "85px", 
@@ -2150,7 +2127,6 @@ export default function App() {
               }}>
                 <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, rgba(0,0,0,0.1), rgba(15,23,42,0.35))" }}></div>
                 
-                {/* DIRECT BANNER CAMERA BUTTON */}
                 <label style={{ position: "absolute", bottom: "8px", right: "50px", background: "rgba(0,0,0,0.55)", color: "white", padding: "4px 8px", borderRadius: "8px", cursor: "pointer", fontSize: "10px", fontWeight: 700, backdropFilter: "blur(4px)", border: "1px solid rgba(255,255,255,0.3)", zIndex: 10 }}>
                   <i className="fa-solid fa-camera"></i> Cover
                   <input type="file" accept="image/*" onChange={handleDirectCoverChange} style={{ display: "none" }} />
@@ -2165,7 +2141,6 @@ export default function App() {
               </div>
 
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "0 12px 12px 12px", textAlign: "center" }}>
-                {/* AVATAR WITH DIRECT CAMERA BUTTON */}
                 <div style={{ width: "66px", height: "68px", borderRadius: "50%", background: "#ffffff", padding: "2px", boxShadow: "0 4px 14px rgba(0,0,0,0.12)", overflow: "hidden", marginTop: "-34px", marginBottom: "6px", zIndex: 10, position: "relative" }}>
                   {(avatarPreview || appData?.avatarUrl) ? (
                     <img src={avatarPreview || appData?.avatarUrl} alt="Profile Avatar" style={{ width: "100%", height: "100%", borderRadius: "50%", objectFit: "cover" }} />
@@ -2189,7 +2164,6 @@ export default function App() {
                 </div>
                 <p style={{ fontSize: "10px", color: "var(--text-muted)", fontWeight: 600, marginTop: "1px", marginBottom: "0" }}>{appData?.userTitle || "Fitness Enthusiast"}</p>
 
-                {/* ATHLETIC STATS GRID */}
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "4px", background: "#f8fafc", padding: "8px", borderRadius: "14px", marginTop: "10px", width: "100%", border: "1px solid #f1f5f9" }}>
                   <div onClick={() => setActivePanel("boosting")} style={{ cursor: "pointer" }}>
                     <div style={{ fontSize: "12px", fontWeight: 900, color: "var(--primary)" }}>{(appData?.boosting || []).length}</div>
@@ -2204,14 +2178,13 @@ export default function App() {
                     <div style={{ fontSize: "8px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase" }}>Streak</div>
                   </div>
                   <div>
-                    <div style={{ fontSize: "12px", fontWeight: 900, color: "#ef4444" }} >{myTotalPulses}</div>
-                    <div style={{ fontSize: "8px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase" }} >Pulses</div>
+                    <div style={{ fontSize: "12px", fontWeight: 900, color: "#ef4444" }}>{myTotalPulses}</div>
+                    <div style={{ fontSize: "8px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase" }}>Pulses</div>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* CREATE POST CARD */}
             <div className="card" style={{ padding: "12px", borderRadius: "18px", boxShadow: "0 4px 16px rgba(0,0,0,0.04)", marginBottom: "12px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
                 <span style={{ fontSize: "12px", fontWeight: 800, color: "#0f172a" }}>Create Post</span>
@@ -2274,7 +2247,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* MY POSTS FEED HEADER & VIEW SWITCHER */}
             <div className="card" style={{ padding: "14px", borderRadius: "18px", marginBottom: "16px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
                 <span style={{ fontSize: "13px", fontWeight: 800, color: "#0f172a" }}>My Fitness Feed</span>
@@ -2417,7 +2389,7 @@ export default function App() {
                           onClick={() => { setSelectedPost(p); setActivePanel("post_detail"); }}
                           style={{ background: "transparent", border: "none", color: "#64748b", padding: "4px 8px", fontSize: "11px", fontWeight: 800, cursor: "pointer", display: "flex", alignItems: "center", gap: "5px" }}
                         >
-                          <i className="fa-regular fa-comment" style={{ fontSize: "12px" }}></i> {(postComments[p.id] || []).length}
+                          <i className="fa-regular fa-comment" style={{ fontSize: "12px" }}></i> Comment
                         </button>
 
                         <button 
@@ -2452,7 +2424,7 @@ export default function App() {
           </div>
         )}
 
-        {/* TAB 7: ULTRA-COMPACT ADMIN PANEL */}
+        {/* TAB 7: ADMIN */}
         {isAdmin && activeTab === "admin" && (
           <div className="screen active">
             <div style={{ marginBottom: "10px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -2491,7 +2463,6 @@ export default function App() {
               </div>
             )}
 
-            {/* ADMIN CONTENT LISTINGS */}
             {adminSubTab === "posts" ? (
               <div>
                 {posts.length === 0 ? (
@@ -2601,7 +2572,7 @@ export default function App() {
 
       {/* ISOLATED MODALS LAYER */}
 
-      {/* ABOUT NUTRIPULSE SYSTEM MODAL WITH HEART PULSE LOGO */}
+      {/* ABOUT MODAL */}
       {showAboutModal && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(15, 23, 42, 0.75)", backdropFilter: "blur(6px)", zIndex: 2900, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
           <div className="card" style={{ width: "100%", maxWidth: "380px", padding: "22px", borderRadius: "24px", background: "#ffffff", textAlign: "center" }}>
@@ -2668,7 +2639,7 @@ export default function App() {
                     </div>
 
                     <button 
-                      onClick={() => { setViewingAthlete(u); setShowSearchModal(false); setSearchQuery(""); }}
+                      onClick={() => { setSelectedVisitor(u); setActivePanel("visitor_profile"); setShowSearchModal(false); setSearchQuery(""); }}
                       style={{ background: "var(--primary)", color: "white", border: "none", padding: "4px 10px", borderRadius: "8px", fontSize: "9px", fontWeight: 800, cursor: "pointer", flexShrink: 0 }}
                     >
                       View
@@ -2681,7 +2652,6 @@ export default function App() {
         </div>
       )}
 
-      
       {/* UNIFORM SLIDE-OVER PANEL ENGINE */}
       {activePanel && (
         <div style={{
@@ -2705,7 +2675,7 @@ export default function App() {
             borderBottom: "1px solid #e2e8f0",
             display: "flex",
             alignItems: "center",
-            justifyContent: "space-between",
+            justify: "space-between",
             background: "#ffffff"
           }}>
             <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
@@ -2750,7 +2720,7 @@ export default function App() {
                   }} style={{
                     display: "flex",
                     alignItems: "center",
-                    justifyContent: "space-between",
+                    justify: "space-between",
                     padding: "12px",
                     borderRadius: "12px",
                     background: "#f8fafc",
@@ -2759,16 +2729,16 @@ export default function App() {
                     cursor: "pointer"
                   }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "12px", flex: 1 }}>
-                      {notif.avatar ? (
-                        <img src={notif.avatar} alt="" style={{ width: "38px", height: "38px", borderRadius: "50%", objectFit: "cover" }} />
+                      {notif.avatar || notif.senderAvatar ? (
+                        <img src={notif.avatar || notif.senderAvatar} alt="" style={{ width: "38px", height: "38px", borderRadius: "50%", objectFit: "cover" }} />
                       ) : (
                         <div style={{ width: "38px", height: "38px", borderRadius: "50%", background: "#0284c7", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: "14px" }}>
-                          {(notif.title || "N").charAt(0).toUpperCase()}
+                          {(notif.title || notif.senderName || "N").charAt(0).toUpperCase()}
                         </div>
                       )}
                       <div style={{ flex: 1 }}>
                         <div style={{ fontSize: "12px", color: "#0f172a" }}>
-                          <strong>{notif.title}</strong> {notif.text}
+                          <strong>{notif.title || notif.senderName}</strong> {notif.text}
                         </div>
                         <div style={{ fontSize: "10px", color: "#94a3b8", marginTop: "3px", fontWeight: 600 }}>
                           {formatPostTime(notif.timestamp)}
@@ -2780,37 +2750,37 @@ export default function App() {
               )
             )}
 
-            {/* UPGRADED POST DETAIL PANEL WITH REALTIME COMMENTS */}
-            {activePanel === 'post_detail' && selectedPost && (
+            {/* REAL-TIME POST DETAIL PANEL */}
+            {activePanel === 'post_detail' && liveSelectedPost && (
               <div style={{ background: "#ffffff", borderRadius: "16px", padding: "14px", border: "1px solid #e2e8f0" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
-                  {selectedPost.userAvatar ? (
-                    <img src={selectedPost.userAvatar} alt="" style={{ width: "40px", height: "40px", borderRadius: "50%", objectFit: "cover" }} />
+                  {liveSelectedPost.userAvatar ? (
+                    <img src={liveSelectedPost.userAvatar} alt="" style={{ width: "40px", height: "40px", borderRadius: "50%", objectFit: "cover" }} />
                   ) : (
                     <div style={{ width: "40px", height: "40px", borderRadius: "50%", background: "#0284c7", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: "14px" }}>
-                      {(selectedPost.userName || "A").charAt(0).toUpperCase()}
+                      {(liveSelectedPost.userName || "A").charAt(0).toUpperCase()}
                     </div>
                   )}
                   <div>
-                    <strong style={{ fontSize: "14px", color: "#0f172a", display: "block" }}>{selectedPost.userName || "Athlete"}</strong>
-                    <span style={{ fontSize: "10px", color: "#94a3b8" }}>{formatPostTime(selectedPost.createdAt)}</span>
+                    <strong style={{ fontSize: "14px", color: "#0f172a", display: "block" }}>{liveSelectedPost.userName || "Athlete"}</strong>
+                    <span style={{ fontSize: "10px", color: "#94a3b8" }}>{formatPostTime(liveSelectedPost.createdAt)}</span>
                   </div>
                 </div>
-                {selectedPost.text && <p style={{ fontSize: "13px", color: "#334155", lineHeight: "1.5", marginBottom: "12px", wordBreak: "break-word" }}>{selectedPost.text}</p>}
-                {selectedPost.imageUrl && <img src={selectedPost.imageUrl} alt="" style={{ width: "100%", borderRadius: "12px", marginBottom: "12px", objectFit: "cover" }} />}
+                {liveSelectedPost.text && <p style={{ fontSize: "13px", color: "#334155", lineHeight: "1.5", marginBottom: "12px", wordBreak: "break-word" }}>{liveSelectedPost.text}</p>}
+                {liveSelectedPost.imageUrl && <img src={liveSelectedPost.imageUrl} alt="" style={{ width: "100%", borderRadius: "12px", marginBottom: "12px", objectFit: "cover" }} />}
                 
                 <div style={{ display: "flex", gap: "16px", padding: "10px 0", borderTop: "1px solid #f1f5f9", borderBottom: "1px solid #f1f5f9" }}>
-                  <button onClick={() => handleLike(selectedPost.id, selectedPost.likes || 0, selectedPost.likedBy || [])} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "12px", fontWeight: 700, color: (selectedPost.likedBy || []).includes(user?.uid) ? "#ef4444" : "#64748b" }}>
-                    <i className="fa-solid fa-heart" style={{ marginRight: "4px" }}></i> Pulse ({selectedPost.likes || 0})
+                  <button onClick={() => handleLike(liveSelectedPost.id, liveSelectedPost.likes || 0, liveSelectedPost.likedBy || [])} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "12px", fontWeight: 700, color: (liveSelectedPost.likedBy || []).includes(user?.uid) ? "#ef4444" : "#64748b" }}>
+                    <i className="fa-solid fa-heart" style={{ marginRight: "4px" }}></i> Pulse ({liveSelectedPost.likes || 0})
                   </button>
                   <button onClick={() => { navigator.clipboard.writeText(window.location.href); showToast("Link copied to clipboard!"); }} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "12px", fontWeight: 700, color: "#64748b" }}>
                     <i className="fa-solid fa-share-nodes" style={{ marginRight: "4px" }}></i> Resonate
                   </button>
                 </div>
 
-                {/* Realtime Comments Section */}
+                {/* REAL-TIME COMMENTS LIST */}
                 <div style={{ marginTop: "14px" }}>
-                  <h4 style={{ fontSize: "12px", fontWeight: 800, color: "#0f172a", marginBottom: "8px" }}>Comments ({(postComments[selectedPost.id] || []).length})</h4>
+                  <h4 style={{ fontSize: "12px", fontWeight: 800, color: "#0f172a", marginBottom: "8px" }}>Comments ({postComments.length})</h4>
                   
                   <div style={{ display: "flex", gap: "8px", marginBottom: "12px" }}>
                     <input 
@@ -2820,14 +2790,14 @@ export default function App() {
                       onChange={(e) => setNewCommentText(e.target.value)}
                       style={{ flex: 1, padding: "8px 12px", borderRadius: "10px", border: "1px solid #cbd5e1", fontSize: "11px", outline: "none" }} 
                     />
-                    <button onClick={() => handleAddComment(selectedPost.id)} style={{ padding: "8px 14px", background: "#0284c7", color: "white", border: "none", borderRadius: "10px", fontWeight: 800, fontSize: "11px", cursor: "pointer" }}>Post</button>
+                    <button onClick={() => handleAddComment(liveSelectedPost.id)} style={{ padding: "8px 14px", background: "#0284c7", color: "white", border: "none", borderRadius: "10px", fontWeight: 800, fontSize: "11px", cursor: "pointer" }}>Post</button>
                   </div>
 
                   <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                    {(postComments[selectedPost.id] || []).length === 0 ? (
+                    {postComments.length === 0 ? (
                       <p style={{ fontSize: "11px", color: "#94a3b8", textAlign: "center", padding: "10px 0" }}>No comments yet. Be the first to comment!</p>
                     ) : (
-                      (postComments[selectedPost.id] || []).map(c => (
+                      postComments.map(c => (
                         <div key={c.id} style={{ background: "#f8fafc", padding: "8px 10px", borderRadius: "10px", border: "1px solid #f1f5f9" }}>
                           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "2px" }}>
                             <strong style={{ fontSize: "11px", color: "#0f172a" }}>{c.userName}</strong>
@@ -2872,7 +2842,7 @@ export default function App() {
               </div>
             )}
 
-            {/* BOOSTERS LIST PANEL WITH AVATAR FALLBACK & BOOST ACTION */}
+            {/* BOOSTERS LIST PANEL */}
             {activePanel === 'boosters' && (
               <div>
                 <h4 style={{ margin: "0 0 12px 0", fontSize: "12px", color: "#64748b", fontWeight: 800 }}>Athletes boosting you</h4>
@@ -2910,7 +2880,7 @@ export default function App() {
               </div>
             )}
 
-            {/* BOOSTING LIST PANEL WITH AVATAR FALLBACK */}
+            {/* BOOSTING LIST PANEL */}
             {activePanel === 'boosting' && (
               <div>
                 <h4 style={{ margin: "0 0 12px 0", fontSize: "12px", color: "#64748b", fontWeight: 800 }}>Athletes you are boosting</h4>
@@ -2954,7 +2924,6 @@ export default function App() {
         </div>
       )}
 
-      
       {/* EDIT POST OVERLAY MODAL */}
       {editingPost && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(15, 23, 42, 0.75)", backdropFilter: "blur(6px)", zIndex: 999999, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
@@ -2985,10 +2954,7 @@ export default function App() {
       )}
 
       {/* FIXED BOTTOM NAVIGATION BAR */}
-      <div className="bottom-nav" style={{ boxSizing: "border-box", margin: "0 auto",  position: "fixed", bottom: 0, left: 0,
-          right: 0,
-          display: "flex",
-          justifyContent: "center",  maxWidth: "480px", width: "100%", background: "#ffffff", borderTop: "1px solid #e2e8f0", zIndex: 1000 }}>
+      <div className="bottom-nav" style={{ boxSizing: "border-box", margin: "0 auto", position: "fixed", bottom: 0, left: 0, right: 0, display: "flex", justifyContent: "center", maxWidth: "480px", width: "100%", background: "#ffffff", borderTop: "1px solid #e2e8f0", zIndex: 1000 }}>
         <div className={"nav-item " + (activeTab === "home" ? "active" : "")} onClick={() => handleTabChange("home")}><i className="fa-solid fa-house"></i><span>Home</span></div>
         <div className={"nav-item " + (activeTab === "diary" ? "active" : "")} onClick={() => handleTabChange("diary")}><i className="fa-regular fa-calendar-check"></i><span>Log</span></div>
         <div className={"nav-item " + (activeTab === "community" ? "active" : "")} onClick={() => handleTabChange("community")}><i className="fa-solid fa-users"></i><span>Social</span></div>
