@@ -226,10 +226,10 @@ export default function App() {
   const [showNotifModal, setShowNotifModal] = useState(false);
   // SLIDE-OVER PANEL CENTRAL CONTROLLER
   const [activePanel, setActivePanel] = useState(null);
-  const [lastSeenNotifTime, setLastSeenNotifTime] = useState(0); // 'notif', 'post_detail', 'boosters', 'boosting', 'settings', 'visitor_profile'
+  const [lastSeenNotifTime, setLastSeenNotifTime] = useState(() => parseInt(localStorage.getItem('np_last_seen_notif') || '0')); // 'notif', 'post_detail', 'boosters', 'boosting', 'settings', 'visitor_profile'
   const [selectedPost, setSelectedPost] = useState(null);
   const [selectedVisitor, setSelectedVisitor] = useState(null);
-  const [postComments, setPostComments] = useState({});
+  const [postComments, setPostComments] = useState(() => JSON.parse(localStorage.getItem('np_post_comments') || '{}'));
   const [newCommentText, setNewCommentText] = useState('');
 
 
@@ -740,7 +740,9 @@ export default function App() {
       createdAt: Date.now()
     };
     
-    setPostComments({ ...postComments, [postId]: [newComment, ...existing] });
+    const updated = { ...postComments, [postId]: [newComment, ...existing] };
+    setPostComments(updated);
+    localStorage.setItem("np_post_comments", JSON.stringify(updated));
     setNewCommentText("");
     showToast("Comment added!");
 
@@ -1725,11 +1727,11 @@ const pulseActivityNotifs = posts.filter(p => p.userId === user?.uid && Array.is
                 </button>
 
                 <button 
-                  onClick={() => { setActivePanel("notif"); setLastSeenNotifTime(Date.now()); }} 
+                  onClick={() => { setActivePanel("notif"); const nowT = Date.now(); setLastSeenNotifTime(nowT); localStorage.setItem("np_last_seen_notif", nowT.toString()); }} 
                   style={{ position: "relative", background: "#f1f5f9", border: "none", width: "36px", height: "36px", borderRadius: "50%", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#334155", fontSize: "15px" }}
                 >
                   <i className="fa-regular fa-bell"></i>
-                  {allUserNotifs.length > 0 && (
+                  {allUserNotifs.filter(n => (n.timestamp || 0) > lastSeenNotifTime).length > 0 && (
                     <span style={{ position: "absolute", top: "2px", right: "2px", background: "#ef4444", color: "white", fontSize: "9px", fontWeight: 800, width: "15px", height: "15px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center" }}>
                       {allUserNotifs.filter(n => (n.timestamp || 0) > lastSeenNotifTime).length}
                     </span>
