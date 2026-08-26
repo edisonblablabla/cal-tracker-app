@@ -741,41 +741,45 @@ export default function App() {
   };
 
   
-  const handleAddComment = (postId) => {
-    if (!newCommentText.trim()) return;
-    const existing = postComments[postId] || [];
+  const handleAddComment = async (postId) => {
+    if (!newCommentText.trim() || !user) return;
     const commentAuthorName = appData?.userName || user?.displayName || "Athlete";
     const commentAuthorAvatar = appData?.avatarUrl || avatarPreview || "";
+    const cText = newCommentText.trim();
     
     const newComment = {
       id: Date.now(),
+      userId: user.uid,
       userName: commentAuthorName,
       avatarUrl: commentAuthorAvatar,
-      text: newCommentText.trim(),
+      text: cText,
       createdAt: Date.now()
     };
     
-    const updated = { ...postComments, [postId]: [newComment, ...existing] };
-    setPostComments(updated);
-    localStorage.setItem("np_post_comments", JSON.stringify(updated));
-    setNewCommentText("");
-    showToast("Comment added!");
+    try {
+      const postRef = doc(db, "posts", postId);
+      const targetPost = posts.find(p => p.id === postId);
+      const existingComments = Array.isArray(targetPost?.comments) ? targetPost.comments : [];
+      const updatedComments = [newComment, ...existingComments];
 
-    // Realtime Notification Trigger
-    if (selectedPost && selectedPost.userId !== user?.uid) {
-      try {
-        addDoc(collection(db, "notifications"), {
-          recipientUid: selectedPost.userId,
+      await updateDoc(postRef, { comments: updatedComments });
+      setNewCommentText("");
+      showToast("Comment published across all devices!");
+
+      if (targetPost && targetPost.userId !== user.uid) {
+        await addDoc(collection(db, "notifications"), {
+          recipientUid: targetPost.userId,
+          senderUid: user.uid,
           senderName: commentAuthorName,
           senderAvatar: commentAuthorAvatar,
           type: "comment",
-          text: `commented on your post: "${newCommentText.trim().slice(0, 20)}..."`,
+          text: `commented on your post: "${cText.slice(0, 20)}..."`,
           postId: postId,
           timestamp: Date.now()
         });
-      } catch (err) {
-        console.error("Comment notif error:", err);
       }
+    } catch (err) {
+      console.error("Error adding Firestore comment:", err);
     }
   };
 
@@ -2817,6 +2821,9 @@ export default function App() {
                   <button onClick={() => handleLike(selectedPost.id, selectedPost.likes || 0, selectedPost.likedBy || [])} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "12px", fontWeight: 700, color: (selectedPost.likedBy || []).includes(user?.uid) ? "#ef4444" : "#64748b" }}>
                     <i className="fa-solid fa-heart" style={{ marginRight: "4px" }}></i> Pulse ({selectedPost.likes || 0})
                   </button>
+                  <button onClick={() => { const input = document.getElementById("comment-input-field"); if (input) input.focus(); }} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "12px", fontWeight: 700, color: "#64748b" }}>
+                    <i className="fa-regular fa-comment" style={{ marginRight: "4px" }}></i> Comment ({(selectedPost.comments || []).length})
+                  </button>
                   <button onClick={() => { navigator.clipboard.writeText(window.location.href); showToast("Link copied to clipboard!"); }} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "12px", fontWeight: 700, color: "#64748b" }}>
                     <i className="fa-solid fa-share-nodes" style={{ marginRight: "4px" }}></i> Resonate
                   </button>
@@ -2824,12 +2831,12 @@ export default function App() {
 
                 {/* Realtime Comments Section */}
                 <div style={{ marginTop: "14px" }}>
-                  <h4 style={{ fontSize: "12px", fontWeight: 800, color: "#0f172a", marginBottom: "8px" }}>Comments ({(postComments[selectedPost.id] || []).length})</h4>
+                  <h4 style={{ fontSize: "12px", fontWeight: 800, color: "#0f172a", marginBottom: "8px" }}>Comments ({((posts.find(p => p.id === selectedPost.id) || selectedPost).comments || []).length})</h4>
                   
                   <div style={{ display: "flex", gap: "8px", marginBottom: "12px" }}>
                     <input 
                       type="text" 
-                      placeholder="Write a comment..." 
+                      id="comment-input-field" placeholder="Write a comment..." 
                       value={newCommentText}
                       onChange={(e) => setNewCommentText(e.target.value)}
                       style={{ flex: 1, padding: "8px 12px", borderRadius: "10px", border: "1px solid #cbd5e1", fontSize: "11px", outline: "none" }} 
@@ -2841,7 +2848,7 @@ export default function App() {
                     {(postComments[selectedPost.id] || []).length === 0 ? (
                       <p style={{ fontSize: "11px", color: "#94a3b8", textAlign: "center", padding: "10px 0" }}>No comments yet. Be the first to comment!</p>
                     ) : (
-                      (postComments[selectedPost.id] || []).map(c => (
+                      ((posts.find(p => p.id === selectedPost.id) || selectedPost).comments || []).map(c => (
                         <div key={c.id} style={{ background: "#f8fafc", padding: "8px 10px", borderRadius: "10px", border: "1px solid #f1f5f9" }}>
                           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "2px" }}>
                             <strong style={{ fontSize: "11px", color: "#0f172a" }}>{c.userName}</strong>
