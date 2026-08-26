@@ -248,6 +248,7 @@ export default function App() {
   const [editText, setEditText] = useState("");
   const [editVisibility, setEditVisibility] = useState("public");
   const [activeMenuPostId, setActiveMenuPostId] = useState(null);
+  const [activeCommentMenuId, setActiveCommentMenuId] = useState(null);
   const [viewingImage, setViewingImage] = useState(null);
 
   const [avatarPreview, setAvatarPreview] = useState("");
