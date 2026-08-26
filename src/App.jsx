@@ -1761,7 +1761,7 @@ const pulseActivityNotifs = posts.filter(p => p.userId === user?.uid && Array.is
                     <div key={p.id} className="card" style={{ padding: "14px", borderRadius: "18px", marginBottom: "14px", boxShadow: "0 4px 15px rgba(0,0,0,0.03)", position: "relative" }}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
                         <div 
-                          onClick={() => if (p.userId === user?.uid) { setActiveTab("profile"); } else { setSelectedVisitor(postAuthorObj || { uid: p.userId, userName: p.userName, userTitle: p.userTitle, avatarUrl: p.userAvatar }); setActivePanel("visitor_profile"); }}
+                          onClick={() => { if (p.userId === user?.uid) { setActiveTab("profile"); } else { setSelectedVisitor(postAuthorObj || { uid: p.userId, userName: p.userName, userTitle: p.userTitle, avatarUrl: p.userAvatar }); setActivePanel("visitor_profile"); } }}
                           style={{ display: "flex", gap: "8px", alignItems: "center", cursor: "pointer" }}
                         >
                           <div style={{ width: "36px", height: "36px", borderRadius: "50%", background: "#4f46e5", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: "13px", overflow: "hidden" }}>
