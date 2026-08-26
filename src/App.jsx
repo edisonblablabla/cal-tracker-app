@@ -2353,8 +2353,40 @@ const pulseActivityNotifs = posts.filter(p => p.userId === user?.uid && Array.is
                         </div>
                       )}
 
-                      <div style={{ fontSize: "10px", color: "var(--text-muted)", fontWeight: 700, display: "flex", alignItems: "center", gap: "4px", borderTop: "1px solid #f8fafc", paddingTop: "6px", marginTop: "4px" }}>
-                        <i className="fa-solid fa-heart" style={{ color: "#ef4444" }}></i> {p.likes || 0} {(p.likes === 1) ? "Pulse" : "Pulses"}
+                      <div style={{ display: "flex", alignItems: "center", gap: "10px", borderTop: "1px solid #f1f5f9", paddingTop: "8px", marginTop: "4px" }}>
+                        <button 
+                          onClick={() => handleLike(p.id, p.likes || 0, p.likedBy || [])}
+                          style={{ 
+                            background: (p.likedBy || []).includes(user?.uid) ? "#fef2f2" : "transparent", 
+                            border: "none", 
+                            color: (p.likedBy || []).includes(user?.uid) ? "#ef4444" : "#64748b", 
+                            padding: "4px 8px", 
+                            fontSize: "11px", 
+                            fontWeight: 800, 
+                            cursor: "pointer", 
+                            display: "flex", 
+                            alignItems: "center", 
+                            gap: "5px", 
+                            borderRadius: "10px" 
+                          }}
+                        >
+                          <i className={(p.likedBy || []).includes(user?.uid) ? "fa-solid fa-heart" : "fa-regular fa-heart"} style={{ fontSize: "13px", color: (p.likedBy || []).includes(user?.uid) ? "#ef4444" : "#64748b" }}></i>
+                          {p.likes || 0} {(p.likes === 1) ? "Pulse" : "Pulses"}
+                        </button>
+
+                        <button 
+                          onClick={() => { setSelectedPost(p); setActivePanel("post_detail"); }}
+                          style={{ background: "transparent", border: "none", color: "#64748b", padding: "4px 8px", fontSize: "11px", fontWeight: 800, cursor: "pointer", display: "flex", alignItems: "center", gap: "5px" }}
+                        >
+                          <i className="fa-regular fa-comment" style={{ fontSize: "12px" }}></i> {(postComments[p.id] || []).length}
+                        </button>
+
+                        <button 
+                          onClick={() => setResonatePost(p)}
+                          style={{ background: "transparent", border: "none", color: "#64748b", padding: "4px 8px", fontSize: "11px", fontWeight: 800, cursor: "pointer", display: "flex", alignItems: "center", gap: "5px" }}
+                        >
+                          <i className="fa-solid fa-share-nodes" style={{ fontSize: "12px" }}></i> Resonate
+                        </button>
                       </div>
                     </div>
                   );
