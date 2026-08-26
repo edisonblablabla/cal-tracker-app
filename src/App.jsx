@@ -790,6 +790,7 @@ export default function App() {
     
     try {
       await addDoc(collection(db, "posts", postId, "comments"), {
+        userId: user?.uid,
         userName: commentAuthorName,
         avatarUrl: commentAuthorAvatar,
         text: newCommentText.trim(),
