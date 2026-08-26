@@ -228,6 +228,8 @@ export default function App() {
   const [activePanel, setActivePanel] = useState(null); // 'notif', 'post_detail', 'boosters', 'boosting', 'settings', 'visitor_profile'
   const [selectedPost, setSelectedPost] = useState(null);
   const [selectedVisitor, setSelectedVisitor] = useState(null);
+  const [postComments, setPostComments] = useState({});
+  const [newCommentText, setNewCommentText] = useState('');
 
 
   const [isSavingProfile, setIsSavingProfile] = useState(false);
@@ -712,6 +714,22 @@ export default function App() {
       } catch (err) {
       console.error("Error toggling pulse:", err);
     }
+  };
+
+  
+  const handleAddComment = (postId) => {
+    if (!newCommentText.trim()) return;
+    const existing = postComments[postId] || [];
+    const newComment = {
+      id: Date.now(),
+      userName: appData?.userName || user?.displayName || "Athlete",
+      avatarUrl: appData?.avatarUrl || avatarPreview || "",
+      text: newCommentText.trim(),
+      createdAt: Date.now()
+    };
+    setPostComments({ ...postComments, [postId]: [newComment, ...existing] });
+    setNewCommentText("");
+    showToast("Comment added!");
   };
 
   const handleDeletePost = async (postId) => {
@@ -1812,7 +1830,7 @@ const pulseActivityNotifs = posts.filter(p => p.userId === user?.uid && Array.is
 
                       {p.imageUrl && (
                         <div 
-                          onClick={() => setViewingImage(p.imageUrl)} 
+                          onClick={(e) => { e.stopPropagation(); setSelectedPost(p); setActivePanel("post_detail"); }} 
                           style={{ borderRadius: "12px", overflow: "hidden", marginBottom: "10px", border: "1px solid #f1f5f9", background: "#f8fafc", aspectRatio: "4/3", cursor: "pointer", position: "relative" }}
                         >
                           <img src={p.imageUrl} alt="Transformation Post" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
@@ -1838,6 +1856,13 @@ const pulseActivityNotifs = posts.filter(p => p.userId === user?.uid && Array.is
                         >
                           <i className={isLiked ? "fa-solid fa-heart" : "fa-regular fa-heart"} style={{ fontSize: "13px", color: isLiked ? "#ef4444" : "#64748b" }}></i>
                           {p.likes || 0} {(p.likes === 1) ? "Pulse" : "Pulses"}
+                        </button>
+
+                        <button 
+                          onClick={() => { setSelectedPost(p); setActivePanel("post_detail"); }}
+                          style={{ background: "transparent", border: "none", color: "#64748b", padding: "4px 8px", fontSize: "11px", fontWeight: 800, cursor: "pointer", display: "flex", alignItems: "center", gap: "5px" }}
+                        >
+                          <i className="fa-regular fa-comment" style={{ fontSize: "12px" }}></i> {(postComments[p.id] || []).length}
                         </button>
 
                         <button 
@@ -2198,7 +2223,7 @@ const pulseActivityNotifs = posts.filter(p => p.userId === user?.uid && Array.is
                           <img 
                             src={p.imageUrl} 
                             alt="Post" 
-                            onClick={() => setViewingImage(p.imageUrl)}
+                            onClick={(e) => { e.stopPropagation(); setSelectedPost(p); setActivePanel("post_detail"); }}
                             style={{ width: "100%", height: "100%", objectFit: "cover", cursor: "pointer" }} 
                           />
                         ) : (
@@ -2277,7 +2302,7 @@ const pulseActivityNotifs = posts.filter(p => p.userId === user?.uid && Array.is
 
                       {p.imageUrl && (
                         <div 
-                          onClick={() => setViewingImage(p.imageUrl)} 
+                          onClick={(e) => { e.stopPropagation(); setSelectedPost(p); setActivePanel("post_detail"); }} 
                           style={{ borderRadius: "10px", overflow: "hidden", border: "1px solid #f1f5f9", marginBottom: "6px", background: "#f8fafc", aspectRatio: "4/3", cursor: "pointer", position: "relative" }}
                         >
                           <img src={p.imageUrl} alt="Post" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
@@ -2384,7 +2409,7 @@ const pulseActivityNotifs = posts.filter(p => p.userId === user?.uid && Array.is
 
                         {p.imageUrl && (
                           <div 
-                            onClick={() => setViewingImage(p.imageUrl)} 
+                            onClick={(e) => { e.stopPropagation(); setSelectedPost(p); setActivePanel("post_detail"); }} 
                             style={{ borderRadius: "8px", overflow: "hidden", marginBottom: "6px", height: "60px", background: "#f8fafc", cursor: "pointer", position: "relative" }}
                           >
                             <img src={p.imageUrl} alt="Uploaded Media" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
@@ -2623,25 +2648,64 @@ const pulseActivityNotifs = posts.filter(p => p.userId === user?.uid && Array.is
               )
             )}
 
-            {/* POST DETAIL PANEL */}
+            {/* UPGRADED POST DETAIL PANEL WITH REALTIME COMMENTS */}
             {activePanel === 'post_detail' && selectedPost && (
-              <div>
+              <div style={{ background: "#ffffff", borderRadius: "16px", padding: "14px", border: "1px solid #e2e8f0" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
-                  <img src={selectedPost.userAvatar || "https://via.placeholder.com/40"} alt="" style={{ width: "40px", height: "40px", borderRadius: "50%", objectFit: "cover" }} />
+                  {selectedPost.userAvatar ? (
+                    <img src={selectedPost.userAvatar} alt="" style={{ width: "40px", height: "40px", borderRadius: "50%", objectFit: "cover" }} />
+                  ) : (
+                    <div style={{ width: "40px", height: "40px", borderRadius: "50%", background: "#0284c7", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: "14px" }}>
+                      {(selectedPost.userName || "A").charAt(0).toUpperCase()}
+                    </div>
+                  )}
                   <div>
                     <strong style={{ fontSize: "14px", color: "#0f172a", display: "block" }}>{selectedPost.userName || "Athlete"}</strong>
-                    <span style={{ fontSize: "11px", color: "#94a3b8" }}>{formatPostTime(selectedPost.createdAt)}</span>
+                    <span style={{ fontSize: "10px", color: "#94a3b8" }}>{formatPostTime(selectedPost.createdAt)}</span>
                   </div>
                 </div>
-                {selectedPost.text && <p style={{ fontSize: "14px", color: "#334155", lineHeight: "1.5", marginBottom: "12px" }}>{selectedPost.text}</p>}
-                {selectedPost.imageUrl && <img src={selectedPost.imageUrl} alt="" style={{ width: "100%", borderRadius: "12px", marginBottom: "12px" }} />}
-                <div style={{ display: "flex", gap: "16px", padding: "12px 0", borderTop: "1px solid #f1f5f9", borderBottom: "1px solid #f1f5f9" }}>
-                  <button onClick={() => handleLike(selectedPost.id, selectedPost.likes || 0, selectedPost.likedBy || [])} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "13px", fontWeight: 700, color: (selectedPost.likedBy || []).includes(user?.uid) ? "#ef4444" : "#64748b" }}>
+                {selectedPost.text && <p style={{ fontSize: "13px", color: "#334155", lineHeight: "1.5", marginBottom: "12px", wordBreak: "break-word" }}>{selectedPost.text}</p>}
+                {selectedPost.imageUrl && <img src={selectedPost.imageUrl} alt="" style={{ width: "100%", borderRadius: "12px", marginBottom: "12px", objectFit: "cover" }} />}
+                
+                <div style={{ display: "flex", gap: "16px", padding: "10px 0", borderTop: "1px solid #f1f5f9", borderBottom: "1px solid #f1f5f9" }}>
+                  <button onClick={() => handleLike(selectedPost.id, selectedPost.likes || 0, selectedPost.likedBy || [])} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "12px", fontWeight: 700, color: (selectedPost.likedBy || []).includes(user?.uid) ? "#ef4444" : "#64748b" }}>
                     <i className="fa-solid fa-heart" style={{ marginRight: "4px" }}></i> Pulse ({selectedPost.likes || 0})
                   </button>
-                  <button onClick={() => { navigator.clipboard.writeText(window.location.href); showToast("Link copied to clipboard! "); }} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "13px", fontWeight: 700, color: "#64748b" }}>
+                  <button onClick={() => { navigator.clipboard.writeText(window.location.href); showToast("Link copied to clipboard!"); }} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "12px", fontWeight: 700, color: "#64748b" }}>
                     <i className="fa-solid fa-share-nodes" style={{ marginRight: "4px" }}></i> Resonate
                   </button>
+                </div>
+
+                {/* Realtime Comments Section */}
+                <div style={{ marginTop: "14px" }}>
+                  <h4 style={{ fontSize: "12px", fontWeight: 800, color: "#0f172a", marginBottom: "8px" }}>Comments ({(postComments[selectedPost.id] || []).length})</h4>
+                  
+                  <div style={{ display: "flex", gap: "8px", marginBottom: "12px" }}>
+                    <input 
+                      type="text" 
+                      placeholder="Write a comment..." 
+                      value={newCommentText}
+                      onChange={(e) => setNewCommentText(e.target.value)}
+                      style={{ flex: 1, padding: "8px 12px", borderRadius: "10px", border: "1px solid #cbd5e1", fontSize: "11px", outline: "none" }} 
+                    />
+                    <button onClick={() => handleAddComment(selectedPost.id)} style={{ padding: "8px 14px", background: "#0284c7", color: "white", border: "none", borderRadius: "10px", fontWeight: 800, fontSize: "11px", cursor: "pointer" }}>Post</button>
+                  </div>
+
+                  <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                    {(postComments[selectedPost.id] || []).length === 0 ? (
+                      <p style={{ fontSize: "11px", color: "#94a3b8", textAlign: "center", padding: "10px 0" }}>No comments yet. Be the first to comment!</p>
+                    ) : (
+                      (postComments[selectedPost.id] || []).map(c => (
+                        <div key={c.id} style={{ background: "#f8fafc", padding: "8px 10px", borderRadius: "10px", border: "1px solid #f1f5f9" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "2px" }}>
+                            <strong style={{ fontSize: "11px", color: "#0f172a" }}>{c.userName}</strong>
+                            <span style={{ fontSize: "9px", color: "#94a3b8" }}>{formatPostTime(c.createdAt)}</span>
+                          </div>
+                          <p style={{ fontSize: "11px", color: "#334155", margin: 0 }}>{c.text}</p>
+                        </div>
+                      ))
+                    )}
+                  </div>
                 </div>
               </div>
             )}
@@ -2676,41 +2740,65 @@ const pulseActivityNotifs = posts.filter(p => p.userId === user?.uid && Array.is
               </div>
             )}
 
-            {/* BOOSTERS LIST PANEL */}
+            {/* BOOSTERS LIST PANEL WITH AVATAR FALLBACK & BOOST ACTION */}
             {activePanel === 'boosters' && (
               <div>
-                <h4 style={{ margin: "0 0 12px 0", fontSize: "13px", color: "#64748b" }}>Athletes boosting you</h4>
+                <h4 style={{ margin: "0 0 12px 0", fontSize: "12px", color: "#64748b", fontWeight: 800 }}>Athletes boosting you</h4>
                 {myRealtimeBoostersList.length === 0 ? (
-                  <div style={{ textAlign: "center", padding: "20px", color: "#94a3b8", fontSize: "12px" }}>No boosters yet.</div>
+                  <div style={{ textAlign: "center", padding: "30px", color: "#94a3b8", fontSize: "12px" }}>No boosters yet.</div>
                 ) : (
                   myRealtimeBoostersList.map(b => (
-                    <div key={b.uid} onClick={() => { setSelectedVisitor(b); setActivePanel('visitor_profile'); }} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px", borderRadius: "10px", background: "#f8fafc", marginBottom: "6px", cursor: "pointer" }}>
-                      <img src={b.avatarUrl || "https://via.placeholder.com/32"} alt="" style={{ width: "32px", height: "32px", borderRadius: "50%", objectFit: "cover" }} />
+                    <div key={b.uid} onClick={() => { setSelectedVisitor(b); setActivePanel('visitor_profile'); }} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 12px", borderRadius: "12px", background: "#ffffff", border: "1px solid #e2e8f0", marginBottom: "8px", cursor: "pointer" }}>
+                      {b.avatarUrl ? (
+                        <img src={b.avatarUrl} alt="" style={{ width: "36px", height: "36px", borderRadius: "50%", objectFit: "cover" }} />
+                      ) : (
+                        <div style={{ width: "36px", height: "36px", borderRadius: "50%", background: "#0284c7", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: "13px" }}>
+                          {(b.userName || "A").charAt(0).toUpperCase()}
+                        </div>
+                      )}
                       <div style={{ flex: 1 }}>
                         <div style={{ fontSize: "12px", fontWeight: 800, color: "#0f172a" }}>{b.userName || "Athlete"}</div>
                         <div style={{ fontSize: "9px", color: "#64748b" }}>{b.userTitle || "Fitness Enthusiast"}</div>
                       </div>
+                      <button onClick={(e) => { e.stopPropagation(); toggleBoostAthlete(b.uid, b.isPrivateAccount); }} style={{
+                        padding: "5px 12px",
+                        borderRadius: "20px",
+                        border: (appData?.boosting || []).includes(b.uid) ? "1px solid #cbd5e1" : "none",
+                        fontSize: "10px",
+                        fontWeight: 700,
+                        cursor: "pointer",
+                        background: (appData?.boosting || []).includes(b.uid) ? "#f1f5f9" : "#0284c7",
+                        color: (appData?.boosting || []).includes(b.uid) ? "#334155" : "#ffffff"
+                      }}>
+                        {(appData?.boosting || []).includes(b.uid) ? "Boosting" : "Boost Back"}
+                      </button>
                     </div>
                   ))
                 )}
               </div>
             )}
 
-            {/* BOOSTING LIST PANEL */}
+            {/* BOOSTING LIST PANEL WITH AVATAR FALLBACK */}
             {activePanel === 'boosting' && (
               <div>
-                <h4 style={{ margin: "0 0 12px 0", fontSize: "13px", color: "#64748b" }}>Athletes you are boosting</h4>
+                <h4 style={{ margin: "0 0 12px 0", fontSize: "12px", color: "#64748b", fontWeight: 800 }}>Athletes you are boosting</h4>
                 {myRealtimeBoostingList.length === 0 ? (
-                  <div style={{ textAlign: "center", padding: "20px", color: "#94a3b8", fontSize: "12px" }}>Not boosting any athletes yet.</div>
+                  <div style={{ textAlign: "center", padding: "30px", color: "#94a3b8", fontSize: "12px" }}>Not boosting any athletes yet.</div>
                 ) : (
                   myRealtimeBoostingList.map(b => (
-                    <div key={b.uid} onClick={() => { setSelectedVisitor(b); setActivePanel('visitor_profile'); }} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px", borderRadius: "10px", background: "#f8fafc", marginBottom: "6px", cursor: "pointer" }}>
-                      <img src={b.avatarUrl || "https://via.placeholder.com/32"} alt="" style={{ width: "32px", height: "32px", borderRadius: "50%", objectFit: "cover" }} />
+                    <div key={b.uid} onClick={() => { setSelectedVisitor(b); setActivePanel('visitor_profile'); }} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 12px", borderRadius: "12px", background: "#ffffff", border: "1px solid #e2e8f0", marginBottom: "8px", cursor: "pointer" }}>
+                      {b.avatarUrl ? (
+                        <img src={b.avatarUrl} alt="" style={{ width: "36px", height: "36px", borderRadius: "50%", objectFit: "cover" }} />
+                      ) : (
+                        <div style={{ width: "36px", height: "36px", borderRadius: "50%", background: "#0284c7", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: "13px" }}>
+                          {(b.userName || "A").charAt(0).toUpperCase()}
+                        </div>
+                      )}
                       <div style={{ flex: 1 }}>
                         <div style={{ fontSize: "12px", fontWeight: 800, color: "#0f172a" }}>{b.userName || "Athlete"}</div>
                         <div style={{ fontSize: "9px", color: "#64748b" }}>{b.userTitle || "Fitness Enthusiast"}</div>
                       </div>
-                      <button onClick={(e) => { e.stopPropagation(); toggleBoostAthlete(b.uid, b.isPrivateAccount); }} style={{ background: "#e0e7ff", color: "var(--primary)", border: "none", padding: "4px 8px", borderRadius: "6px", fontSize: "9px", fontWeight: 800, cursor: "pointer" }}>
+                      <button onClick={(e) => { e.stopPropagation(); toggleBoostAthlete(b.uid, b.isPrivateAccount); }} style={{ padding: "5px 12px", borderRadius: "20px", background: "#f1f5f9", border: "1px solid #cbd5e1", color: "#334155", fontSize: "10px", fontWeight: 700, cursor: "pointer" }}>
                         Unboost
                       </button>
                     </div>
@@ -2730,6 +2818,36 @@ const pulseActivityNotifs = posts.filter(p => p.userId === user?.uid && Array.is
                 </button>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      
+      {/* EDIT POST OVERLAY MODAL */}
+      {editingPost && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(15, 23, 42, 0.75)", backdropFilter: "blur(6px)", zIndex: 999999, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
+          <div className="card" style={{ width: "100%", maxWidth: "380px", padding: "20px", borderRadius: "20px", background: "#ffffff" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+              <h4 style={{ fontSize: "15px", fontWeight: 800, color: "#0f172a", margin: 0 }}>Edit Post</h4>
+              <button onClick={() => setEditingPost(null)} style={{ background: "#f1f5f9", border: "none", borderRadius: "50%", width: "26px", height: "26px", cursor: "pointer", fontWeight: 800, fontSize: "11px" }}>X</button>
+            </div>
+            
+            <textarea 
+              className="form-input" 
+              style={{ width: "100%", height: "80px", borderRadius: "10px", padding: "10px", fontSize: "12px", border: "1px solid #cbd5e1", resize: "none", marginBottom: "12px", boxSizing: "border-box" }}
+              value={editText}
+              onChange={(e) => setEditText(e.target.value)}
+            />
+
+            <div style={{ display: "flex", gap: "6px", marginBottom: "14px" }}>
+              <button onClick={() => setEditVisibility("public")} style={{ flex: 1, padding: "6px", borderRadius: "8px", border: "none", fontSize: "10px", fontWeight: 800, cursor: "pointer", background: editVisibility === "public" ? "#0284c7" : "#f1f5f9", color: editVisibility === "public" ? "white" : "#64748b" }}>Public</button>
+              <button onClick={() => setEditVisibility("boosters")} style={{ flex: 1, padding: "6px", borderRadius: "8px", border: "none", fontSize: "10px", fontWeight: 800, cursor: "pointer", background: editVisibility === "boosters" ? "#0284c7" : "#f1f5f9", color: editVisibility === "boosters" ? "white" : "#64748b" }}>Boosters</button>
+              <button onClick={() => setEditVisibility("private")} style={{ flex: 1, padding: "6px", borderRadius: "8px", border: "none", fontSize: "10px", fontWeight: 800, cursor: "pointer", background: editVisibility === "private" ? "#0284c7" : "#f1f5f9", color: editVisibility === "private" ? "white" : "#64748b" }}>Private</button>
+            </div>
+
+            <button onClick={saveEditedPost} disabled={isSavingEditPost} style={{ width: "100%", padding: "10px", background: "#0284c7", color: "white", border: "none", borderRadius: "10px", fontWeight: 800, fontSize: "12px", cursor: "pointer" }}>
+              {isSavingEditPost ? "Saving Changes..." : "Save Changes"}
+            </button>
           </div>
         </div>
       )}
