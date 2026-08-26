@@ -225,7 +225,8 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showNotifModal, setShowNotifModal] = useState(false);
   // SLIDE-OVER PANEL CENTRAL CONTROLLER
-  const [activePanel, setActivePanel] = useState(null); // 'notif', 'post_detail', 'boosters', 'boosting', 'settings', 'visitor_profile'
+  const [activePanel, setActivePanel] = useState(null);
+  const [lastSeenNotifTime, setLastSeenNotifTime] = useState(0); // 'notif', 'post_detail', 'boosters', 'boosting', 'settings', 'visitor_profile'
   const [selectedPost, setSelectedPost] = useState(null);
   const [selectedVisitor, setSelectedVisitor] = useState(null);
   const [postComments, setPostComments] = useState({});
@@ -409,6 +410,14 @@ export default function App() {
   const shuffleQuote = () => {
     const randomIndex = Math.floor(Math.random() * FITNESS_QUOTES.length);
     setQuote(FITNESS_QUOTES[randomIndex]);
+  };
+
+  
+  const handleTabChange = (tabName) => {
+    setActiveTab(tabName);
+    window.scrollTo({ top: 0, behavior: "instant" });
+    const container = document.querySelector(".screen-container");
+    if (container) container.scrollTop = 0;
   };
 
   const handleSetWorkoutTarget = (mins) => {
@@ -1714,13 +1723,13 @@ const pulseActivityNotifs = posts.filter(p => p.userId === user?.uid && Array.is
                 </button>
 
                 <button 
-                  onClick={() => setActivePanel("notif")} 
+                  onClick={() => setActivePanel("notif"); setLastSeenNotifTime(Date.now());} 
                   style={{ position: "relative", background: "#f1f5f9", border: "none", width: "36px", height: "36px", borderRadius: "50%", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#334155", fontSize: "15px" }}
                 >
                   <i className="fa-regular fa-bell"></i>
                   {allUserNotifs.length > 0 && (
                     <span style={{ position: "absolute", top: "2px", right: "2px", background: "#ef4444", color: "white", fontSize: "9px", fontWeight: 800, width: "15px", height: "15px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      {allUserNotifs.length}
+                      {allUserNotifs.filter(n => (n.timestamp || 0) > lastSeenNotifTime).length}
                     </span>
                   )}
                 </button>
@@ -2626,7 +2635,7 @@ const pulseActivityNotifs = posts.filter(p => p.userId === user?.uid && Array.is
             </div>
             {activePanel === 'notif' && (
               <span style={{ fontSize: "11px", fontWeight: 700, color: "#0284c7", background: "#e0f2fe", padding: "4px 10px", borderRadius: "12px" }}>
-                {allUserNotifs.length} New
+                {allUserNotifs.filter(n => (n.timestamp || 0) > lastSeenNotifTime).length} New
               </span>
             )}
           </div>
@@ -2892,15 +2901,15 @@ const pulseActivityNotifs = posts.filter(p => p.userId === user?.uid && Array.is
           right: 0,
           display: "flex",
           justifyContent: "center",  maxWidth: "480px", width: "100%", background: "#ffffff", borderTop: "1px solid #e2e8f0", zIndex: 1000 }}>
-        <div className={"nav-item " + (activeTab === "home" ? "active" : "")} onClick={() => setActiveTab("home")}><i className="fa-solid fa-house"></i><span>Home</span></div>
-        <div className={"nav-item " + (activeTab === "diary" ? "active" : "")} onClick={() => setActiveTab("diary")}><i className="fa-regular fa-calendar-check"></i><span>Log</span></div>
-        <div className={"nav-item " + (activeTab === "community" ? "active" : "")} onClick={() => setActiveTab("community")}><i className="fa-solid fa-users"></i><span>Social</span></div>
-        <div className={"nav-item " + (activeTab === "progress" ? "active" : "")} onClick={() => setActiveTab("progress")}><i className="fa-solid fa-chart-simple"></i><span>Progress</span></div>
-        <div className={"nav-item " + (activeTab === "goals" ? "active" : "")} onClick={() => setActiveTab("goals")}><i className="fa-solid fa-bullseye"></i><span>Goals</span></div>
-        <div className={"nav-item " + (activeTab === "profile" ? "active" : "")} onClick={() => setActiveTab("profile")}><i className="fa-regular fa-user"></i><span>Profile</span></div>
+        <div className={"nav-item " + (activeTab === "home" ? "active" : "")} onClick={() => handleTabChange("home")}><i className="fa-solid fa-house"></i><span>Home</span></div>
+        <div className={"nav-item " + (activeTab === "diary" ? "active" : "")} onClick={() => handleTabChange("diary")}><i className="fa-regular fa-calendar-check"></i><span>Log</span></div>
+        <div className={"nav-item " + (activeTab === "community" ? "active" : "")} onClick={() => handleTabChange("community")}><i className="fa-solid fa-users"></i><span>Social</span></div>
+        <div className={"nav-item " + (activeTab === "progress" ? "active" : "")} onClick={() => handleTabChange("progress")}><i className="fa-solid fa-chart-simple"></i><span>Progress</span></div>
+        <div className={"nav-item " + (activeTab === "goals" ? "active" : "")} onClick={() => handleTabChange("goals")}><i className="fa-solid fa-bullseye"></i><span>Goals</span></div>
+        <div className={"nav-item " + (activeTab === "profile" ? "active" : "")} onClick={() => handleTabChange("profile")}><i className="fa-regular fa-user"></i><span>Profile</span></div>
         
         {isAdmin && (
-          <div className={"nav-item " + (activeTab === "admin" ? "active" : "")} onClick={() => setActiveTab("admin")} style={{ color: "#dc2626" }}><i className="fa-solid fa-shield-halved"></i><span>Admin</span></div>
+          <div className={"nav-item " + (activeTab === "admin" ? "active" : "")} onClick={() => handleTabChange("admin")} style={{ color: "#dc2626" }}><i className="fa-solid fa-shield-halved"></i><span>Admin</span></div>
         )}
       </div>
     </div>
