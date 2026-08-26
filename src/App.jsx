@@ -720,16 +720,37 @@ export default function App() {
   const handleAddComment = (postId) => {
     if (!newCommentText.trim()) return;
     const existing = postComments[postId] || [];
+    const commentAuthorName = appData?.userName || user?.displayName || "Athlete";
+    const commentAuthorAvatar = appData?.avatarUrl || avatarPreview || "";
+    
     const newComment = {
       id: Date.now(),
-      userName: appData?.userName || user?.displayName || "Athlete",
-      avatarUrl: appData?.avatarUrl || avatarPreview || "",
+      userName: commentAuthorName,
+      avatarUrl: commentAuthorAvatar,
       text: newCommentText.trim(),
       createdAt: Date.now()
     };
+    
     setPostComments({ ...postComments, [postId]: [newComment, ...existing] });
     setNewCommentText("");
     showToast("Comment added!");
+
+    // Realtime Notification Trigger
+    if (selectedPost && selectedPost.userId !== user?.uid) {
+      try {
+        addDoc(collection(db, "notifications"), {
+          recipientUid: selectedPost.userId,
+          senderName: commentAuthorName,
+          senderAvatar: commentAuthorAvatar,
+          type: "comment",
+          text: `commented on your post: "${newCommentText.trim().slice(0, 20)}..."`,
+          postId: postId,
+          timestamp: Date.now()
+        });
+      } catch (err) {
+        console.error("Comment notif error:", err);
+      }
+    }
   };
 
   const handleDeletePost = async (postId) => {
@@ -1396,7 +1417,21 @@ const pulseActivityNotifs = posts.filter(p => p.userId === user?.uid && Array.is
   });
 
   // Combine and sort chronologically (Newest notifications strictly on top)
-  const allUserNotifs = [...pendingRequestsNotifs, ...pulseActivityNotifs, ...boosterNotifs].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+    // Comment Activity Notifications
+  const commentActivityNotifs = (posts || []).filter(p => p.userId === user?.uid).flatMap(p => {
+    const list = postComments[p.id] || [];
+    return list.filter(c => c.userName !== (appData?.userName || user?.displayName)).map(c => ({
+      id: "comment_" + c.id,
+      type: "comment",
+      title: c.userName,
+      avatar: c.avatarUrl,
+      text: `commented: "${c.text.slice(0, 25)}..."`,
+      postId: p.id,
+      timestamp: c.createdAt
+    }));
+  });
+
+  const allUserNotifs = [...pendingRequestsNotifs, ...pulseActivityNotifs, ...boosterNotifs, ...commentActivityNotifs].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
 
   const activeWorkoutObj = WORKOUT_ACTIVITIES.find(a => a.name === selectedActivity) || WORKOUT_ACTIVITIES[0];
   const initialMins = parseInt(workoutDuration) || 30;
@@ -2597,7 +2632,7 @@ const pulseActivityNotifs = posts.filter(p => p.userId === user?.uid && Array.is
           </div>
 
           {/* Panel Body */}
-          <div style={{ flex: 1, overflowY: "auto", padding: "16px" }}>
+          <div style={{ flex: 1, overflowY: "auto", padding: "16px", paddingBottom: "140px", WebkitOverflowScrolling: "touch" }}>
             {/* NOTIFICATION PANEL */}
             {activePanel === 'notif' && (
               allUserNotifs.length === 0 ? (
