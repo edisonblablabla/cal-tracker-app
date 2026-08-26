@@ -226,6 +226,7 @@ export default function App() {
   const [showNotifModal, setShowNotifModal] = useState(false);
   // SLIDE-OVER PANEL CENTRAL CONTROLLER
   const [activePanel, setActivePanel] = useState(null);
+  const [firestoreNotifs, setFirestoreNotifs] = useState([]);
   const [lastSeenNotifTime, setLastSeenNotifTime] = useState(() => parseInt(localStorage.getItem('np_last_seen_notif') || '0')); // 'notif', 'post_detail', 'boosters', 'boosting', 'settings', 'visitor_profile'
   const [selectedPost, setSelectedPost] = useState(null);
   const [selectedVisitor, setSelectedVisitor] = useState(null);
