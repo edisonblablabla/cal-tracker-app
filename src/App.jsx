@@ -180,7 +180,8 @@ export default function App() {
   const [isTimerRunning, setIsTimerRunning] = useState(false);
   const timerRef = useRef(null);
 
-  const [gpsStatus, setGpsStatus] = useState("Searching GPS...");
+  const [gpsStatus, setGpsStatus] = useState("GPS Tracker Inactive");
+  const [isGpsTracking, setIsGpsTracking] = useState(false);
   const [totalGpsDistanceKm, setTotalGpsDistanceKm] = useState(0);
   const lastPosRef = useRef(null);
 
@@ -396,10 +397,12 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (activeTab === "home" && "geolocation" in navigator) {
-      const watchId = navigator.geolocation.watchPosition(
+    let watchId = null;
+    if (activeTab === "home" && isGpsTracking && "geolocation" in navigator) {
+      setGpsStatus("Searching GPS...");
+      watchId = navigator.geolocation.watchPosition(
         (position) => {
-          setGpsStatus("GPS Active");
+          setGpsStatus("GPS Tracking Active");
           const { latitude, longitude } = position.coords;
 
           if (lastPosRef.current) {
@@ -416,14 +419,17 @@ export default function App() {
           lastPosRef.current = { latitude, longitude };
         },
         (error) => {
-          setGpsStatus("Allow Location Permission for Steps");
+          setGpsStatus("Location Permission Required");
+          setIsGpsTracking(false);
         },
         { enableHighAccuracy: true, timeout: 10000, maximumAge: 1000 }
       );
-
-      return () => navigator.geolocation.clearWatch(watchId);
+    } else if (!isGpsTracking) {
+      setGpsStatus("Tracker Inactive");
+      lastPosRef.current = null;
     }
-  }, [activeTab]);
+    return () => { if (watchId !== null) navigator.geolocation.clearWatch(watchId); };
+  }, [activeTab, isGpsTracking]);
 
   useEffect(() => {
     if (isTimerRunning) {
@@ -1614,12 +1620,12 @@ export default function App() {
                   <i className="fa-solid fa-location-dot" style={{ fontSize: "18px", color: "#38bdf8" }}></i>
                   <h4 style={{ fontSize: "14px", fontWeight: 800 }}>GPS Step & Distance Tracker</h4>
                 </div>
-                <span style={{ fontSize: "9px", background: "rgba(255,255,255,0.2)", padding: "3px 8px", borderRadius: "8px", fontWeight: 800 }}>
+                <span style={{ fontSize: "9px", background: isGpsTracking ? "#10b981" : "rgba(255,255,255,0.2)", padding: "3px 8px", borderRadius: "8px", fontWeight: 800 }}>
                   {gpsStatus}
                 </span>
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "8px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "10px" }}>
                 <div style={{ background: "rgba(255,255,255,0.1)", padding: "10px", borderRadius: "12px", textAlign: "center" }}>
                   <div style={{ fontSize: "10px", opacity: 0.8, fontWeight: 700 }}>Estimated Steps</div>
                   <div style={{ fontSize: "18px", fontWeight: 900, marginTop: "2px" }}>{gpsCalculatedSteps.toLocaleString()}</div>
@@ -1631,8 +1637,42 @@ export default function App() {
                 </div>
               </div>
 
-              <div style={{ fontSize: "10px", opacity: 0.9, textAlign: "center", fontWeight: 700 }}>
-                Active GPS Calorie Burn: <span style={{ color: "#f59e0b", fontWeight: 900 }}>{gpsCalBurned} kcal</span>
+              <div style={{ fontSize: "11px", opacity: 0.9, textAlign: "center", fontWeight: 700, marginBottom: "12px" }}>
+                Active Calorie Burn: <span style={{ color: "#f59e0b", fontWeight: 900 }}>{gpsCalBurned} kcal</span>
+              </div>
+
+              {/* GPS USER CONTROL BUTTONS */}
+              <div style={{ display: "flex", gap: "6px", justifyContent: "center" }}>
+                {!isGpsTracking ? (
+                  <button 
+                    onClick={() => setIsGpsTracking(true)} 
+                    style={{ flex: 1, padding: "8px", background: "#10b981", color: "white", border: "none", borderRadius: "10px", fontWeight: 800, fontSize: "11px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "5px" }}
+                  >
+                    <i className="fa-solid fa-play"></i> Start GPS
+                  </button>
+                ) : (
+                  <button 
+                    onClick={() => setIsGpsTracking(false)} 
+                    style={{ flex: 1, padding: "8px", background: "#f59e0b", color: "white", border: "none", borderRadius: "10px", fontWeight: 800, fontSize: "11px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "5px" }}
+                  >
+                    <i className="fa-solid fa-pause"></i> Pause
+                  </button>
+                )}
+
+                <button 
+                  onClick={async () => {
+                    if (gpsCalBurned > 0) {
+                      const currentBurned = appData?.todayBurnedCal || 0;
+                      await saveToCloud({ ...appData, todayBurnedCal: currentBurned + gpsCalBurned });
+                      showToast(`GPS Walk Logged! (+${gpsCalBurned} kcal burned)`);
+                    }
+                    setTotalGpsDistanceKm(0);
+                    setIsGpsTracking(false);
+                  }} 
+                  style={{ flex: 1, padding: "8px", background: "#ffffff", color: "#0f172a", border: "none", borderRadius: "10px", fontWeight: 800, fontSize: "11px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "5px" }}
+                >
+                  <i className="fa-solid fa-check"></i> Finish & Reset
+                </button>
               </div>
             </div>
 
