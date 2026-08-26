@@ -249,6 +249,9 @@ export default function App() {
   const [editVisibility, setEditVisibility] = useState("public");
   const [activeMenuPostId, setActiveMenuPostId] = useState(null);
   const [activeCommentMenuId, setActiveCommentMenuId] = useState(null);
+  const [commentToEdit, setCommentToEdit] = useState(null);
+  const [commentEditText, setCommentEditText] = useState("");
+  const [commentToDelete, setCommentToDelete] = useState(null);
   const [viewingImage, setViewingImage] = useState(null);
 
   const [avatarPreview, setAvatarPreview] = useState("");
@@ -822,9 +825,10 @@ export default function App() {
     }
   };
 
-  // REALTIME DELETE COMMENT FUNCTION
-  const handleDeleteComment = async (commentId, postId) => {
-    if (!window.confirm("Delete this comment permanently?")) return;
+  // MODERN REALTIME DELETE COMMENT FUNCTION
+  const confirmDeleteComment = async () => {
+    if (!commentToDelete) return;
+    const { commentId, postId } = commentToDelete;
     try {
       await deleteDoc(doc(db, "posts", postId, "comments", commentId));
       const postRef = doc(db, "posts", postId);
@@ -837,22 +841,27 @@ export default function App() {
       showToast("Comment deleted!");
     } catch (err) {
       console.error("Error deleting comment:", err);
+    } finally {
+      setCommentToDelete(null);
     }
   };
 
-  // REALTIME EDIT COMMENT FUNCTION
-  const handleEditComment = async (commentId, postId, currentText) => {
-    const updatedText = window.prompt("Edit your comment:", currentText);
-    if (!updatedText || !updatedText.trim() || updatedText === currentText) return;
+  // MODERN REALTIME EDIT COMMENT FUNCTION
+  const saveEditedComment = async () => {
+    if (!commentToEdit || !commentEditText.trim()) return;
+    const { commentId, postId } = commentToEdit;
     try {
       const commentRef = doc(db, "posts", postId, "comments", commentId);
       await updateDoc(commentRef, {
-        text: updatedText.trim(),
+        text: commentEditText.trim(),
         isEdited: true
       });
       showToast("Comment updated!");
     } catch (err) {
       console.error("Error editing comment:", err);
+    } finally {
+      setCommentToEdit(null);
+      setCommentEditText("");
     }
   };
 
@@ -2884,13 +2893,13 @@ export default function App() {
                                         backdropFilter: "blur(8px)"
                                       }}>
                                         <button 
-                                          onClick={() => { setActiveCommentMenuId(null); handleEditComment(c.id, liveSelectedPost.id, c.text); }} 
+                                          onClick={() => { setActiveCommentMenuId(null); setCommentToEdit({ commentId: c.id, postId: liveSelectedPost.id }); setCommentEditText(c.text); }} 
                                           style={{ width: "100%", padding: "7px 10px", background: "transparent", border: "none", borderRadius: "8px", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "#334155", cursor: "pointer", display: "flex", alignItems: "center", gap: "8px" }}
                                         >
                                           <i className="fa-solid fa-pen" style={{ color: "#0284c7", fontSize: "11px" }}></i> Edit
                                         </button>
                                         <button 
-                                          onClick={() => { setActiveCommentMenuId(null); handleDeleteComment(c.id, liveSelectedPost.id); }} 
+                                          onClick={() => { setActiveCommentMenuId(null); setCommentToDelete({ commentId: c.id, postId: liveSelectedPost.id }); }} 
                                           style={{ width: "100%", padding: "7px 10px", background: "transparent", border: "none", borderRadius: "8px", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "#ef4444", cursor: "pointer", display: "flex", alignItems: "center", gap: "8px" }}
                                         >
                                           <i className="fa-solid fa-trash" style={{ fontSize: "11px" }}></i> Delete
@@ -3048,6 +3057,45 @@ export default function App() {
             <button onClick={saveEditedPost} disabled={isSavingEditPost} style={{ width: "100%", padding: "10px", background: "#0284c7", color: "white", border: "none", borderRadius: "10px", fontWeight: 800, fontSize: "12px", cursor: "pointer" }}>
               {isSavingEditPost ? "Saving Changes..." : "Save Changes"}
             </button>
+          </div>
+        </div>
+      )}
+
+            {/* CUSTOM MODERN EDIT COMMENT MODAL */}
+      {commentToEdit && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(15, 23, 42, 0.75)", backdropFilter: "blur(6px)", zIndex: 999999, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
+          <div className="card" style={{ width: "100%", maxWidth: "360px", padding: "20px", borderRadius: "20px", background: "#ffffff", boxShadow: "0 20px 25px -5px rgba(0,0,0,0.2)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+              <h4 style={{ fontSize: "15px", fontWeight: 800, color: "#0f172a", margin: 0 }}>Edit Comment</h4>
+              <button onClick={() => setCommentToEdit(null)} style={{ background: "#f1f5f9", border: "none", borderRadius: "50%", width: "26px", height: "26px", cursor: "pointer", fontWeight: 800, fontSize: "11px" }}>X</button>
+            </div>
+            <textarea 
+              className="form-input" 
+              style={{ width: "100%", height: "70px", borderRadius: "10px", padding: "10px", fontSize: "12px", border: "1px solid #cbd5e1", resize: "none", marginBottom: "12px", boxSizing: "border-box" }}
+              value={commentEditText}
+              onChange={(e) => setCommentEditText(e.target.value)}
+            />
+            <div style={{ display: "flex", gap: "8px" }}>
+              <button onClick={() => setCommentToEdit(null)} style={{ flex: 1, padding: "10px", background: "#f1f5f9", color: "#475569", border: "none", borderRadius: "10px", fontWeight: 800, fontSize: "11px", cursor: "pointer" }}>Cancel</button>
+              <button onClick={saveEditedComment} style={{ flex: 1, padding: "10px", background: "#0284c7", color: "white", border: "none", borderRadius: "10px", fontWeight: 800, fontSize: "11px", cursor: "pointer" }}>Save</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CUSTOM MODERN DELETE COMMENT CONFIRM MODAL */}
+      {commentToDelete && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(15, 23, 42, 0.75)", backdropFilter: "blur(6px)", zIndex: 999999, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
+          <div className="card" style={{ width: "100%", maxWidth: "340px", padding: "20px", borderRadius: "20px", background: "#ffffff", textAlign: "center", boxShadow: "0 20px 25px -5px rgba(0,0,0,0.2)" }}>
+            <div style={{ width: "48px", height: "48px", borderRadius: "50%", background: "#fef2f2", color: "#dc2626", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "20px", margin: "0 auto 12px auto" }}>
+              <i className="fa-solid fa-trash"></i>
+            </div>
+            <h4 style={{ fontSize: "16px", fontWeight: 800, color: "#0f172a", margin: "0 0 6px 0" }}>Delete Comment?</h4>
+            <p style={{ fontSize: "12px", color: "#64748b", margin: "0 0 16px 0" }}>Are you sure you want to delete this comment? This action cannot be undone.</p>
+            <div style={{ display: "flex", gap: "8px" }}>
+              <button onClick={() => setCommentToDelete(null)} style={{ flex: 1, padding: "10px", background: "#f1f5f9", color: "#475569", border: "none", borderRadius: "10px", fontWeight: 800, fontSize: "11px", cursor: "pointer" }}>Cancel</button>
+              <button onClick={confirmDeleteComment} style={{ flex: 1, padding: "10px", background: "#dc2626", color: "white", border: "none", borderRadius: "10px", fontWeight: 800, fontSize: "11px", cursor: "pointer" }}>Delete</button>
+            </div>
           </div>
         </div>
       )}
