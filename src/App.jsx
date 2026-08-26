@@ -1723,7 +1723,7 @@ const pulseActivityNotifs = posts.filter(p => p.userId === user?.uid && Array.is
                 </button>
 
                 <button 
-                  onClick={() => setActivePanel("notif"); setLastSeenNotifTime(Date.now());} 
+                  onClick={() => { setActivePanel("notif"); setLastSeenNotifTime(Date.now()); }} 
                   style={{ position: "relative", background: "#f1f5f9", border: "none", width: "36px", height: "36px", borderRadius: "50%", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#334155", fontSize: "15px" }}
                 >
                   <i className="fa-regular fa-bell"></i>
