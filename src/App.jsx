@@ -225,12 +225,12 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showNotifModal, setShowNotifModal] = useState(false);
   // SLIDE-OVER PANEL CENTRAL CONTROLLER
-  const [activePanel, setActivePanel] = useState(null);
-  const [lastSeenNotifTime, setLastSeenNotifTime] = useState(() => parseInt(localStorage.getItem('np_last_seen_notif') || '0'));
+  const [activePanel, setActivePanel] = useState(null); // 'notif', 'post_detail', 'boosters', 'boosting', 'settings', 'visitor_profile'
   const [selectedPost, setSelectedPost] = useState(null);
   const [selectedVisitor, setSelectedVisitor] = useState(null);
-  const [postComments, setPostComments] = useState(() => JSON.parse(localStorage.getItem('np_post_comments') || '{}'));
+  const [postComments, setPostComments] = useState({});
   const [newCommentText, setNewCommentText] = useState('');
+
 
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [isAddingMeal, setIsAddingMeal] = useState(false);
@@ -249,6 +249,7 @@ export default function App() {
   const [avatarPreview, setAvatarPreview] = useState("");
   const [coverPreview, setCoverPreview] = useState("");
 
+  
   const showToast = (msg, type = "success") => {
     setToastMessage({ text: msg, type });
     setTimeout(() => setToastMessage(null), 3000);
@@ -291,6 +292,20 @@ export default function App() {
             sendPresencePing();
             heartbeatInterval = setInterval(sendPresencePing, 30000);
 
+            const handleVisibilityChange = () => {
+              if (document.visibilityState === "visible") {
+                sendPresencePing();
+              }
+            };
+
+            const handleBeforeUnload = () => {
+              setDoc(userDocRef, { lastSeen: Date.now() }, { merge: true });
+            };
+
+            window.addEventListener("visibilitychange", handleVisibilityChange);
+            window.addEventListener("focus", sendPresencePing);
+            window.addEventListener("beforeunload", handleBeforeUnload);
+
             setProfName(data?.userName || currentUser.displayName || "Athlete");
             setProfTitle(data?.userTitle || "Fitness Enthusiast");
             setProfHeight(data?.height || 160);
@@ -301,13 +316,11 @@ export default function App() {
             setAvatarPreview(data?.avatarUrl || "");
             setCoverPreview(data?.coverUrl || "");
 
-            // DITO NA-FIX: Didirekta sa Home Dashboard nang walang anumang slide-panel
             if (!data?.onboardingCompleted) {
               setOnboardStep(1);
             } else {
               setOnboardStep(0);
-              setActiveTab("home"); 
-              setActivePanel(null);
+              setActiveTab("home");
             }
           } else {
             setSetupName(currentUser.displayName || "Athlete");
@@ -398,13 +411,6 @@ export default function App() {
     setQuote(FITNESS_QUOTES[randomIndex]);
   };
 
-  const handleTabChange = (tabName) => {
-    setActiveTab(tabName);
-    window.scrollTo({ top: 0, behavior: "instant" });
-    const container = document.querySelector(".screen-container");
-    if (container) container.scrollTop = 0;
-  };
-
   const handleSetWorkoutTarget = (mins) => {
     const parsedMins = parseInt(mins) || 0;
     setWorkoutDuration(mins);
@@ -438,6 +444,26 @@ export default function App() {
     setTimerSeconds(initialMins * 60);
   };
 
+  const handleBoostUser = async (targetUid) => {
+    if (!user || user.uid === targetUid) return;
+    try {
+      const myRef = doc(db, "users", user.uid);
+      const currentBoosters = appData?.myBoosters || [];
+      const isBoosting = currentBoosters.includes(targetUid);
+
+      const updated = isBoosting
+        ? currentBoosters.filter(id => id !== targetUid)
+        : [...currentBoosters, targetUid];
+
+      await updateDoc(myRef, { myBoosters: updated });
+      setAppData(prev => ({ ...prev, myBoosters: updated }));
+      showToast(isBoosting ? "Unboosted athlete." : "You are now Boosting this athlete! ");
+    } catch (err) {
+      console.error("Error boosting user:", err);
+      showToast("Failed to update boost status", "info");
+    }
+  };
+
   const fetchPosts = () => {
     try {
       const q = query(collection(db, "posts"), orderBy("createdAt", "desc"), limit(50));
@@ -464,10 +490,10 @@ export default function App() {
           list.push({ uid: docSnap.id, ...docSnap.data() });
         });
         list.sort((a, b) => {
-          const timeA = a.createdAt || a.lastSeen || 0;
-          const timeB = b.createdAt || b.lastSeen || 0;
-          return timeB - timeA;
-        });
+        const timeA = a.createdAt || a.lastSeen || 0;
+        const timeB = b.createdAt || b.lastSeen || 0;
+        return timeB - timeA;
+      });
         setUserList(list);
       });
     } catch (err) {
@@ -476,13 +502,13 @@ export default function App() {
   };
 
   const toggleBlockUser = async (targetUid, isCurrentlyBlocked) => {
-    const actionText = isCurrentlyBlocked ? "Unblock this user account?" : "Block this user account?";
+    const actionText = isCurrentlyBlocked ? "Unblock this user account?" : "Block this user account? (Account will be frozen, but data saved for evidence)";
     if (window.confirm(actionText)) {
       try {
         await setDoc(doc(db, "users", targetUid), { isBlocked: !isCurrentlyBlocked }, { merge: true });
         await fetchUsers();
         await fetchPosts();
-        showToast(isCurrentlyBlocked ? "User unblocked successfully." : "User blocked!");
+        showToast(isCurrentlyBlocked ? "User unblocked successfully." : "User blocked! Account restricted & record preserved.");
       } catch (err) {
         console.error("Error updating user block status:", err);
       }
@@ -490,13 +516,13 @@ export default function App() {
   };
 
   const toggleHidePost = async (postId, currentlyHidden) => {
-    const actionText = currentlyHidden ? "Unhide this post?" : "Hide this post?";
+    const actionText = currentlyHidden ? "Unhide this post and make it visible again?" : "Hide this post for evidence/investigation? (Will be hidden from users but saved in Admin)";
     if (window.confirm(actionText)) {
       try {
         const postRef = doc(db, "posts", postId);
         await updateDoc(postRef, { isHidden: !currentlyHidden });
         await fetchPosts();
-        showToast(currentlyHidden ? "Post is visible again." : "Post hidden.");
+        showToast(currentlyHidden ? "Post is now visible to users again." : "Post hidden from feed and saved for evidence.");
       } catch (err) {
         console.error("Error toggling post visibility:", err);
       }
@@ -517,10 +543,10 @@ export default function App() {
       showToast("Unboosted athlete.", "info");
     } else if (targetIsPrivate && !isPending) {
       updatedRequests.push(targetUid);
-      showToast("Booster Request sent!", "info");
+      showToast("Booster Request sent to athlete! ", "info");
     } else {
       updatedBoosting.push(targetUid);
-      showToast("You are now Boosting this athlete!");
+      showToast("You are now Boosting this athlete! ");
     }
 
     const updatedData = { ...appData, boosting: updatedBoosting, pendingBoosterRequests: updatedRequests };
@@ -565,7 +591,7 @@ export default function App() {
       compressImage(file, async (compressedUrl) => {
         setAvatarPreview(compressedUrl);
         await saveToCloud({ ...appData, avatarUrl: compressedUrl });
-        showToast("Profile avatar updated!");
+        showToast("Profile avatar updated! ");
       });
     }
   };
@@ -576,13 +602,27 @@ export default function App() {
       compressImage(file, async (compressedUrl) => {
         setCoverPreview(compressedUrl);
         await saveToCloud({ ...appData, coverUrl: compressedUrl });
-        showToast("Cover banner updated!");
+        showToast("Cover banner updated! ");
       });
     }
   };
 
+  const handleAvatarChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      compressImage(file, (compressedUrl) => setAvatarPreview(compressedUrl));
+    }
+  };
+
+  const handleCoverChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      compressImage(file, (compressedUrl) => setCoverPreview(compressedUrl));
+    }
+  };
+
   const createPost = async (isProfile = false) => {
-    if (appData?.isBlocked) return showToast("Your account is currently blocked.");
+    if (appData?.isBlocked) return showToast("Your account is currently blocked/restricted.");
 
     const textToSubmit = isProfile ? profPostText.trim() : postText.trim();
     const imageToSubmit = isProfile ? profImagePreview : imagePreview;
@@ -617,7 +657,7 @@ export default function App() {
       }
 
       await fetchPosts();
-      showToast("Post published!");
+      showToast("Post published to feed! ");
     } catch (err) {
       console.error("Error creating post:", err);
       showToast("Failed to publish post: " + err.message);
@@ -644,7 +684,7 @@ export default function App() {
       });
       setEditingPost(null);
       await fetchPosts();
-      showToast("Post updated!");
+      showToast("Post updated! ");
     } catch (err) {
       console.error("Error updating post:", err);
     } finally {
@@ -671,46 +711,25 @@ export default function App() {
         likes: updatedLikesCount, 
         likedBy: updatedLikedBy 
       }, { merge: true });
-    } catch (err) {
+      } catch (err) {
       console.error("Error toggling pulse:", err);
     }
   };
 
+  
   const handleAddComment = (postId) => {
     if (!newCommentText.trim()) return;
     const existing = postComments[postId] || [];
-    const commentAuthorName = appData?.userName || user?.displayName || "Athlete";
-    const commentAuthorAvatar = appData?.avatarUrl || avatarPreview || "";
-    
     const newComment = {
       id: Date.now(),
-      userName: commentAuthorName,
-      avatarUrl: commentAuthorAvatar,
+      userName: appData?.userName || user?.displayName || "Athlete",
+      avatarUrl: appData?.avatarUrl || avatarPreview || "",
       text: newCommentText.trim(),
       createdAt: Date.now()
     };
-    
-    const updated = { ...postComments, [postId]: [newComment, ...existing] };
-    setPostComments(updated);
-    localStorage.setItem("np_post_comments", JSON.stringify(updated));
+    setPostComments({ ...postComments, [postId]: [newComment, ...existing] });
     setNewCommentText("");
     showToast("Comment added!");
-
-    if (selectedPost && selectedPost.userId !== user?.uid) {
-      try {
-        addDoc(collection(db, "notifications"), {
-          recipientUid: selectedPost.userId,
-          senderName: commentAuthorName,
-          senderAvatar: commentAuthorAvatar,
-          type: "comment",
-          text: `commented on your post: "${newCommentText.trim().slice(0, 20)}..."`,
-          postId: postId,
-          timestamp: Date.now()
-        });
-      } catch (err) {
-        console.error("Comment notif error:", err);
-      }
-    }
   };
 
   const handleDeletePost = async (postId) => {
@@ -796,7 +815,7 @@ export default function App() {
       setProfActivity(act);
       setOnboardStep(0);
       setShowSettingsModal(false);
-      setActiveTab("home"); setActivePanel(null);
+      setActiveTab("home");
     } finally {
       setIsSavingOnboarding(false);
     }
@@ -815,14 +834,15 @@ export default function App() {
         await createUserWithEmailAndPassword(auth, email, password);
       } else {
         await signInWithEmailAndPassword(auth, email, password);
-        setActivePanel(null);
       }
-      setActiveTab("home"); setActivePanel(null);
+      setActiveTab("home");
     } catch (error) {
       if (error.code === "auth/invalid-credential" || error.code === "auth/user-not-found" || error.code === "auth/wrong-password") {
         setErrorMessage("Invalid email or password. Please try again.");
       } else if (error.code === "auth/email-already-in-use") {
         setErrorMessage("An account is already registered with this email.");
+      } else if (error.code === "auth/weak-password") {
+        setErrorMessage("Password must be at least 6 characters long.");
       } else {
         setErrorMessage(error.message);
       }
@@ -834,8 +854,7 @@ export default function App() {
     setShowSettingsModal(false);
     try {
       await signInWithPopup(auth, googleProvider);
-      setActivePanel(null);
-      setActiveTab("home"); setActivePanel(null);
+      setActiveTab("home");
     } catch (error) {
       setErrorMessage("Google Login Error: " + error.message);
     }
@@ -847,6 +866,7 @@ export default function App() {
     if (user) {
       try {
         const userDocRef = doc(db, "users", user.uid);
+        // I-set sa 1 ang presence indicator para agad maging OFFLINE sa realtime listener, at itala ang exact logout time
         await setDoc(userDocRef, { 
           lastSeen: 1, 
           lastLoggedOutAt: Date.now() 
@@ -863,7 +883,7 @@ export default function App() {
     setProfImagePreview(null);
     setOnboardStep(0);
     setShowAuthForm(false);
-    setActiveTab("home"); setActivePanel(null);
+    setActiveTab("home");
     setIsLoggingOut(false);
   };
 
@@ -914,7 +934,7 @@ export default function App() {
   const deleteMeal = (id) => {
     if (!appData) return;
     saveToCloud({ ...appData, meals: (appData.meals || []).filter(m => m.id !== id) });
-    showToast("Meal removed from log", "info");
+    showToast("Meal removed from log ", "info");
   };
 
   const handleUpdateWeight = async () => {
@@ -951,12 +971,45 @@ export default function App() {
       setAppData(updatedData);
       setProfWeight(w);
       setNewLogWeight("");
-      showToast("Weight logged!");
+      showToast("Weight logged & trend updated! ⚖️");
     } catch (err) {
       console.error("Error updating weight:", err);
     } finally {
       setIsUpdatingWeight(false);
     }
+  };
+
+  const setGoalPreset = (type) => {
+    if (!appData) return;
+    const w = appData.weight || 60;
+    const h = appData.height || 160;
+    const act = parseFloat(appData.activityLevel) || 1.55;
+
+    let bmr = (10 * w) + (6.25 * h) - (5 * 25) + 5;
+    let tdee = Math.round(bmr * act);
+
+    let baseGoal = tdee;
+    let pGoal = Math.round(w * 2.0);
+    let cGoal = Math.round(w * 3.2);
+    let fGoal = Math.round(w * 0.9);
+
+    if (type === "jogger") {
+      baseGoal = tdee + 100; pGoal = Math.round(w * 1.8); cGoal = Math.round(w * 4.5); fGoal = Math.round(w * 0.9);
+    } else if (type === "marathon") {
+      baseGoal = tdee + 400; pGoal = Math.round(w * 1.8); cGoal = Math.round(w * 6.0); fGoal = Math.round(w * 1.0);
+    } else if (type === "steps") {
+      baseGoal = Math.max(1200, tdee - 250); pGoal = Math.round(w * 2.0); cGoal = Math.round(w * 3.2); fGoal = Math.round(w * 0.8);
+    } else if (type === "bulk") {
+      baseGoal = tdee + 250; pGoal = Math.round(w * 2.2); cGoal = Math.round(w * 4.0); fGoal = Math.round(w * 1.0);
+    } else if (type === "cut") {
+      baseGoal = Math.max(1200, tdee - 450); pGoal = Math.round(w * 2.4); cGoal = Math.round(w * 2.0); fGoal = Math.round(w * 0.8);
+    } else if (type === "recomp") {
+      baseGoal = tdee; pGoal = Math.round(w * 2.2); cGoal = Math.round(w * 3.0); fGoal = Math.round(w * 0.9);
+    } else if (type === "dirty") {
+      baseGoal = tdee + 600; pGoal = Math.round(w * 2.0); cGoal = Math.round(w * 5.0); fGoal = Math.round(w * 1.2);
+    }
+
+    saveToCloud({ ...appData, activeGoalType: type, baseGoal, pGoal, cGoal, fGoal });
   };
 
   const saveUserProfile = async () => {
@@ -981,8 +1034,8 @@ export default function App() {
         baseGoal: tdee,
         isPrivateAccount: profIsPrivate
       });
-      showToast("Profile settings saved!");
-      setActivePanel(null);
+      showToast("Profile settings saved! ");
+      setShowSettingsModal(false);
     } finally {
       setIsSavingProfile(false);
     }
@@ -1002,7 +1055,7 @@ export default function App() {
         <div className="card" style={{ maxWidth: "360px", width: "100%", padding: "24px", textAlign: "center", border: "1px solid #fecaca" }}>
           <h3 style={{ fontSize: "18px", fontWeight: 900, color: "#dc2626", marginBottom: "8px" }}>Account Restricted</h3>
           <p style={{ fontSize: "12px", color: "#64748b", lineHeight: 1.5, marginBottom: "16px" }}>
-            Your account is currently frozen under administrative review.
+            Your account is currently frozen under administrative review. Your account data has been preserved.
           </p>
           <button className="btn-block" onClick={handleLogout} style={{ background: "#dc2626" }}>
             Sign Out
@@ -1071,6 +1124,7 @@ export default function App() {
 
           {errorMessage && (
             <div style={{ background: "#fef2f2", border: "1px solid #fecaca", color: "#dc2626", borderRadius: "12px", padding: "10px 12px", fontSize: "11px", fontWeight: 700, marginBottom: "14px", textAlign: "center" }}>
+              <i className="fa-solid fa-triangle-exclamation" style={{ marginRight: "6px" }}></i>
               {errorMessage}
             </div>
           )}
@@ -1118,7 +1172,7 @@ export default function App() {
         <div className="card" style={{ maxWidth: "360px", width: "100%", padding: "24px", textAlign: "center" }}>
           <h3 style={{ fontSize: "18px", fontWeight: 800, marginBottom: "12px" }}>Health & Safety Disclaimer</h3>
           <p style={{ fontSize: "12px", color: "var(--text-muted)", lineHeight: 1.5, marginBottom: "20px" }}>
-            NutriPulse is designed for general fitness and informational tracking only.
+            NutriPulse is designed for general fitness and informational tracking only. It does not provide medical advice. Please consult a physician before starting any diet or training program.
           </p>
           <button className="btn-block" onClick={() => setOnboardStep(2)}>
             I Understand & Agree
@@ -1133,8 +1187,41 @@ export default function App() {
       <div className="mobile-frame" style={{ padding: "20px", overflowY: "auto" }}>
         <div className="card" style={{ maxWidth: "360px", margin: "0 auto", padding: "24px" }}>
           <h3 style={{ fontSize: "18px", fontWeight: 800, textAlign: "center", marginBottom: "6px" }}>Setup Fitness Profile</h3>
+          <p style={{ fontSize: "11px", color: "var(--text-muted)", textAlign: "center", marginBottom: "16px" }}>Customize your physical metrics for accurate target calculations.</p>
+
           <label style={{ fontSize: "11px", fontWeight: 700 }}>Your Name</label>
           <input type="text" className="form-input" placeholder="e.g. Edison" value={setupName} onChange={e => setSetupName(e.target.value)} />
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+            <div>
+              <label style={{ fontSize: "11px", fontWeight: 700 }}>Height (cm)</label>
+              <input type="number" className="form-input" value={setupHeight} onChange={e => setSetupHeight(e.target.value)} />
+            </div>
+            <div>
+              <label style={{ fontSize: "11px", fontWeight: 700 }}>Weight (kg)</label>
+              <input type="number" className="form-input" value={setupWeight} onChange={e => setSetupWeight(e.target.value)} />
+            </div>
+          </div>
+
+          <label style={{ fontSize: "11px", fontWeight: 700 }}>Activity Level</label>
+          <select className="form-select" value={setupActivity} onChange={e => setSetupActivity(e.target.value)}>
+            <option value="1.2">Sedentary (Little or no exercise)</option>
+            <option value="1.375">Light Exercise (1-3 days/week)</option>
+            <option value="1.55">Moderate Exercise (3-5 days/week)</option>
+            <option value="1.725">Heavy Athlete (6-7 days/week)</option>
+          </select>
+
+          <label style={{ fontSize: "11px", fontWeight: 700 }}>Primary Objective</label>
+          <select className="form-select" value={setupGoalType} onChange={e => setSetupGoalType(e.target.value)}>
+            <option value="jogger">Daily Jogger / Casual Runner</option>
+            <option value="marathon">Endurance & Marathon Prep</option>
+            <option value="steps">Daily 10k Steps / Fat Loss</option>
+            <option value="bulk">Lean Bulk (Clean Muscle Gain)</option>
+            <option value="cut">Aggressive Cut (Fast Fat Loss)</option>
+            <option value="recomp">Body Recomposition</option>
+            <option value="dirty">Heavy Mass Gain</option>
+          </select>
+
           <button className="btn-block" onClick={completeOnboarding} disabled={isSavingOnboarding} style={{ marginTop: "10px" }}>
             {isSavingOnboarding ? "Saving Profile..." : "Save & Continue"}
           </button>
@@ -1170,6 +1257,78 @@ export default function App() {
   const gpsCalculatedSteps = Math.round(totalGpsDistanceKm * 1350);
   const gpsCalBurned = Math.round(gpsCalculatedSteps * 0.04);
 
+  const goalTitles = {
+    "jogger": "Daily Jogger",
+    "marathon": "Endurance & Marathon",
+    "steps": "Daily 10k Steps",
+    "bulk": "Lean Bulk",
+    "cut": "Aggressive Cut",
+    "recomp": "Body Recomposition",
+    "dirty": "Heavy Mass Gain",
+    "maint": "Maintenance"
+  };
+
+  const heightM = (appData?.height || 160) / 100;
+  const numericBmi = parseFloat((currentWeight / (heightM * heightM)).toFixed(1));
+  const bmiScore = numericBmi.toFixed(1);
+
+  let bmiCategory = "Healthy Weight";
+  let bmiColor = "#10b981";
+  let bmiBarPct = 50;
+
+  if (numericBmi < 18.5) {
+    bmiCategory = "Underweight";
+    bmiColor = "#3b82f6";
+    bmiBarPct = 20;
+  } else if (numericBmi >= 18.5 && numericBmi <= 24.9) {
+    bmiCategory = "Healthy Weight";
+    bmiColor = "#10b981";
+    bmiBarPct = 50;
+  } else if (numericBmi >= 25 && numericBmi <= 29.9) {
+    bmiCategory = "Overweight";
+    bmiColor = "#f59e0b";
+    bmiBarPct = 75;
+  } else {
+    bmiCategory = "Obese Range";
+    bmiColor = "#ef4444";
+    bmiBarPct = 95;
+  }
+
+  const weightChange = (appData?.prevWeight) ? parseFloat((currentWeight - appData.prevWeight).toFixed(1)) : 0;
+
+  let trendMessage = "";
+  let badgeStyle = {};
+
+  if (numericBmi >= 30.0) {
+    trendMessage = `Obese range (BMI ${bmiScore}). Stick to your active calorie deficit plan.`;
+    badgeStyle = { color: "#dc2626", background: "#fef2f2", border: "1px solid #fecaca" };
+  } else if (numericBmi >= 25.0 && numericBmi <= 29.9) {
+    trendMessage = `Overweight range (BMI ${bmiScore}). Keep working on your active deficit.`;
+    badgeStyle = { color: "#d97706", background: "#fffbeb", border: "1px solid #fde68a" };
+  } else if (numericBmi >= 23.5 && numericBmi <= 24.9) {
+    if (weightChange > 0) {
+      trendMessage = `Approaching overweight (BMI ${bmiScore}). Increase steps or trim intake.`;
+      badgeStyle = { color: "#b45309", background: "#fffbeb", border: "1px solid #fde68a" };
+    } else {
+      trendMessage = `Upper normal zone (BMI ${bmiScore}). Heading in a good direction!`;
+      badgeStyle = { color: "#0284c7", background: "#f0f9ff", border: "1px solid #bae6fd" };
+    }
+  } else if (numericBmi >= 20.0 && numericBmi < 23.5) {
+    trendMessage = `Optimal healthy zone (BMI ${bmiScore}). Great balance, stay consistent!`;
+    badgeStyle = { color: "#15803d", background: "#f0fdf4", border: "1px solid #bbf7d0" };
+  } else if (numericBmi >= 18.5 && numericBmi < 20.0) {
+    if (weightChange < 0) {
+      trendMessage = `Nearing lower normal boundary (BMI ${bmiScore}). Keep nutrition steady.`;
+      badgeStyle = { color: "#0284c7", background: "#f0f9ff", border: "1px solid #bae6fd" };
+    } else {
+      trendMessage = `Healthy range (BMI ${bmiScore}). Steady progress logged.`;
+      badgeStyle = { color: "#15803d", background: "#f0fdf4", border: "1px solid #bbf7d0" };
+    }
+  } else {
+    trendMessage = `Underweight range (BMI ${bmiScore}). Focus on nutrient-dense meals.`;
+    badgeStyle = { color: "#2563eb", background: "#eff6ff", border: "1px solid #bfdbfe" };
+  }
+
   const myBoostingList = appData?.boosting || [];
   const publicCommunityPosts = posts.filter(p => {
     if (p.isHidden) return false;
@@ -1185,6 +1344,14 @@ export default function App() {
   const myRealtimeBoostingList = userList.filter(u => (appData?.boosting || []).includes(u.uid));
   const myRealtimeBoostersCount = myRealtimeBoostersList.length;
 
+  const filteredSearchUsers = searchQuery.trim() === "" ? [] : userList.filter(u => 
+    (u.userName || "").toLowerCase().includes(searchQuery.toLowerCase()) || 
+    (u.userEmail || "").toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+
+
+  // SMART NOTIFICATION HUB WITH TIMESTAMPS & TOP-SORTING LOGIC
   const pendingRequestsNotifs = (appData?.pendingBoosterRequests || []).map(reqUid => {
     const reqUser = userList.find(u => u.uid === reqUid);
     return {
@@ -1198,7 +1365,7 @@ export default function App() {
     };
   });
 
-  const pulseActivityNotifs = posts.filter(p => p.userId === user?.uid && Array.isArray(p.likedBy) && p.likedBy.length > 0).flatMap(p => {
+const pulseActivityNotifs = posts.filter(p => p.userId === user?.uid && Array.isArray(p.likedBy) && p.likedBy.length > 0).flatMap(p => {
     return p.likedBy.filter(likerUid => likerUid !== user?.uid).map(likerUid => {
       const likerUser = userList.find(u => u.uid === likerUid);
       const postSnippet = p.text ? (p.text.length > 25 ? p.text.substring(0, 25) + "..." : p.text) : "photo post";
@@ -1215,7 +1382,6 @@ export default function App() {
       };
     });
   });
-
   const boosterNotifs = (appData?.myBoosters || []).map(bUid => {
     const uObj = userList.find(u => u.uid === bUid);
     return {
@@ -1223,26 +1389,19 @@ export default function App() {
       type: "boost",
       title: uObj?.userName || "An Athlete",
       avatar: uObj?.avatarUrl || "",
-      text: "started boosting your profile!",
+      text: "started boosting your profile! ",
       uid: bUid,
       timestamp: uObj?.createdAt || Date.now()
     };
   });
 
-  const commentActivityNotifs = (posts || []).filter(p => p.userId === user?.uid).flatMap(p => {
-    const list = postComments[p.id] || [];
-    return list.filter(c => c.userName !== (appData?.userName || user?.displayName)).map(c => ({
-      id: "comment_" + c.id,
-      type: "comment",
-      title: c.userName,
-      avatar: c.avatarUrl,
-      text: `commented: "${c.text.slice(0, 25)}..."`,
-      postId: p.id,
-      timestamp: c.createdAt
-    }));
-  });
+  // Combine and sort chronologically (Newest notifications strictly on top)
+  const allUserNotifs = [...pendingRequestsNotifs, ...pulseActivityNotifs, ...boosterNotifs].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
 
-  const allUserNotifs = [...pendingRequestsNotifs, ...pulseActivityNotifs, ...boosterNotifs, ...commentActivityNotifs].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+  const activeWorkoutObj = WORKOUT_ACTIVITIES.find(a => a.name === selectedActivity) || WORKOUT_ACTIVITIES[0];
+  const initialMins = parseInt(workoutDuration) || 30;
+  const elapsedMins = Math.max(1, Math.round((initialMins * 60 - timerSeconds) / 60));
+  const estimatedWorkoutBurn = Math.round(elapsedMins * activeWorkoutObj.calPerMin);
 
   const timerMinDisplay = String(Math.floor(timerSeconds / 60)).padStart(2, '0');
   const timerSecDisplay = String(timerSeconds % 60).padStart(2, '0');
@@ -1250,10 +1409,10 @@ export default function App() {
   return (
     <div className="mobile-frame" style={{ maxWidth: "480px", margin: "0 auto", background: "#f8fafc", minHeight: "100vh", position: "relative" }}>
       <div className="screen-container" style={{ padding: "16px", paddingBottom: "120px" }}>
-        
-        {/* TAB 1: HOME DASHBOARD */}
+        {/* TAB 1: HOME */}
         {activeTab === "home" && (
           <div className="screen active">
+            {/* ULTRA-COMPACT HEADER WITH AUTO-ELLIPSIS & PULSE LOGO */}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px", gap: "8px" }}>
               <div style={{ minWidth: 0, flex: 1, display: "flex", alignItems: "center", gap: "6px" }}>
                 <div style={{ width: "24px", height: "24px", borderRadius: "50%", background: "linear-gradient(135deg, #4f46e5, #06b6d4)", display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontSize: "11px", boxShadow: "0 2px 6px rgba(79,70,229,0.3)", flexShrink: 0 }}>
@@ -1261,8 +1420,17 @@ export default function App() {
                 </div>
                 <div style={{ minWidth: 0, flex: 1 }}>
                   <span style={{ fontSize: "9px", fontWeight: 800, color: "var(--primary)", textTransform: "uppercase", letterSpacing: "0.5px", display: "block", lineHeight: 1 }}>NUTRIPULSE</span>
-                  <h2 style={{ fontSize: "14px", fontWeight: 900, margin: 0, lineHeight: 1.2, color: "#0f172a", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                    Hey, {appData?.userName || "Athlete"}!
+                  <h2 style={{ 
+                    fontSize: "14px", 
+                    fontWeight: 900, 
+                    margin: 0, 
+                    lineHeight: 1.2, 
+                    color: "#0f172a",
+                    whiteSpace: "nowrap", 
+                    overflow: "hidden", 
+                    textOverflow: "ellipsis" 
+                  }}>
+                    Hey, {appData?.userName || "Athlete"}! 
                   </h2>
                 </div>
               </div>
@@ -1282,6 +1450,7 @@ export default function App() {
 
             <div className="card" style={{ padding: "14px", borderRadius: "18px", marginBottom: "14px" }}>
               <div style={{ fontSize: "13px", fontWeight: 800, marginBottom: "8px" }}>Today Overview</div>
+              
               <div style={{ display: "grid", gridTemplateColumns: "1.1fr 1.3fr", gap: "10px", alignItems: "center" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                   <div className="ring-box" style={{ width: "52px", height: "52px", flexShrink: 0 }}>
@@ -1309,6 +1478,7 @@ export default function App() {
                       <div className="macro-bar-fill" style={{ background: "var(--protein)", width: Math.min((totalP / (appData?.pGoal || 120)) * 100, 100) + "%" }}></div>
                     </div>
                   </div>
+
                   <div>
                     <div style={{ display: "flex", justifyContent: "space-between", fontSize: "9px", fontWeight: 800, color: "#334155" }}>
                       <span>Carbs</span><span>{totalC}/{appData?.cGoal || 200}g</span>
@@ -1317,6 +1487,7 @@ export default function App() {
                       <div className="macro-bar-fill" style={{ background: "var(--carbs)", width: Math.min((totalC / (appData?.cGoal || 200)) * 100, 100) + "%" }}></div>
                     </div>
                   </div>
+
                   <div>
                     <div style={{ display: "flex", justifyContent: "space-between", fontSize: "9px", fontWeight: 800, color: "#334155" }}>
                       <span>Fats</span><span>{totalF}/{appData?.fGoal || 60}g</span>
@@ -1327,6 +1498,11 @@ export default function App() {
                   </div>
                 </div>
               </div>
+            </div>
+
+            <div className="mode-toggle" style={{ marginBottom: "14px" }}>
+              <button className={"mode-btn " + (appData?.dayMode === "rest" ? "active" : "")} onClick={() => setDayMode("rest")}>Rest Day</button>
+              <button className={"mode-btn " + (appData?.dayMode === "workout" ? "active" : "")} onClick={() => setDayMode("workout")}>Workout Day</button>
             </div>
 
             <div className="card" style={{ padding: "16px", borderRadius: "20px", background: "linear-gradient(135deg, #0284c7, #0369a1)", color: "white", marginBottom: "16px" }}>
@@ -1351,6 +1527,70 @@ export default function App() {
                   <div style={{ fontSize: "18px", fontWeight: 900, marginTop: "2px" }}>{totalGpsDistanceKm.toFixed(2)} km</div>
                 </div>
               </div>
+
+              <div style={{ fontSize: "10px", opacity: 0.9, textAlign: "center", fontWeight: 700 }}>
+                Active GPS Calorie Burn: <span style={{ color: "#f59e0b", fontWeight: 900 }}>{gpsCalBurned} kcal</span>
+              </div>
+            </div>
+
+            <div className="card" style={{ padding: "16px", borderRadius: "20px", background: "linear-gradient(135deg, #0f172a, #1e293b)", color: "white", marginBottom: "16px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
+                <i className="fa-solid fa-stopwatch" style={{ fontSize: "18px", color: "#38bdf8" }}></i>
+                <h4 style={{ fontSize: "15px", fontWeight: 800 }}>Workout Countdown Timer</h4>
+              </div>
+
+              <div style={{ marginBottom: "10px" }}>
+                <label style={{ fontSize: "10px", color: "#94a3b8", fontWeight: 700, display: "block", marginBottom: "4px" }}>Select Activity</label>
+                <select 
+                  value={selectedActivity} 
+                  onChange={e => setSelectedActivity(e.target.value)}
+                  style={{ width: "100%", background: "#1e293b", border: "1px solid #334155", color: "white", borderRadius: "10px", padding: "8px", fontSize: "11px", fontWeight: 700, outline: "none" }}
+                >
+                  {WORKOUT_ACTIVITIES.map(a => (
+                    <option key={a.name} value={a.name}>{a.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={{ marginBottom: "12px" }}>
+                <label style={{ fontSize: "10px", color: "#94a3b8", fontWeight: 700, display: "block", marginBottom: "4px" }}>Target Duration (Minutes)</label>
+                <input 
+                  type="number" 
+                  value={workoutDuration} 
+                  onChange={e => handleSetWorkoutTarget(e.target.value)}
+                  style={{ width: "100%", background: "#1e293b", border: "1px solid #334155", color: "white", borderRadius: "10px", padding: "8px", fontSize: "12px", fontWeight: 800, outline: "none" }} 
+                />
+              </div>
+
+              <div style={{ background: "rgba(255,255,255,0.05)", padding: "14px", borderRadius: "14px", textAlign: "center", border: "1px solid rgba(255,255,255,0.1)", marginBottom: "12px" }}>
+                <div style={{ fontSize: "28px", fontWeight: 900, letterSpacing: "2px", color: "#38bdf8", fontFamily: "monospace" }}>
+                  {timerMinDisplay}:{timerSecDisplay}
+                </div>
+                <div style={{ fontSize: "11px", color: "#f59e0b", fontWeight: 800, marginTop: "4px" }}>
+                  Est. Burn: {estimatedWorkoutBurn} kcal
+                </div>
+
+                <div style={{ display: "flex", gap: "8px", justifyContent: "center", marginTop: "12px" }}>
+                  {!isTimerRunning ? (
+                    <button onClick={startTimer} style={{ background: "#10b981", color: "white", border: "none", padding: "8px 16px", borderRadius: "10px", fontWeight: 800, fontSize: "11px", cursor: "pointer" }}>
+                      Start Timer
+                    </button>
+                  ) : (
+                    <button onClick={pauseTimer} style={{ background: "#f59e0b", color: "white", border: "none", padding: "8px 16px", borderRadius: "10px", fontWeight: 800, fontSize: "11px", cursor: "pointer" }}>
+                      Pause
+                    </button>
+                  )}
+                  <button onClick={finishWorkoutSession} style={{ background: "#38bdf8", color: "#0f172a", border: "none", padding: "8px 16px", borderRadius: "10px", fontWeight: 800, fontSize: "11px", cursor: "pointer" }}>
+                    Finish & Log
+                  </button>
+                </div>
+              </div>
+
+              {(appData?.todayBurnedCal || 0) > 0 && (
+                <div style={{ fontSize: "10px", color: "#10b981", fontWeight: 800, textAlign: "center" }}>
+                  Total Active Workout Burn Today: {appData.todayBurnedCal} kcal
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -1359,94 +1599,1118 @@ export default function App() {
         {activeTab === "diary" && (
           <div className="screen active">
             <h3 style={{ fontSize: "18px", fontWeight: 800, marginBottom: "14px" }}>Food & Nutrition Log</h3>
+
+            <div className="diary-summary" style={{ display: "flex", justifyContent: "space-around", textAlign: "center", padding: "12px 0", background: "#f1f5f9", borderRadius: "16px", marginBottom: "16px" }}>
+              <div><h4>{totalCal}</h4><p style={{ fontSize: "11px", color: "var(--text-muted)" }}>Eaten</p></div>
+              <div><h4>{activeGoal}</h4><p style={{ fontSize: "11px", color: "var(--text-muted)" }}>Goal</p></div>
+              <div style={{ color: "var(--success)" }}><h4>{Math.max(0, activeGoal - totalCal)}</h4><p style={{ fontSize: "11px" }}>Left</p></div>
+            </div>
+
             <div className="card">
               <div style={{ fontSize: "14px", fontWeight: 800, marginBottom: "10px" }}>Log Food Entry</div>
-              <input type="text" className="form-input" placeholder="Food Name" value={customName} onChange={e => setCustomName(e.target.value)} />
-              <input type="number" className="form-input" placeholder="Calories" value={customCal} onChange={e => setCustomCal(e.target.value)} />
-              <button className="btn-block" onClick={addCustomMeal}>Add Meal</button>
-            </div>
-          </div>
-        )}
+              
+              <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr", gap: "8px" }}>
+                <div>
+                  <label style={{ fontSize: "11px", fontWeight: 700 }}>Food / Dish Name</label>
+                  <input type="text" className="form-input" placeholder="e.g. Chicken Adobo" value={customName} onChange={e => setCustomName(e.target.value)} />
+                </div>
+                <div>
+                  <label style={{ fontSize: "11px", fontWeight: 700 }}>Portion Size</label>
+                  <input type="text" className="form-input" placeholder="e.g. 1 plate / 1 cup" value={customPortion} onChange={e => setCustomPortion(e.target.value)} />
+                </div>
+              </div>
+              
+              <label style={{ fontSize: "11px", fontWeight: 700 }}>Calories (kcal)</label>
+              <input type="number" className="form-input" placeholder="e.g. 350" value={customCal} onChange={e => setCustomCal(e.target.value)} />
 
-        {/* TAB 3: SOCIAL */}
-        {activeTab === "community" && (
-          <div className="screen active">
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
-              <h2 style={{ fontSize: "20px", fontWeight: 900, color: "var(--primary)", margin: 0 }}>NutriPulse</h2>
-              <button 
-                onClick={() => { setActivePanel("notif"); const nowT = Date.now(); setLastSeenNotifTime(nowT); localStorage.setItem("np_last_seen_notif", nowT.toString()); }} 
-                style={{ position: "relative", background: "#f1f5f9", border: "none", width: "36px", height: "36px", borderRadius: "50%", cursor: "pointer" }}
-              >
-                <i className="fa-regular fa-bell"></i>
-                {allUserNotifs.filter(n => (n.timestamp || 0) > lastSeenNotifTime).length > 0 && (
-                  <span style={{ position: "absolute", top: "2px", right: "2px", background: "#ef4444", color: "white", fontSize: "9px", fontWeight: 800, width: "15px", height: "15px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    {allUserNotifs.filter(n => (n.timestamp || 0) > lastSeenNotifTime).length}
-                  </span>
-                )}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "6px" }}>
+                <div><label style={{ fontSize: "10px", fontWeight: 700 }}>Protein (g)</label><input type="number" className="form-input" placeholder="0" value={customP} onChange={e => setCustomP(e.target.value)} /></div>
+                <div><label style={{ fontSize: "10px", fontWeight: 700 }}>Carbs (g)</label><input type="number" className="form-input" placeholder="0" value={customC} onChange={e => setCustomC(e.target.value)} /></div>
+                <div><label style={{ fontSize: "10px", fontWeight: 700 }}>Fats (g)</label><input type="number" className="form-input" placeholder="0" value={customF} onChange={e => setCustomF(e.target.value)} /></div>
+              </div>
+
+              <button className="btn-block" onClick={addCustomMeal} disabled={isAddingMeal}>
+                {isAddingMeal ? "Adding Meal..." : "Add to Today's Log"}
               </button>
             </div>
 
-            {publicCommunityPosts.map(p => (
-              <div key={p.id} className="card" style={{ padding: "14px", borderRadius: "18px", marginBottom: "14px" }}>
-                <div style={{ fontSize: "13px", fontWeight: 800, marginBottom: "6px" }}>{p.userName}</div>
-                <div onClick={() => { setSelectedPost(p); setActivePanel("post_detail"); }} style={{ cursor: "pointer" }}>
-                  <ExpandableText text={p.text} />
-                </div>
-                {p.imageUrl && <img src={p.imageUrl} alt="" style={{ width: "100%", borderRadius: "10px", marginTop: "6px" }} />}
-                <div style={{ display: "flex", gap: "10px", marginTop: "8px", borderTop: "1px solid #f1f5f9", paddingTop: "6px" }}>
-                  <button onClick={() => handleLike(p.id, p.likes || 0, p.likedBy || [])} style={{ background: "none", border: "none", color: "#ef4444", fontWeight: 800, fontSize: "11px", cursor: "pointer" }}>
-                    Pulse ({p.likes || 0})
-                  </button>
-                  <button onClick={() => { setSelectedPost(p); setActivePanel("post_detail"); }} style={{ background: "none", border: "none", color: "#64748b", fontWeight: 800, fontSize: "11px", cursor: "pointer" }}>
-                    Comment ({(postComments[p.id] || []).length})
-                  </button>
-                </div>
+            <div className="card">
+              <div style={{ fontSize: "14px", fontWeight: 800, marginBottom: "8px" }}>Today's Logged Meals</div>
+              <div>
+                {(todayMeals.length === 0) ? (
+                  <p style={{ fontSize: "12px", color: "var(--text-muted)", textAlign: "center", padding: "16px 0" }}>No meals logged yet today.</p>
+                ) : (
+                  todayMeals.map((m, idx) => (
+                    <div key={m.id} className="food-entry" style={{ borderLeft: idx === 0 ? "3px solid var(--primary)" : "none", paddingLeft: idx === 0 ? "8px" : "0" }}>
+                      <div>
+                        <div style={{ fontWeight: 800, display: "flex", alignItems: "center", gap: "6px" }}>
+                          {m.name} 
+                          <small style={{ fontWeight: 600, color: "var(--primary)" }}>({m.portion || "1 serving"})</small>
+                          {idx === 0 && <span style={{ fontSize: "9px", background: "var(--primary)", color: "white", padding: "1px 5px", borderRadius: "4px" }}>Last Meal</span>}
+                        </div>
+                        <div style={{ fontSize: "11px", color: "var(--text-muted)" }}>{m.cal} kcal • P:{m.p}g C:{m.c}g F:{m.f}g</div>
+                      </div>
+                      <i className="fa-solid fa-trash" style={{ color: "var(--danger)", cursor: "pointer" }} onClick={() => deleteMeal(m.id)}></i>
+                    </div>
+                  ))
+                )}
               </div>
-            ))}
+            </div>
           </div>
         )}
 
-        {/* TAB 6: PROFILE */}
+        {/* TAB 3: REDESIGNED SOCIAL TAB */}
+        {activeTab === "community" && (
+          <div className="screen active">
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <div style={{ width: "28px", height: "28px", borderRadius: "50%", background: "linear-gradient(135deg, #4f46e5, #06b6d4)", display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontSize: "13px", boxShadow: "0 2px 8px rgba(79,70,229,0.3)" }}>
+                  <i className="fa-solid fa-heart-pulse"></i>
+                </div>
+                <h2 style={{ fontSize: "20px", fontWeight: 900, color: "var(--primary)", letterSpacing: "-0.5px", margin: 0 }}>NutriPulse</h2>
+              </div>
+              
+              <div style={{ display: "flex", gap: "8px" }}>
+                <button 
+                  onClick={() => setShowSearchModal(true)} 
+                  style={{ background: "#f1f5f9", border: "none", width: "36px", height: "36px", borderRadius: "50%", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#334155", fontSize: "15px" }}
+                >
+                  <i className="fa-solid fa-magnifying-glass"></i>
+                </button>
+
+                <button 
+                  onClick={() => setActivePanel("notif")} 
+                  style={{ position: "relative", background: "#f1f5f9", border: "none", width: "36px", height: "36px", borderRadius: "50%", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#334155", fontSize: "15px" }}
+                >
+                  <i className="fa-regular fa-bell"></i>
+                  {allUserNotifs.length > 0 && (
+                    <span style={{ position: "absolute", top: "2px", right: "2px", background: "#ef4444", color: "white", fontSize: "9px", fontWeight: 800, width: "15px", height: "15px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      {allUserNotifs.length}
+                    </span>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            <div className="card" style={{ padding: "12px", borderRadius: "18px", boxShadow: "0 4px 16px rgba(0,0,0,0.04)", marginBottom: "14px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                  <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: "#4f46e5", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: "12px", overflow: "hidden", flexShrink: 0 }}>
+                    {appData?.avatarUrl ? (
+                      <img src={appData.avatarUrl} alt="Avatar" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                    ) : (
+                      (appData?.userName || "A").charAt(0).toUpperCase()
+                    )}
+                  </div>
+                  <span style={{ fontSize: "12px", fontWeight: 800, color: "#0f172a" }}>{appData?.userName || "Athlete"}</span>
+                </div>
+
+                <div style={{ display: "flex", gap: "3px", background: "#f1f5f9", padding: "2px", borderRadius: "8px" }}>
+                  <button 
+                    onClick={() => setPostVisibility("public")} 
+                    style={{ background: postVisibility === "public" ? "#ffffff" : "transparent", border: "none", padding: "3px 7px", borderRadius: "6px", fontSize: "9px", fontWeight: 800, color: postVisibility === "public" ? "var(--primary)" : "#64748b", cursor: "pointer" }}
+                  >
+                     Public
+                  </button>
+                  <button 
+                    onClick={() => setPostVisibility("boosters")} 
+                    style={{ background: postVisibility === "boosters" ? "#ffffff" : "transparent", border: "none", padding: "3px 7px", borderRadius: "6px", fontSize: "9px", fontWeight: 800, color: postVisibility === "boosters" ? "var(--primary)" : "#64748b", cursor: "pointer" }}
+                  >
+                     Boosters
+                  </button>
+                  <button 
+                    onClick={() => setPostVisibility("private")} 
+                    style={{ background: postVisibility === "private" ? "#ffffff" : "transparent", border: "none", padding: "3px 7px", borderRadius: "6px", fontSize: "9px", fontWeight: 800, color: postVisibility === "private" ? "var(--primary)" : "#64748b", cursor: "pointer" }}
+                  >
+                     Private
+                  </button>
+                </div>
+              </div>
+
+              <textarea 
+                className="form-input" 
+                style={{ height: "48px", borderRadius: "12px", padding: "8px 10px", fontSize: "11px", border: "1px solid #e2e8f0", resize: "none", marginBottom: "8px" }} 
+                placeholder="Share a milestone or fitness update..."
+                value={postText}
+                onChange={e => setPostText(e.target.value)}
+              />
+
+              {imagePreview && (
+                <div style={{ position: "relative", marginBottom: "8px" }}>
+                  <img src={imagePreview} alt="Preview" style={{ width: "100%", maxHeight: "140px", objectFit: "cover", borderRadius: "12px" }} />
+                  <button 
+                    onClick={() => setImagePreview(null)}
+                    style={{ position: "absolute", top: "6px", right: "6px", background: "rgba(0,0,0,0.6)", color: "white", border: "none", borderRadius: "50%", width: "22px", height: "22px", fontSize: "10px", cursor: "pointer" }}
+                  >
+                    X
+                  </button>
+                </div>
+              )}
+
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <label style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "11px", fontWeight: 700, color: "var(--primary)", cursor: "pointer", background: "#f0fdf4", padding: "6px 10px", borderRadius: "10px", border: "1px solid #bbf7d0" }}>
+                  <i className="fa-solid fa-image" style={{ fontSize: "12px" }}></i> Photo
+                  <input type="file" accept="image/*" onChange={e => handleImageChange(e, false)} style={{ display: "none" }} />
+                </label>
+
+                <button 
+                  onClick={() => createPost(false)} 
+                  disabled={isPublishing}
+                  style={{ background: isPublishing ? "#94a3b8" : "var(--primary)", color: "white", border: "none", padding: "6px 14px", borderRadius: "10px", fontWeight: 800, fontSize: "11px", cursor: "pointer" }}
+                >
+                  {isPublishing ? "Publishing..." : "Publish Post"}
+                </button>
+              </div>
+            </div>
+
+            <div>
+              {publicCommunityPosts.length === 0 ? (
+                <div style={{ textAlign: "center", padding: "40px 20px", color: "var(--text-muted)" }}>
+                  <i className="fa-regular fa-newspaper" style={{ fontSize: "32px", marginBottom: "8px", opacity: 0.5 }}></i>
+                  <p style={{ fontSize: "12px", fontWeight: 600 }}>No public or booster posts in the feed yet.<br />Be the first to share your progress!</p>
+                </div>
+              ) : (
+                publicCommunityPosts.map(p => {
+                  const isLiked = p.likedBy && p.likedBy.includes(user?.uid);
+                  const isOwner = p.userId === user?.uid;
+                  const postAuthorObj = userList.find(u => u.uid === p.userId);
+
+                  return (
+                    <div key={p.id} className="card" style={{ padding: "14px", borderRadius: "18px", marginBottom: "14px", boxShadow: "0 4px 15px rgba(0,0,0,0.03)", position: "relative" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
+                        <div 
+                          onClick={() => { if (p.userId === user?.uid) { setActiveTab("profile"); } else { setSelectedVisitor(postAuthorObj || { uid: p.userId, userName: p.userName, userTitle: p.userTitle, avatarUrl: p.userAvatar }); setActivePanel("visitor_profile"); } }}
+                          style={{ display: "flex", gap: "8px", alignItems: "center", cursor: "pointer" }}
+                        >
+                          <div style={{ width: "36px", height: "36px", borderRadius: "50%", background: "#4f46e5", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: "13px", overflow: "hidden" }}>
+                            {p.userAvatar ? (
+                              <img src={p.userAvatar} alt="Avatar" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                            ) : (
+                              (p.userName || "A").charAt(0).toUpperCase()
+                            )}
+                          </div>
+                          <div>
+                            <div style={{ fontSize: "13px", fontWeight: 800, color: "#0f172a" }}>{p.userName}</div>
+                            <div style={{ fontSize: "9px", color: "var(--text-muted)" }}>
+                              {p.userTitle || "Athlete"} • {formatPostTime(p.createdAt)}
+                            </div>
+                          </div>
+                        </div>
+
+                        {isOwner && (
+                          <div style={{ position: "relative" }}>
+                            <button 
+                              onClick={() => setActiveMenuPostId(activeMenuPostId === p.id ? null : p.id)} 
+                              style={{ background: "transparent", border: "none", color: "#64748b", fontSize: "15px", cursor: "pointer", padding: "4px 8px" }}
+                            >
+                              <i className="fa-solid fa-ellipsis-vertical"></i>
+                            </button>
+
+                            {activeMenuPostId === p.id && (
+                              <div style={{ position: "absolute", right: 0, top: "24px", background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "10px", boxShadow: "0 8px 20px -4px rgba(0,0,0,0.1)", zIndex: 100, minWidth: "120px", overflow: "hidden" }}>
+                                <button 
+                                  onClick={() => openEditModal(p)} 
+                                  style={{ width: "100%", padding: "8px 10px", background: "transparent", border: "none", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "#334155", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px" }}
+                                >
+                                  <i className="fa-solid fa-pen" style={{ color: "var(--primary)" }}></i> Edit
+                                </button>
+                                <button 
+                                  onClick={() => handleDeletePost(p.id)} 
+                                  style={{ width: "100%", padding: "8px 10px", background: "transparent", border: "none", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "#ef4444", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px", borderTop: "1px solid #f1f5f9" }}
+                                >
+                                  <i className="fa-solid fa-trash"></i> Delete
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      <div onClick={() => { setSelectedPost(p); setActivePanel("post_detail"); }} style={{ cursor: "pointer" }}><ExpandableText text={p.text} /></div>
+
+                      {p.imageUrl && (
+                        <div 
+                          onClick={(e) => { e.stopPropagation(); setSelectedPost(p); setActivePanel("post_detail"); }} 
+                          style={{ borderRadius: "12px", overflow: "hidden", marginBottom: "10px", border: "1px solid #f1f5f9", background: "#f8fafc", aspectRatio: "4/3", cursor: "pointer", position: "relative" }}
+                        >
+                          <img src={p.imageUrl} alt="Transformation Post" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                        </div>
+                      )}
+
+                      <div style={{ display: "flex", alignItems: "center", gap: "10px", borderTop: "1px solid #f1f5f9", paddingTop: "8px", marginTop: "4px" }}>
+                        <button 
+                          onClick={() => handleLike(p.id, p.likes || 0, p.likedBy || [])}
+                          style={{ 
+                            background: isLiked ? "#fef2f2" : "transparent", 
+                            border: "none",
+                            color: isLiked ? "#ef4444" : "#64748b", 
+                            padding: "4px 8px", 
+                            fontSize: "11px", 
+                            fontWeight: 800, 
+                            cursor: "pointer",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "5px",
+                            borderRadius: "10px"
+                          }}
+                        >
+                          <i className={isLiked ? "fa-solid fa-heart" : "fa-regular fa-heart"} style={{ fontSize: "13px", color: isLiked ? "#ef4444" : "#64748b" }}></i>
+                          {p.likes || 0} {(p.likes === 1) ? "Pulse" : "Pulses"}
+                        </button>
+
+                        <button 
+                          onClick={() => { setSelectedPost(p); setActivePanel("post_detail"); }}
+                          style={{ background: "transparent", border: "none", color: "#64748b", padding: "4px 8px", fontSize: "11px", fontWeight: 800, cursor: "pointer", display: "flex", alignItems: "center", gap: "5px" }}
+                        >
+                          <i className="fa-regular fa-comment" style={{ fontSize: "12px" }}></i> {(postComments[p.id] || []).length}
+                        </button>
+
+                        <button 
+                          onClick={() => setResonatePost(p)}
+                          style={{ background: "transparent", border: "none", color: "#64748b", padding: "4px 8px", fontSize: "11px", fontWeight: 800, cursor: "pointer", display: "flex", alignItems: "center", gap: "5px" }}
+                        >
+                          <i className="fa-solid fa-share-nodes" style={{ fontSize: "12px" }}></i> Resonate
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* TAB 4: PROGRESS TAB */}
+        {activeTab === "progress" && (
+          <div className="screen active">
+            <h3 style={{ fontSize: "18px", fontWeight: 800, textAlign: "center", marginBottom: "14px" }}>Weight & Health Progress</h3>
+            
+            <div className="card" style={{ padding: "16px", borderRadius: "20px", marginBottom: "16px" }}>
+              <div style={{ fontSize: "13px", fontWeight: 800, color: "#0f172a", marginBottom: "12px" }}>Your Weight Trend (Last 5 Logs)</div>
+              
+              <div style={{ background: "#f8fafc", padding: "16px 12px 12px 12px", borderRadius: "16px", border: "1px solid #e2e8f0", marginBottom: "12px" }}>
+                <div style={{ display: "flex", justifyContent: "space-around", alignItems: "flex-end", height: "95px", paddingBottom: "8px", borderBottom: "2px solid #cbd5e1", gap: "6px" }}>
+                  {(() => {
+                    const todayShort = new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" });
+                    const rawLogs = (Array.isArray(appData?.weightHistory) && appData.weightHistory.length > 0) 
+                      ? appData.weightHistory 
+                      : [{ val: currentWeight, date: todayShort }];
+
+                    const logs = rawLogs.map(item => typeof item === 'object' ? item : { val: item, date: "Prev" });
+                    const valList = logs.map(l => l.val);
+
+                    const minW = Math.min(...valList) - 2;
+                    const maxW = Math.max(...valList) + 2;
+                    const range = (maxW - minW) || 1;
+
+                    return logs.map((item, idx) => {
+                      const isLatest = idx === logs.length - 1;
+                      const heightPct = Math.max(25, Math.min(90, ((item.val - minW) / range) * 100));
+
+                      return (
+                        <div key={idx} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", height: "100%", justifyContent: "flex-end" }}>
+                          <span style={{ fontSize: "9px", fontWeight: isLatest ? 900 : 700, color: isLatest ? "var(--primary)" : "#64748b" }}>
+                            {item.val}kg
+                          </span>
+                          <div style={{ 
+                            height: heightPct + "%", 
+                            width: isLatest ? "8px" : "5px", 
+                            background: isLatest ? "var(--primary)" : "#818cf8", 
+                            borderRadius: "3px", 
+                            margin: "4px 0" 
+                          }}></div>
+                          <span style={{ fontSize: "8px", color: isLatest ? "var(--primary)" : "var(--text-muted)", fontWeight: isLatest ? 800 : 600 }}>
+                            {item.date}
+                          </span>
+                        </div>
+                      );
+                    });
+                  })()}
+                </div>
+
+                {(!appData?.weightHistory || appData.weightHistory.length <= 1) && (
+                  <div style={{ fontSize: "10px", color: "#64748b", textAlign: "center", marginTop: "8px", fontWeight: 600 }}>
+                    Initial weight baseline recorded. Log new weight updates below to build your 5-entry trend chart!
+                  </div>
+                )}
+              </div>
+
+              <div style={{ fontSize: "11px", fontWeight: 700, padding: "10px 12px", borderRadius: "12px", lineHeight: 1.4, ...badgeStyle }}>
+                {trendMessage}
+              </div>
+            </div>
+
+            <div className="card" style={{ padding: "16px", borderRadius: "20px", marginBottom: "16px" }}>
+              <div style={{ fontSize: "13px", fontWeight: 800, marginBottom: "8px" }}>Log New Weight Entry</div>
+              <div style={{ display: "flex", gap: "8px" }}>
+                <input 
+                  type="number" 
+                  className="form-input" 
+                  style={{ marginBottom: 0 }} 
+                  placeholder="Enter Weight (kg)" 
+                  value={newLogWeight} 
+                  onChange={e => setNewLogWeight(e.target.value)} 
+                />
+                <button className="btn-block" style={{ width: "120px" }} onClick={handleUpdateWeight} disabled={isUpdatingWeight}>
+                  {isUpdatingWeight ? "Updating..." : "Update Weight"}
+                </button>
+              </div>
+            </div>
+
+            <div className="card" style={{ padding: "16px", borderRadius: "20px", marginBottom: "16px" }}>
+              <div style={{ fontSize: "13px", fontWeight: 800, marginBottom: "12px", color: "#0f172a" }}>Health & BMI Status Summary</div>
+              
+              <div style={{ marginBottom: "12px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", fontWeight: 800, marginBottom: "4px" }}>
+                  <span>BMI Score: {bmiScore}</span>
+                  <span style={{ color: bmiColor }}>{bmiCategory}</span>
+                </div>
+                <div style={{ height: "8px", background: "#e2e8f0", borderRadius: "4px", overflow: "hidden", position: "relative" }}>
+                  <div style={{ height: "100%", width: bmiBarPct + "%", background: bmiColor, borderRadius: "4px" }}></div>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "9px", color: "var(--text-muted)", marginTop: "4px", fontWeight: 700 }}>
+                  <span>Underweight</span>
+                  <span>Normal</span>
+                  <span>Overweight</span>
+                  <span>Obese</span>
+                </div>
+              </div>
+
+              <div style={{ background: "#f0f9ff", border: "1px solid #bae6fd", padding: "10px 12px", borderRadius: "12px", marginBottom: "12px" }}>
+                <div style={{ fontSize: "11px", fontWeight: 800, color: "#0284c7" }}>
+                  <i className="fa-solid fa-droplet" style={{ marginRight: "6px" }}></i> Estimated Daily Water Need
+                </div>
+                <div style={{ fontSize: "14px", fontWeight: 900, color: "#0369a1", marginTop: "2px" }}>
+                  {estimatedWaterLiters} Liters / day
+                </div>
+                <div style={{ fontSize: "10px", color: "#0284c7", marginTop: "2px" }}>
+                  Calculated based on your body weight ({currentWeight} kg).
+                </div>
+              </div>
+
+              <div style={{ background: "#f8fafc", padding: "10px 12px", borderRadius: "12px", fontSize: "11px", color: "#334155", lineHeight: 1.5 }}>
+                <strong>Status Tip:</strong> {numericBmi < 18.5 ? "Slightly underweight. Consider adding nutrient-dense meals to your daily routine." : numericBmi <= 24.9 ? "You are in a healthy BMI range! Maintain your current balanced lifestyle." : "Above recommended BMI range. Stick to your active calorie deficit plan for steady results."}
+              </div>
+            </div>
+
+            <div className="card" style={{ padding: "16px", borderRadius: "20px" }}>
+              <div style={{ fontSize: "13px", fontWeight: 800, marginBottom: "10px" }}>Unlocked Achievements</div>
+              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                <div style={{ background: "#f1f5f9", padding: "6px 12px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, color: "var(--primary)" }}><i className="fa-solid fa-fire"></i> {appData?.streakDays || 1}-Day Streak</div>
+                <div style={{ background: "#f1f5f9", padding: "6px 12px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, color: "var(--water)" }}><i className="fa-solid fa-droplet"></i> Hydration Target ({estimatedWaterLiters}L)</div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 5: GOALS */}
+        {activeTab === "goals" && (
+          <div className="screen active">
+            <h3 style={{ fontSize: "18px", fontWeight: 800, textAlign: "center", marginBottom: "14px" }}>Fitness Objectives & Strategies</h3>
+            
+            <div className="card" style={{ background: "linear-gradient(135deg, #4f46e5, #3730a3)", color: "white", marginBottom: "14px" }}>
+              <p style={{ fontSize: "11px", opacity: 0.8 }}>Active Strategy Plan</p>
+              <h2 style={{ fontSize: "20px", fontWeight: 800 }}>{goalTitles[appData?.activeGoalType || 'jogger']}</h2>
+              <p style={{ fontSize: "11px", opacity: 0.8, marginTop: "2px" }}><span>{activeGoal}</span> kcal/day</p>
+            </div>
+
+            <div className="goal-section-header">Running & Cardio Goals</div>
+
+            <div className={"goal-card-option " + (appData?.activeGoalType === "jogger" ? "selected" : "")} onClick={() => setGoalPreset("jogger")}>
+              <div style={{ fontSize: "13px", fontWeight: 800 }}>Daily Jogger / Casual Runner</div>
+              <div style={{ fontSize: "10px", color: "var(--text-muted)", marginTop: "2px" }}>Moderate calories + High carbs fuel for daily 3k-5k runs.</div>
+            </div>
+
+            <div className={"goal-card-option " + (appData?.activeGoalType === "marathon" ? "selected" : "")} onClick={() => setGoalPreset("marathon")}>
+              <div style={{ fontSize: "13px", fontWeight: 800 }}>Endurance & Marathon Prep</div>
+              <div style={{ fontSize: "10px", color: "var(--text-muted)", marginTop: "2px" }}>High calorie surplus + Extra high carbs loading.</div>
+            </div>
+
+            <div className={"goal-card-option " + (appData?.activeGoalType === "steps" ? "selected" : "")} onClick={() => setGoalPreset("steps")}>
+              <div style={{ fontSize: "13px", fontWeight: 800 }}>Daily 10k Steps / Active Walker</div>
+              <div style={{ fontSize: "10px", color: "var(--text-muted)", marginTop: "2px" }}>Slight deficit for steady fat loss through everyday walking.</div>
+            </div>
+
+            <div className="goal-section-header">Gym & Weightlifting Goals</div>
+
+            <div className={"goal-card-option " + (appData?.activeGoalType === "bulk" ? "selected" : "")} onClick={() => setGoalPreset("bulk")}>
+              <div style={{ fontSize: "13px", fontWeight: 800 }}>Lean Bulk (Clean Muscle)</div>
+              <div style={{ fontSize: "10px", color: "var(--text-muted)", marginTop: "2px" }}>Slight surplus for muscle growth with minimal fat.</div>
+            </div>
+
+            <div className={"goal-card-option " + (appData?.activeGoalType === "cut" ? "selected" : "")} onClick={() => setGoalPreset("cut")}>
+              <div style={{ fontSize: "13px", fontWeight: 800 }}>Aggressive Cut (Fast Fat Loss)</div>
+              <div style={{ fontSize: "10px", color: "var(--text-muted)", marginTop: "2px" }}>High deficit + High Protein to preserve muscle.</div>
+            </div>
+
+            <div className={"goal-card-option " + (appData?.activeGoalType === "recomp" ? "selected" : "")} onClick={() => setGoalPreset("recomp")}>
+              <div style={{ fontSize: "13px", fontWeight: 800 }}>Body Recomposition</div>
+              <div style={{ fontSize: "10px", color: "var(--text-muted)", marginTop: "2px" }}>Build muscle & lose fat simultaneously.</div>
+            </div>
+
+            <div className={"goal-card-option " + (appData?.activeGoalType === "dirty" ? "selected" : "")} onClick={() => setGoalPreset("dirty")}>
+              <div style={{ fontSize: "13px", fontWeight: 800 }}>Heavy Mass Gain (Hardgainer)</div>
+              <div style={{ fontSize: "10px", color: "var(--text-muted)", marginTop: "2px" }}>High calorie + High carbs for rapid weight gain.</div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 6: SAFE ULTRA-COMPACT ATHLETIC PROFILE DESIGN */}
         {activeTab === "profile" && (
           <div className="screen active">
-            <div className="card" style={{ padding: 0, overflow: "hidden", borderRadius: "20px", marginBottom: "12px", position: "relative" }}>
-              <div style={{ height: "85px", background: "linear-gradient(135deg, #0284c7, #4f46e5)", position: "relative" }}>
+            {/* HERO PROFILE HEADER */}
+            <div className="card" style={{ padding: 0, overflow: "hidden", borderRadius: "20px", marginBottom: "12px", boxShadow: "0 6px 18px rgba(0,0,0,0.06)", position: "relative", border: "none" }}>
+              <div style={{ 
+                height: "85px", 
+                background: (coverPreview || appData?.coverUrl) ? "url(" + (coverPreview || appData?.coverUrl) + ") center/cover" : "linear-gradient(135deg, #0284c7, #4f46e5)", 
+                position: "relative" 
+              }}>
+                <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, rgba(0,0,0,0.1), rgba(15,23,42,0.35))" }}></div>
+                
+                {/* DIRECT BANNER CAMERA BUTTON */}
+                <label style={{ position: "absolute", bottom: "8px", right: "50px", background: "rgba(0,0,0,0.55)", color: "white", padding: "4px 8px", borderRadius: "8px", cursor: "pointer", fontSize: "10px", fontWeight: 700, backdropFilter: "blur(4px)", border: "1px solid rgba(255,255,255,0.3)", zIndex: 10 }}>
+                  <i className="fa-solid fa-camera"></i> Cover
+                  <input type="file" accept="image/*" onChange={handleDirectCoverChange} style={{ display: "none" }} />
+                </label>
+
                 <button 
                   onClick={() => setActivePanel("settings")} 
-                  style={{ position: "absolute", top: "10px", right: "10px", background: "rgba(255,255,255,0.25)", color: "white", border: "none", width: "32px", height: "32px", borderRadius: "50%", cursor: "pointer" }}
+                  style={{ position: "absolute", top: "10px", right: "10px", background: "rgba(255,255,255,0.25)", backdropFilter: "blur(6px)", color: "white", border: "1px solid rgba(255,255,255,0.3)", width: "32px", height: "32px", borderRadius: "50%", cursor: "pointer", fontSize: "13px", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10 }}
                 >
                   <i className="fa-solid fa-gear"></i>
                 </button>
               </div>
 
-              <div style={{ padding: "0 12px 12px 12px", textAlign: "center" }}>
-                <h3 style={{ fontSize: "17px", fontWeight: 900, color: "#0f172a", marginTop: "8px" }}>{appData?.userName || "Athlete"}</h3>
-                <p style={{ fontSize: "10px", color: "var(--text-muted)", margin: 0 }}>{appData?.userTitle || "Fitness Enthusiast"}</p>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "0 12px 12px 12px", textAlign: "center" }}>
+                {/* AVATAR WITH DIRECT CAMERA BUTTON */}
+                <div style={{ width: "66px", height: "68px", borderRadius: "50%", background: "#ffffff", padding: "2px", boxShadow: "0 4px 14px rgba(0,0,0,0.12)", overflow: "hidden", marginTop: "-34px", marginBottom: "6px", zIndex: 10, position: "relative" }}>
+                  {(avatarPreview || appData?.avatarUrl) ? (
+                    <img src={avatarPreview || appData?.avatarUrl} alt="Profile Avatar" style={{ width: "100%", height: "100%", borderRadius: "50%", objectFit: "cover" }} />
+                  ) : (
+                    <div style={{ width: "100%", height: "100%", borderRadius: "50%", background: "linear-gradient(135deg, #4f46e5, #0284c7)", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "24px", fontWeight: 900 }}>
+                      {(appData?.userName || "A").charAt(0).toUpperCase()}
+                    </div>
+                  )}
+
+                  <label style={{ position: "absolute", inset: 0, background: "rgba(15,23,42,0.35)", display: "flex", alignItems: "center", justifyContent: "center", color: "white", cursor: "pointer", opacity: 0.8, fontSize: "14px" }}>
+                    <i className="fa-solid fa-camera"></i>
+                    <input type="file" accept="image/*" onChange={handleDirectAvatarChange} style={{ display: "none" }} />
+                  </label>
+                </div>
+
+                <div style={{ display: "flex", alignItems: "center", gap: "6px", justifyContent: "center" }}>
+                  <h3 style={{ fontSize: "17px", fontWeight: 900, color: "#0f172a", margin: 0 }}>{appData?.userName || "Athlete"}</h3>
+                  <span style={{ fontSize: "8px", background: appData?.isPrivateAccount ? "#f1f5f9" : "#e0e7ff", color: appData?.isPrivateAccount ? "#64748b" : "var(--primary)", padding: "1px 6px", borderRadius: "5px", fontWeight: 800 }}>
+                    {appData?.isPrivateAccount ? " Private" : " Athlete"}
+                  </span>
+                </div>
+                <p style={{ fontSize: "10px", color: "var(--text-muted)", fontWeight: 600, marginTop: "1px", marginBottom: "0" }}>{appData?.userTitle || "Fitness Enthusiast"}</p>
+
+                {/* ATHLETIC STATS GRID */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "4px", background: "#f8fafc", padding: "8px", borderRadius: "14px", marginTop: "10px", width: "100%", border: "1px solid #f1f5f9" }}>
+                  <div onClick={() => setActivePanel("boosting")} style={{ cursor: "pointer" }}>
+                    <div style={{ fontSize: "12px", fontWeight: 900, color: "var(--primary)" }}>{(appData?.boosting || []).length}</div>
+                    <div style={{ fontSize: "8px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase" }}>Boosting</div>
+                  </div>
+                  <div onClick={() => setActivePanel("boosters")} style={{ cursor: "pointer" }}>
+                    <div style={{ fontSize: "12px", fontWeight: 900, color: "#10b981" }}>{myRealtimeBoostersCount}</div>
+                    <div style={{ fontSize: "8px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase" }}>Boosters</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: "12px", fontWeight: 900, color: "#f59e0b" }}>{appData?.streakDays || 1}</div>
+                    <div style={{ fontSize: "8px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase" }}>Streak</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: "12px", fontWeight: 900, color: "#ef4444" }} >{myTotalPulses}</div>
+                    <div style={{ fontSize: "8px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase" }} >Pulses</div>
+                  </div>
+                </div>
               </div>
+            </div>
+
+            {/* CREATE POST CARD */}
+            <div className="card" style={{ padding: "12px", borderRadius: "18px", boxShadow: "0 4px 16px rgba(0,0,0,0.04)", marginBottom: "12px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                <span style={{ fontSize: "12px", fontWeight: 800, color: "#0f172a" }}>Create Post</span>
+                
+                <div style={{ display: "flex", gap: "3px", background: "#f1f5f9", padding: "2px", borderRadius: "8px" }}>
+                  <button 
+                    onClick={() => setProfPostVisibility("public")} 
+                    style={{ background: profPostVisibility === "public" ? "#ffffff" : "transparent", border: "none", padding: "3px 7px", borderRadius: "6px", fontSize: "9px", fontWeight: 800, color: profPostVisibility === "public" ? "var(--primary)" : "#64748b", cursor: "pointer" }}
+                  >
+                     Public
+                  </button>
+                  <button 
+                    onClick={() => setProfPostVisibility("boosters")} 
+                    style={{ background: profPostVisibility === "boosters" ? "#ffffff" : "transparent", border: "none", padding: "3px 7px", borderRadius: "6px", fontSize: "9px", fontWeight: 800, color: profPostVisibility === "boosters" ? "var(--primary)" : "#64748b", cursor: "pointer" }}
+                  >
+                     Boosters
+                  </button>
+                  <button 
+                    onClick={() => setProfPostVisibility("private")} 
+                    style={{ background: profPostVisibility === "private" ? "#ffffff" : "transparent", border: "none", padding: "3px 7px", borderRadius: "6px", fontSize: "9px", fontWeight: 800, color: profPostVisibility === "private" ? "var(--primary)" : "#64748b", cursor: "pointer" }}
+                  >
+                     Private
+                  </button>
+                </div>
+              </div>
+
+              <textarea 
+                className="form-input" 
+                style={{ height: "50px", borderRadius: "12px", padding: "8px 10px", fontSize: "11px", border: "1px solid #e2e8f0", resize: "none", marginBottom: "8px" }} 
+                placeholder="Share a fitness update..."
+                value={profPostText}
+                onChange={e => setProfPostText(e.target.value)}
+              />
+
+              {profImagePreview && (
+                <div style={{ position: "relative", marginBottom: "8px" }}>
+                  <img src={profImagePreview} alt="Preview" style={{ width: "100%", maxHeight: "140px", objectFit: "cover", borderRadius: "12px" }} />
+                  <button 
+                    onClick={() => setProfImagePreview(null)}
+                    style={{ position: "absolute", top: "6px", right: "6px", background: "rgba(0,0,0,0.6)", color: "white", border: "none", borderRadius: "50%", width: "22px", height: "22px", fontSize: "10px", cursor: "pointer" }}
+                  >
+                    X
+                  </button>
+                </div>
+              )}
+
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <label style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "11px", fontWeight: 700, color: "var(--primary)", cursor: "pointer", background: "#f0fdf4", padding: "6px 10px", borderRadius: "10px", border: "1px solid #bbf7d0" }}>
+                  <i className="fa-solid fa-image" style={{ fontSize: "12px" }}></i> Photo
+                  <input type="file" accept="image/*" onChange={e => handleImageChange(e, true)} style={{ display: "none" }} />
+                </label>
+
+                <button 
+                  onClick={() => createPost(true)} 
+                  disabled={isPublishing}
+                  style={{ background: isPublishing ? "#94a3b8" : "var(--primary)", color: "white", border: "none", padding: "6px 14px", borderRadius: "10px", fontWeight: 800, fontSize: "11px", cursor: "pointer" }}
+                >
+                  {isPublishing ? "Publishing..." : "Publish Post"}
+                </button>
+              </div>
+            </div>
+
+            {/* MY POSTS FEED HEADER & VIEW SWITCHER */}
+            <div className="card" style={{ padding: "14px", borderRadius: "18px", marginBottom: "16px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
+                <span style={{ fontSize: "13px", fontWeight: 800, color: "#0f172a" }}>My Fitness Feed</span>
+                <div style={{ display: "flex", gap: "3px", background: "#f1f5f9", padding: "2px", borderRadius: "8px" }}>
+                  <button 
+                    onClick={() => setProfileViewMode("list")} 
+                    style={{ background: profileViewMode === "list" ? "#ffffff" : "transparent", border: "none", padding: "4px 10px", borderRadius: "6px", cursor: "pointer", color: profileViewMode === "list" ? "var(--primary)" : "#64748b", fontWeight: 800, fontSize: "10px" }}
+                  >
+                    <i className="fa-solid fa-list" style={{ marginRight: "4px" }}></i> Feed
+                  </button>
+                  <button 
+                    onClick={() => setProfileViewMode("grid")} 
+                    style={{ background: profileViewMode === "grid" ? "#ffffff" : "transparent", border: "none", padding: "4px 10px", borderRadius: "6px", cursor: "pointer", color: profileViewMode === "grid" ? "var(--primary)" : "#64748b", fontWeight: 800, fontSize: "10px" }}
+                  >
+                    <i className="fa-solid fa-border-all" style={{ marginRight: "4px" }}></i> Grid
+                  </button>
+                </div>
+              </div>
+
+              {myPosts.length === 0 ? (
+                <p style={{ fontSize: "11px", color: "var(--text-muted)", textAlign: "center", padding: "16px 0" }}>No posts created yet.</p>
+              ) : profileViewMode === "grid" ? (
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "6px" }}>
+                  {myPosts.map(p => {
+                    const vis = p?.visibility || "public";
+                    return (
+                      <div key={p.id} style={{ position: "relative", aspectRatio: "1/1", borderRadius: "10px", overflow: "hidden", border: "1px solid #e2e8f0" }}>
+                        {p.imageUrl ? (
+                          <img 
+                            src={p.imageUrl} 
+                            alt="Post" 
+                            onClick={(e) => { e.stopPropagation(); setSelectedPost(p); setActivePanel("post_detail"); }}
+                            style={{ width: "100%", height: "100%", objectFit: "cover", cursor: "pointer" }} 
+                          />
+                        ) : (
+                          <div style={{ width: "100%", height: "100%", padding: "8px", background: "linear-gradient(135deg, #4f46e5, #3b82f6)", color: "white", display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center", fontSize: "9px", fontWeight: 700, lineHeight: 1.2 }}>
+                            {p.text}
+                          </div>
+                        )}
+                        
+                        <span style={{ position: "absolute", bottom: "3px", left: "3px", background: "rgba(15, 23, 42, 0.8)", color: "white", borderRadius: "4px", padding: "1px 4px", fontSize: "7px", fontWeight: 800 }}>
+                          {vis === "private" ? " Private" : vis === "boosters" ? " Boosters" : " Public"}
+                        </span>
+
+                        <button 
+                          onClick={() => openEditModal(p)} 
+                          style={{ position: "absolute", top: "3px", right: "3px", background: "rgba(255, 255, 255, 0.9)", color: "#0f172a", border: "none", borderRadius: "50%", width: "20px", height: "20px", fontSize: "9px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+                        >
+                          <i className="fa-solid fa-pen"></i>
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                myPosts.map(p => {
+                  const vis = p?.visibility || "public";
+                  return (
+                    <div key={p.id} style={{ background: "#ffffff", border: "1px solid #f1f5f9", borderRadius: "14px", padding: "12px", marginBottom: "12px", boxShadow: "0 2px 8px rgba(0,0,0,0.02)", position: "relative" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "8px" }}>
+                        <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                          <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: "#4f46e5", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: "12px", overflow: "hidden" }}>
+                            {appData?.avatarUrl ? (
+                              <img src={appData.avatarUrl} alt="Avatar" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                            ) : (
+                              (appData?.userName || "A").charAt(0).toUpperCase()
+                            )}
+                          </div>
+                          <div>
+                            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                              <span style={{ fontSize: "12px", fontWeight: 800, color: "#0f172a" }}>{appData?.userName || "Athlete"}</span>
+                              <span style={{ fontSize: "8px", fontWeight: 800, color: vis === "private" ? "#64748b" : "var(--primary)", background: vis === "private" ? "#f1f5f9" : "#e0e7ff", padding: "1px 5px", borderRadius: "5px" }}>
+                                {vis === "private" ? " Private" : vis === "boosters" ? " Boosters" : " Public"}
+                              </span>
+                            </div>
+                            <span style={{ fontSize: "9px", color: "var(--text-muted)" }}>{formatPostTime(p.createdAt)}</span>
+                          </div>
+                        </div>
+
+                        <div style={{ position: "relative" }}>
+                          <button 
+                            onClick={() => setActiveMenuPostId(activeMenuPostId === p.id ? null : p.id)} 
+                            style={{ background: "transparent", border: "none", color: "#64748b", fontSize: "14px", cursor: "pointer", padding: "4px 6px" }}
+                          >
+                            <i className="fa-solid fa-ellipsis-vertical"></i>
+                          </button>
+
+                          {activeMenuPostId === p.id && (
+                            <div style={{ position: "absolute", right: 0, top: "22px", background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "10px", boxShadow: "0 8px 20px -4px rgba(0,0,0,0.1)", zIndex: 100, minWidth: "110px", overflow: "hidden" }}>
+                              <button 
+                                onClick={() => openEditModal(p)} 
+                                style={{ width: "100%", padding: "8px 10px", background: "transparent", border: "none", textAlign: "left", fontSize: "10px", fontWeight: 700, color: "#334155", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px" }}
+                              >
+                                <i className="fa-solid fa-pen" style={{ color: "var(--primary)" }}></i> Edit
+                              </button>
+                              <button 
+                                onClick={() => handleDeletePost(p.id)} 
+                                style={{ width: "100%", padding: "8px 10px", background: "transparent", border: "none", textAlign: "left", fontSize: "10px", fontWeight: 700, color: "#ef4444", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px", borderTop: "1px solid #f1f5f9" }}
+                              >
+                                <i className="fa-solid fa-trash"></i> Delete
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div onClick={() => { setSelectedPost(p); setActivePanel("post_detail"); }} style={{ cursor: "pointer" }}><ExpandableText text={p.text} /></div>
+
+                      {p.imageUrl && (
+                        <div 
+                          onClick={(e) => { e.stopPropagation(); setSelectedPost(p); setActivePanel("post_detail"); }} 
+                          style={{ borderRadius: "10px", overflow: "hidden", border: "1px solid #f1f5f9", marginBottom: "6px", background: "#f8fafc", aspectRatio: "4/3", cursor: "pointer", position: "relative" }}
+                        >
+                          <img src={p.imageUrl} alt="Post" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                        </div>
+                      )}
+
+                      <div style={{ fontSize: "10px", color: "var(--text-muted)", fontWeight: 700, display: "flex", alignItems: "center", gap: "4px", borderTop: "1px solid #f8fafc", paddingTop: "6px", marginTop: "4px" }}>
+                        <i className="fa-solid fa-heart" style={{ color: "#ef4444" }}></i> {p.likes || 0} {(p.likes === 1) ? "Pulse" : "Pulses"}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </div>
         )}
 
+        {/* TAB 7: ULTRA-COMPACT ADMIN PANEL */}
+        {isAdmin && activeTab === "admin" && (
+          <div className="screen active">
+            <div style={{ marginBottom: "10px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <h3 style={{ fontSize: "18px", fontWeight: 900, color: "#dc2626", margin: 0 }}>Admin Panel</h3>
+                <span style={{ fontSize: "10px", color: "var(--text-muted)", fontWeight: 600 }}>Moderation & Evidence Vault</span>
+              </div>
+              <button 
+                onClick={async () => { setIsRefreshing(true); await fetchPosts(); await fetchUsers(); setIsRefreshing(false); }} 
+                disabled={isRefreshing} 
+                style={{ background: "#f1f5f9", border: "1px solid #cbd5e1", padding: "4px 10px", borderRadius: "10px", fontSize: "10px", fontWeight: 700, cursor: "pointer" }}
+              >
+                <i className={"fa-solid fa-rotate-right " + (isRefreshing ? "fa-spin" : "")} style={{ marginRight: "4px" }}></i> Refresh
+              </button>
+            </div>
+
+            <div style={{ display: "flex", gap: "6px", marginBottom: "10px" }}>
+              <button 
+                onClick={() => setAdminSubTab("posts")}
+                style={{ flex: 1, padding: "6px", borderRadius: "10px", border: "none", fontWeight: 800, fontSize: "11px", background: adminSubTab === "posts" ? "#dc2626" : "#e2e8f0", color: adminSubTab === "posts" ? "white" : "#475569", cursor: "pointer" }}
+              >
+                Posts ({posts.length})
+              </button>
+              <button 
+                onClick={() => setAdminSubTab("users")}
+                style={{ flex: 1, padding: "6px", borderRadius: "10px", border: "none", fontWeight: 800, fontSize: "11px", background: adminSubTab === "users" ? "#dc2626" : "#e2e8f0", color: adminSubTab === "users" ? "white" : "#475569", cursor: "pointer" }}
+              >
+                Users ({userList.length})
+              </button>
+            </div>
+
+            {adminSubTab === "users" && (
+              <div style={{ background: "#0f172a", color: "white", padding: "6px 10px", borderRadius: "10px", marginBottom: "8px", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "10px", fontWeight: 700 }}>
+                <span>🟢 Online: <strong style={{ color: "#10b981" }}>{userList.filter(u => u.lastSeen && (Date.now() - u.lastSeen < 300000)).length}</strong></span>
+                <span> Accounts: <strong style={{ color: "#38bdf8" }}>{userList.length}</strong></span>
+              </div>
+            )}
+
+            {/* ADMIN CONTENT LISTINGS */}
+            {adminSubTab === "posts" ? (
+              <div>
+                {posts.length === 0 ? (
+                  <p style={{ textAlign: "center", padding: "16px", color: "var(--text-muted)", fontSize: "11px" }}>No posts found in database.</p>
+                ) : (
+                  posts.map(p => {
+                    const postAuthorObj = userList.find(u => u.uid === p.userId);
+                    const isAuthorBlocked = postAuthorObj?.isBlocked;
+
+                    return (
+                      <div key={p.id} className="card" style={{ padding: "10px 12px", borderRadius: "14px", marginBottom: "8px", border: p.isHidden ? "1px solid #f59e0b" : "1px solid #e2e8f0", background: p.isHidden ? "#fffbeb" : "#ffffff" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "6px", minWidth: 0, flex: 1 }}>
+                            <span style={{ fontSize: "11px", fontWeight: 800, color: "#0f172a", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.userName}</span>
+                            <span style={{ fontSize: "8px", background: "#f1f5f9", padding: "1px 5px", borderRadius: "4px", fontWeight: 700, color: "#64748b", flexShrink: 0 }}>
+                              {p.visibility || "public"}
+                            </span>
+                            {p.isHidden && (
+                              <span style={{ fontSize: "8px", background: "#d97706", color: "white", padding: "1px 5px", borderRadius: "4px", fontWeight: 800, flexShrink: 0 }}>
+                                HIDDEN
+                              </span>
+                            )}
+                            {isAuthorBlocked && (
+                              <span style={{ fontSize: "8px", background: "#dc2626", color: "white", padding: "1px 5px", borderRadius: "4px", fontWeight: 800, flexShrink: 0 }}>
+                                BLOCKED USER
+                              </span>
+                            )}
+                          </div>
+
+                          <div style={{ display: "flex", gap: "4px", flexShrink: 0 }}>
+                            <button 
+                              onClick={() => toggleHidePost(p.id, p.isHidden)}
+                              style={{ background: p.isHidden ? "#10b981" : "#f59e0b", color: "white", border: "none", borderRadius: "6px", padding: "2px 6px", fontSize: "9px", fontWeight: 800, cursor: "pointer" }}
+                            >
+                              {p.isHidden ? "Unhide" : "Hide"}
+                            </button>
+                            <button 
+                              onClick={() => toggleBlockUser(p.userId, isAuthorBlocked)}
+                              style={{ background: isAuthorBlocked ? "#10b981" : "#dc2626", color: "white", border: "none", borderRadius: "6px", padding: "2px 6px", fontSize: "9px", fontWeight: 800, cursor: "pointer" }}
+                            >
+                              {isAuthorBlocked ? "Unblock User" : "Block User"}
+                            </button>
+                          </div>
+                        </div>
+
+                        <ExpandableText text={p.text} maxChars={80} />
+
+                        {p.imageUrl && (
+                          <div 
+                            onClick={(e) => { e.stopPropagation(); setSelectedPost(p); setActivePanel("post_detail"); }} 
+                            style={{ borderRadius: "8px", overflow: "hidden", marginBottom: "6px", height: "60px", background: "#f8fafc", cursor: "pointer", position: "relative" }}
+                          >
+                            <img src={p.imageUrl} alt="Uploaded Media" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                          </div>
+                        )}
+
+                        <div style={{ fontSize: "8px", color: "var(--text-muted)", fontWeight: 600 }}>User ID: {p.userId} • {formatPostTime(p.createdAt)}</div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            ) : (
+              <div>
+                {userList.length === 0 ? (
+                  <p style={{ textAlign: "center", padding: "16px", color: "var(--text-muted)", fontSize: "11px" }}>No registered user profiles found.</p>
+                ) : (
+                  userList.map(u => {
+                    const isOnline = u.lastSeen && (Date.now() - u.lastSeen < 120000);
+                    return (
+                      <div key={u.uid} className="card" style={{ padding: "8px 10px", borderRadius: "12px", marginBottom: "6px", border: u.isBlocked ? "1px solid #dc2626" : "1px solid #e2e8f0", background: u.isBlocked ? "#fef2f2" : "#ffffff" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "3px" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "6px", minWidth: 0, flex: 1 }}>
+                            <span style={{ fontSize: "12px", fontWeight: 900, color: "#0f172a", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{u.userName || "Athlete"}</span>
+                            {isOnline ? (
+                              <span style={{ fontSize: "8px", background: "#10b981", color: "white", padding: "1px 4px", borderRadius: "4px", fontWeight: 800, flexShrink: 0 }}>🟢 ON</span>
+                            ) : (
+                              <span style={{ fontSize: "8px", background: "#94a3b8", color: "white", padding: "1px 4px", borderRadius: "4px", fontWeight: 800, flexShrink: 0 }}>OFF</span>
+                            )}
+                            {u.isBlocked && <span style={{ fontSize: "8px", background: "#dc2626", color: "white", padding: "1px 4px", borderRadius: "4px", fontWeight: 800, flexShrink: 0 }}>BLOCKED (SAVED)</span>}
+                          </div>
+
+                          <button 
+                            onClick={() => toggleBlockUser(u.uid, u.isBlocked)}
+                            style={{ background: u.isBlocked ? "#10b981" : "#dc2626", color: "white", border: "none", borderRadius: "6px", padding: "3px 8px", fontSize: "9px", fontWeight: 800, cursor: "pointer", flexShrink: 0 }}
+                          >
+                            {u.isBlocked ? "Unblock User" : "Block User"}
+                          </button>
+                        </div>
+
+                        <div style={{ fontSize: "9px", color: "#64748b", lineHeight: 1.3, wordBreak: "break-all" }}>
+                          <div><strong>Email:</strong> {u.userEmail || "N/A"}</div>
+                          <div style={{ display: "flex", justifyContent: "space-between", marginTop: "2px", color: "#475569" }}>
+                            <span><strong>Created:</strong> {formatPostTime(u.createdAt)}</span>
+                            <span><strong>Last Online:</strong> <strong style={{ color: isOnline ? "#10b981" : "#475569" }}>{isOnline ? "Active Now" : (u.lastLoggedOutAt ? formatPostTime(u.lastLoggedOutAt) : ((u.lastSeen && u.lastSeen > 1) ? formatPostTime(u.lastSeen) : "Never"))}</strong></span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
-      {/* REFACTORED SLIDE-OVER PANELS */}
-      {activePanel && (
-        <div style={{ position: "fixed", top: 0, left: "50%", transform: "translateX(-50%)", maxWidth: "480px", width: "100%", height: "100vh", background: "#ffffff", zIndex: 99999, display: "flex", flexDirection: "column" }}>
-          <div style={{ padding: "16px", borderBottom: "1px solid #e2e8f0", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-              <button onClick={() => setActivePanel(null)} style={{ background: "none", border: "none", fontSize: "18px", cursor: "pointer" }}>
-                <i className="fa-solid fa-arrow-left"></i>
-              </button>
-              <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 800 }}>
-                {activePanel === 'settings' && 'Profile Settings'}
-                {activePanel === 'post_detail' && 'Post Detail'}
-                {activePanel === 'notif' && 'Notifications'}
-              </h3>
+      {/* ISOLATED MODALS LAYER */}
+
+      {/* ABOUT NUTRIPULSE SYSTEM MODAL WITH HEART PULSE LOGO */}
+      {showAboutModal && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(15, 23, 42, 0.75)", backdropFilter: "blur(6px)", zIndex: 2900, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
+          <div className="card" style={{ width: "100%", maxWidth: "380px", padding: "22px", borderRadius: "24px", background: "#ffffff", textAlign: "center" }}>
+            <div style={{ width: "64px", height: "64px", borderRadius: "50%", background: "linear-gradient(135deg, #4f46e5, #06b6d4)", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "28px", margin: "0 auto 12px auto", boxShadow: "0 4px 16px rgba(79,70,229,0.35)" }}>
+              <i className="fa-solid fa-heart-pulse"></i>
+            </div>
+            <h3 style={{ fontSize: "18px", fontWeight: 900, color: "#0f172a", margin: 0 }}>NutriPulse Web App</h3>
+            <span style={{ fontSize: "10px", color: "var(--primary)", fontWeight: 800, background: "#e0e7ff", padding: "2px 8px", borderRadius: "6px", display: "inline-block", marginTop: "4px" }}>
+              Version 1.0.0 (Official Build)
+            </span>
+
+            <div style={{ margin: "16px 0", textAlign: "left", fontSize: "11px", color: "#475569", lineHeight: 1.6, background: "#f8fafc", padding: "12px", borderRadius: "14px", border: "1px solid #e2e8f0" }}>
+              <div style={{ marginBottom: "6px" }}><strong>Architecture:</strong> Athletic Nutrition, Live GPS Step Calculations, Workout Countdowns, and Social Boosting Feed.</div>
+              <div><strong>Official System Creator:</strong> <span style={{ color: "#0f172a", fontWeight: 800 }}>Edison Valerio</span></div>
+            </div>
+
+            <p style={{ fontSize: "9px", color: "#94a3b8", fontWeight: 700, marginBottom: "16px" }}>
+              Protected by Git Cryptographic Signatures & Firebase Ownership. Copyright © 2026 Edison Valerio. All rights reserved.
+            </p>
+
+            <button onClick={() => setShowAboutModal(false)} className="btn-block" style={{ height: "40px", fontSize: "12px" }}>
+              Close Information
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* SEARCH ATHLETES OVERLAY MODAL */}
+      {showSearchModal && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(15, 23, 42, 0.75)", backdropFilter: "blur(6px)", zIndex: 2800, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "16px", paddingTop: "40px" }}>
+          <div className="card" style={{ width: "100%", maxWidth: "380px", padding: "18px", borderRadius: "20px", background: "#ffffff", maxHeight: "80vh", overflowY: "auto" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+              <h4 style={{ fontSize: "15px", fontWeight: 900, color: "#0f172a" }}>Search Athletes</h4>
+              <button onClick={() => { setShowSearchModal(false); setSearchQuery(""); }} style={{ background: "#f1f5f9", border: "none", borderRadius: "50%", width: "26px", height: "26px", cursor: "pointer", fontWeight: 800, fontSize: "11px" }}>X</button>
+            </div>
+
+            <input 
+              type="text" 
+              className="form-input" 
+              placeholder="Search by name or email..." 
+              value={searchQuery} 
+              onChange={e => setSearchQuery(e.target.value)} 
+              style={{ marginBottom: "12px", borderRadius: "12px", padding: "10px" }}
+            />
+
+            <div>
+              {searchQuery.trim() === "" ? (
+                <p style={{ fontSize: "11px", color: "var(--text-muted)", textAlign: "center", padding: "20px 0" }}>
+                  Type a name or email to search athletes...
+                </p>
+              ) : filteredSearchUsers.length === 0 ? (
+                <p style={{ fontSize: "11px", color: "var(--text-muted)", textAlign: "center", padding: "16px 0" }}>No athletes found matching "{searchQuery}".</p>
+              ) : (
+                filteredSearchUsers.map(u => (
+                  <div key={u.uid} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 10px", background: "#f8fafc", borderRadius: "12px", marginBottom: "6px", border: "1px solid #e2e8f0" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: 0, flex: 1 }}>
+                      <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: "#4f46e5", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: "12px", overflow: "hidden", flexShrink: 0 }}>
+                        {u.avatarUrl ? <img src={u.avatarUrl} alt="Avatar" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : (u.userName || "A").charAt(0).toUpperCase()}
+                      </div>
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div style={{ fontSize: "11px", fontWeight: 800, color: "#0f172a", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{u.userName || "Athlete"}</div>
+                        <div style={{ fontSize: "9px", color: "var(--text-muted)" }}>{u.userTitle || "Fitness Enthusiast"}</div>
+                      </div>
+                    </div>
+
+                    <button 
+                      onClick={() => { setViewingAthlete(u); setShowSearchModal(false); setSearchQuery(""); }}
+                      style={{ background: "var(--primary)", color: "white", border: "none", padding: "4px 10px", borderRadius: "8px", fontSize: "9px", fontWeight: 800, cursor: "pointer", flexShrink: 0 }}
+                    >
+                      View
+                    </button>
+                  </div>
+                ))
+              )}
             </div>
           </div>
+        </div>
+      )}
 
+      
+      {/* UNIFORM SLIDE-OVER PANEL ENGINE */}
+      {activePanel && (
+        <div style={{
+          position: "fixed",
+          top: 0,
+          left: "50%",
+          transform: "translateX(-50%)",
+          maxWidth: "480px",
+          width: "100%",
+          height: "100vh",
+          background: "#ffffff",
+          zIndex: 99999,
+          display: "flex",
+          flexDirection: "column",
+          boxSizing: "border-box",
+          boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)"
+        }}>
+          {/* Header */}
+          <div style={{
+            padding: "16px",
+            borderBottom: "1px solid #e2e8f0",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            background: "#ffffff"
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+              <button onClick={() => setActivePanel(null)} style={{ background: "none", border: "none", fontSize: "18px", cursor: "pointer", color: "#334155" }}>
+                <i className="fa-solid fa-arrow-left"></i>
+              </button>
+              <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 800, color: "#0f172a" }}>
+                {activePanel === 'notif' && 'Notifications'}
+                {activePanel === 'post_detail' && 'Post Detail'}
+                {activePanel === 'boosters' && 'Boosters'}
+                {activePanel === 'boosting' && 'Boosting'}
+                {activePanel === 'settings' && 'Profile Settings'}
+                {activePanel === 'visitor_profile' && (selectedVisitor?.userName || 'Athlete Profile')}
+              </h3>
+            </div>
+            {activePanel === 'notif' && (
+              <span style={{ fontSize: "11px", fontWeight: 700, color: "#0284c7", background: "#e0f2fe", padding: "4px 10px", borderRadius: "12px" }}>
+                {allUserNotifs.length} New
+              </span>
+            )}
+          </div>
+
+          {/* Panel Body */}
           <div style={{ flex: 1, overflowY: "auto", padding: "16px" }}>
-            {/* PROFILE SETTINGS */}
+            {/* NOTIFICATION PANEL */}
+            {activePanel === 'notif' && (
+              allUserNotifs.length === 0 ? (
+                <div style={{ textAlign: "center", padding: "40px 20px", color: "#94a3b8", fontSize: "13px" }}>
+                  <i className="fa-regular fa-bell-slash" style={{ fontSize: "32px", marginBottom: "10px", display: "block" }}></i>
+                  No notifications yet.
+                </div>
+              ) : (
+                allUserNotifs.map(notif => (
+                  <div key={notif.id} onClick={() => {
+                    if (notif.postId) {
+                      const found = posts.find(p => p.id === notif.postId);
+                      if (found) { setSelectedPost(found); setActivePanel('post_detail'); }
+                    } else if (notif.uid) {
+                      const foundU = userList.find(u => u.uid === notif.uid);
+                      if (foundU) { setSelectedVisitor(foundU); setActivePanel('visitor_profile'); }
+                    }
+                  }} style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    padding: "12px",
+                    borderRadius: "12px",
+                    background: "#f8fafc",
+                    marginBottom: "8px",
+                    border: "1px solid #f1f5f9",
+                    cursor: "pointer"
+                  }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "12px", flex: 1 }}>
+                      {notif.avatar ? (
+                        <img src={notif.avatar} alt="" style={{ width: "38px", height: "38px", borderRadius: "50%", objectFit: "cover" }} />
+                      ) : (
+                        <div style={{ width: "38px", height: "38px", borderRadius: "50%", background: "#0284c7", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: "14px" }}>
+                          {(notif.title || "N").charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: "12px", color: "#0f172a" }}>
+                          <strong>{notif.title}</strong> {notif.text}
+                        </div>
+                        <div style={{ fontSize: "10px", color: "#94a3b8", marginTop: "3px", fontWeight: 600 }}>
+                          {formatPostTime(notif.timestamp)}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )
+            )}
+
+            {/* UPGRADED POST DETAIL PANEL WITH REALTIME COMMENTS */}
+            {activePanel === 'post_detail' && selectedPost && (
+              <div style={{ background: "#ffffff", borderRadius: "16px", padding: "14px", border: "1px solid #e2e8f0" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
+                  {selectedPost.userAvatar ? (
+                    <img src={selectedPost.userAvatar} alt="" style={{ width: "40px", height: "40px", borderRadius: "50%", objectFit: "cover" }} />
+                  ) : (
+                    <div style={{ width: "40px", height: "40px", borderRadius: "50%", background: "#0284c7", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: "14px" }}>
+                      {(selectedPost.userName || "A").charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                  <div>
+                    <strong style={{ fontSize: "14px", color: "#0f172a", display: "block" }}>{selectedPost.userName || "Athlete"}</strong>
+                    <span style={{ fontSize: "10px", color: "#94a3b8" }}>{formatPostTime(selectedPost.createdAt)}</span>
+                  </div>
+                </div>
+                {selectedPost.text && <p style={{ fontSize: "13px", color: "#334155", lineHeight: "1.5", marginBottom: "12px", wordBreak: "break-word" }}>{selectedPost.text}</p>}
+                {selectedPost.imageUrl && <img src={selectedPost.imageUrl} alt="" style={{ width: "100%", borderRadius: "12px", marginBottom: "12px", objectFit: "cover" }} />}
+                
+                <div style={{ display: "flex", gap: "16px", padding: "10px 0", borderTop: "1px solid #f1f5f9", borderBottom: "1px solid #f1f5f9" }}>
+                  <button onClick={() => handleLike(selectedPost.id, selectedPost.likes || 0, selectedPost.likedBy || [])} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "12px", fontWeight: 700, color: (selectedPost.likedBy || []).includes(user?.uid) ? "#ef4444" : "#64748b" }}>
+                    <i className="fa-solid fa-heart" style={{ marginRight: "4px" }}></i> Pulse ({selectedPost.likes || 0})
+                  </button>
+                  <button onClick={() => { navigator.clipboard.writeText(window.location.href); showToast("Link copied to clipboard!"); }} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "12px", fontWeight: 700, color: "#64748b" }}>
+                    <i className="fa-solid fa-share-nodes" style={{ marginRight: "4px" }}></i> Resonate
+                  </button>
+                </div>
+
+                {/* Realtime Comments Section */}
+                <div style={{ marginTop: "14px" }}>
+                  <h4 style={{ fontSize: "12px", fontWeight: 800, color: "#0f172a", marginBottom: "8px" }}>Comments ({(postComments[selectedPost.id] || []).length})</h4>
+                  
+                  <div style={{ display: "flex", gap: "8px", marginBottom: "12px" }}>
+                    <input 
+                      type="text" 
+                      placeholder="Write a comment..." 
+                      value={newCommentText}
+                      onChange={(e) => setNewCommentText(e.target.value)}
+                      style={{ flex: 1, padding: "8px 12px", borderRadius: "10px", border: "1px solid #cbd5e1", fontSize: "11px", outline: "none" }} 
+                    />
+                    <button onClick={() => handleAddComment(selectedPost.id)} style={{ padding: "8px 14px", background: "#0284c7", color: "white", border: "none", borderRadius: "10px", fontWeight: 800, fontSize: "11px", cursor: "pointer" }}>Post</button>
+                  </div>
+
+                  <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                    {(postComments[selectedPost.id] || []).length === 0 ? (
+                      <p style={{ fontSize: "11px", color: "#94a3b8", textAlign: "center", padding: "10px 0" }}>No comments yet. Be the first to comment!</p>
+                    ) : (
+                      (postComments[selectedPost.id] || []).map(c => (
+                        <div key={c.id} style={{ background: "#f8fafc", padding: "8px 10px", borderRadius: "10px", border: "1px solid #f1f5f9" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "2px" }}>
+                            <strong style={{ fontSize: "11px", color: "#0f172a" }}>{c.userName}</strong>
+                            <span style={{ fontSize: "9px", color: "#94a3b8" }}>{formatPostTime(c.createdAt)}</span>
+                          </div>
+                          <p style={{ fontSize: "11px", color: "#334155", margin: 0 }}>{c.text}</p>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* PROFILE SETTINGS PANEL */}
             {activePanel === 'settings' && (
               <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
                 <div>
@@ -1457,8 +2721,18 @@ export default function App() {
                   <label style={{ fontSize: "11px", fontWeight: 700, color: "#475569", display: "block", marginBottom: "4px" }}>Bio Title</label>
                   <input type="text" value={profTitle} onChange={e => setProfTitle(e.target.value)} className="form-input" />
                 </div>
-                <button onClick={saveUserProfile} disabled={isSavingProfile} style={{ padding: "12px", background: "#0284c7", color: "white", border: "none", borderRadius: "10px", fontWeight: 800, cursor: "pointer" }}>
-                  {isSavingProfile ? "Saving..." : "Save Changes"}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                  <div>
+                    <label style={{ fontSize: "11px", fontWeight: 700, color: "#475569", display: "block", marginBottom: "4px" }}>Height (cm)</label>
+                    <input type="number" value={profHeight} onChange={e => setProfHeight(e.target.value)} className="form-input" />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: "11px", fontWeight: 700, color: "#475569", display: "block", marginBottom: "4px" }}>Weight (kg)</label>
+                    <input type="number" value={profWeight} onChange={e => setProfWeight(e.target.value)} className="form-input" />
+                  </div>
+                </div>
+                <button onClick={saveUserProfile} disabled={isSavingProfile} style={{ padding: "12px", background: "#0284c7", color: "white", border: "none", borderRadius: "10px", fontWeight: 800, cursor: "pointer", marginTop: "10px" }}>
+                  {isSavingProfile ? "Saving..." : "Save Profile Settings"}
                 </button>
                 <button onClick={handleLogout} style={{ padding: "12px", background: "#fef2f2", color: "#dc2626", border: "1px solid #fecaca", borderRadius: "10px", fontWeight: 800, cursor: "pointer" }}>
                   Sign Out Account
@@ -1466,38 +2740,133 @@ export default function App() {
               </div>
             )}
 
-            {/* POST DETAIL VIEW PANEL */}
-            {activePanel === 'post_detail' && selectedPost && (
+            {/* BOOSTERS LIST PANEL WITH AVATAR FALLBACK & BOOST ACTION */}
+            {activePanel === 'boosters' && (
               <div>
-                <h4 style={{ fontSize: "14px", fontWeight: 800 }}>{selectedPost.userName}</h4>
-                <p style={{ fontSize: "12px", color: "#334155" }}>{selectedPost.text}</p>
-                {selectedPost.imageUrl && <img src={selectedPost.imageUrl} alt="" style={{ width: "100%", borderRadius: "10px" }} />}
-                
-                <div style={{ marginTop: "14px" }}>
-                  <h5 style={{ fontSize: "12px", fontWeight: 800 }}>Comments ({(postComments[selectedPost.id] || []).length})</h5>
-                  <div style={{ display: "flex", gap: "8px", margin: "8px 0" }}>
-                    <input type="text" placeholder="Write a comment..." value={newCommentText} onChange={e => setNewCommentText(e.target.value)} style={{ flex: 1, padding: "8px", borderRadius: "8px", border: "1px solid #cbd5e1" }} />
-                    <button onClick={() => handleAddComment(selectedPost.id)} style={{ padding: "8px 12px", background: "#0284c7", color: "white", border: "none", borderRadius: "8px", fontWeight: 800 }}>Post</button>
-                  </div>
-                  {(postComments[selectedPost.id] || []).map(c => (
-                    <div key={c.id} style={{ background: "#f8fafc", padding: "8px", borderRadius: "8px", marginBottom: "6px" }}>
-                      <strong style={{ fontSize: "11px" }}>{c.userName}</strong>
-                      <p style={{ fontSize: "11px", margin: 0 }}>{c.text}</p>
+                <h4 style={{ margin: "0 0 12px 0", fontSize: "12px", color: "#64748b", fontWeight: 800 }}>Athletes boosting you</h4>
+                {myRealtimeBoostersList.length === 0 ? (
+                  <div style={{ textAlign: "center", padding: "30px", color: "#94a3b8", fontSize: "12px" }}>No boosters yet.</div>
+                ) : (
+                  myRealtimeBoostersList.map(b => (
+                    <div key={b.uid} onClick={() => { setSelectedVisitor(b); setActivePanel('visitor_profile'); }} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 12px", borderRadius: "12px", background: "#ffffff", border: "1px solid #e2e8f0", marginBottom: "8px", cursor: "pointer" }}>
+                      {b.avatarUrl ? (
+                        <img src={b.avatarUrl} alt="" style={{ width: "36px", height: "36px", borderRadius: "50%", objectFit: "cover" }} />
+                      ) : (
+                        <div style={{ width: "36px", height: "36px", borderRadius: "50%", background: "#0284c7", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: "13px" }}>
+                          {(b.userName || "A").charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: "12px", fontWeight: 800, color: "#0f172a" }}>{b.userName || "Athlete"}</div>
+                        <div style={{ fontSize: "9px", color: "#64748b" }}>{b.userTitle || "Fitness Enthusiast"}</div>
+                      </div>
+                      <button onClick={(e) => { e.stopPropagation(); toggleBoostAthlete(b.uid, b.isPrivateAccount); }} style={{
+                        padding: "5px 12px",
+                        borderRadius: "20px",
+                        border: (appData?.boosting || []).includes(b.uid) ? "1px solid #cbd5e1" : "none",
+                        fontSize: "10px",
+                        fontWeight: 700,
+                        cursor: "pointer",
+                        background: (appData?.boosting || []).includes(b.uid) ? "#f1f5f9" : "#0284c7",
+                        color: (appData?.boosting || []).includes(b.uid) ? "#334155" : "#ffffff"
+                      }}>
+                        {(appData?.boosting || []).includes(b.uid) ? "Boosting" : "Boost Back"}
+                      </button>
                     </div>
-                  ))}
-                </div>
+                  ))
+                )}
+              </div>
+            )}
+
+            {/* BOOSTING LIST PANEL WITH AVATAR FALLBACK */}
+            {activePanel === 'boosting' && (
+              <div>
+                <h4 style={{ margin: "0 0 12px 0", fontSize: "12px", color: "#64748b", fontWeight: 800 }}>Athletes you are boosting</h4>
+                {myRealtimeBoostingList.length === 0 ? (
+                  <div style={{ textAlign: "center", padding: "30px", color: "#94a3b8", fontSize: "12px" }}>Not boosting any athletes yet.</div>
+                ) : (
+                  myRealtimeBoostingList.map(b => (
+                    <div key={b.uid} onClick={() => { setSelectedVisitor(b); setActivePanel('visitor_profile'); }} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 12px", borderRadius: "12px", background: "#ffffff", border: "1px solid #e2e8f0", marginBottom: "8px", cursor: "pointer" }}>
+                      {b.avatarUrl ? (
+                        <img src={b.avatarUrl} alt="" style={{ width: "36px", height: "36px", borderRadius: "50%", objectFit: "cover" }} />
+                      ) : (
+                        <div style={{ width: "36px", height: "36px", borderRadius: "50%", background: "#0284c7", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: "13px" }}>
+                          {(b.userName || "A").charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: "12px", fontWeight: 800, color: "#0f172a" }}>{b.userName || "Athlete"}</div>
+                        <div style={{ fontSize: "9px", color: "#64748b" }}>{b.userTitle || "Fitness Enthusiast"}</div>
+                      </div>
+                      <button onClick={(e) => { e.stopPropagation(); toggleBoostAthlete(b.uid, b.isPrivateAccount); }} style={{ padding: "5px 12px", borderRadius: "20px", background: "#f1f5f9", border: "1px solid #cbd5e1", color: "#334155", fontSize: "10px", fontWeight: 700, cursor: "pointer" }}>
+                        Unboost
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+
+            {/* VISITOR PROFILE PANEL */}
+            {activePanel === 'visitor_profile' && selectedVisitor && (
+              <div style={{ textAlign: "center" }}>
+                <img src={selectedVisitor.avatarUrl || "https://via.placeholder.com/80"} alt="" style={{ width: "80px", height: "80px", borderRadius: "50%", objectFit: "cover", margin: "0 auto 10px auto" }} />
+                <h3 style={{ margin: 0, fontSize: "18px", fontWeight: 900, color: "#0f172a" }}>{selectedVisitor.userName || "Athlete"}</h3>
+                <p style={{ margin: "2px 0 12px 0", fontSize: "12px", color: "#64748b" }}>{selectedVisitor.userTitle || "Fitness Enthusiast"}</p>
+                <button onClick={() => toggleBoostAthlete(selectedVisitor.uid, selectedVisitor.isPrivateAccount)} style={{ width: "100%", padding: "10px", background: "var(--primary)", color: "white", border: "none", borderRadius: "10px", fontWeight: 800, cursor: "pointer" }}>
+                  {(appData?.boosting || []).includes(selectedVisitor.uid) ? " Unboost Athlete" : " Boost Athlete"}
+                </button>
               </div>
             )}
           </div>
         </div>
       )}
 
-      {/* BOTTOM NAVIGATION BAR */}
-      <div className="bottom-nav" style={{ position: "fixed", bottom: 0, left: 0, right: 0, display: "flex", justifyContent: "center", maxWidth: "480px", width: "100%", margin: "0 auto", background: "#ffffff", borderTop: "1px solid #e2e8f0", zIndex: 1000 }}>
-        <div className={"nav-item " + (activeTab === "home" ? "active" : "")} onClick={() => handleTabChange("home")}><i className="fa-solid fa-house"></i><span>Home</span></div>
-        <div className={"nav-item " + (activeTab === "diary" ? "active" : "")} onClick={() => handleTabChange("diary")}><i className="fa-regular fa-calendar-check"></i><span>Log</span></div>
-        <div className={"nav-item " + (activeTab === "community" ? "active" : "")} onClick={() => handleTabChange("community")}><i className="fa-solid fa-users"></i><span>Social</span></div>
-        <div className={"nav-item " + (activeTab === "profile" ? "active" : "")} onClick={() => handleTabChange("profile")}><i className="fa-regular fa-user"></i><span>Profile</span></div>
+      
+      {/* EDIT POST OVERLAY MODAL */}
+      {editingPost && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(15, 23, 42, 0.75)", backdropFilter: "blur(6px)", zIndex: 999999, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
+          <div className="card" style={{ width: "100%", maxWidth: "380px", padding: "20px", borderRadius: "20px", background: "#ffffff" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+              <h4 style={{ fontSize: "15px", fontWeight: 800, color: "#0f172a", margin: 0 }}>Edit Post</h4>
+              <button onClick={() => setEditingPost(null)} style={{ background: "#f1f5f9", border: "none", borderRadius: "50%", width: "26px", height: "26px", cursor: "pointer", fontWeight: 800, fontSize: "11px" }}>X</button>
+            </div>
+            
+            <textarea 
+              className="form-input" 
+              style={{ width: "100%", height: "80px", borderRadius: "10px", padding: "10px", fontSize: "12px", border: "1px solid #cbd5e1", resize: "none", marginBottom: "12px", boxSizing: "border-box" }}
+              value={editText}
+              onChange={(e) => setEditText(e.target.value)}
+            />
+
+            <div style={{ display: "flex", gap: "6px", marginBottom: "14px" }}>
+              <button onClick={() => setEditVisibility("public")} style={{ flex: 1, padding: "6px", borderRadius: "8px", border: "none", fontSize: "10px", fontWeight: 800, cursor: "pointer", background: editVisibility === "public" ? "#0284c7" : "#f1f5f9", color: editVisibility === "public" ? "white" : "#64748b" }}>Public</button>
+              <button onClick={() => setEditVisibility("boosters")} style={{ flex: 1, padding: "6px", borderRadius: "8px", border: "none", fontSize: "10px", fontWeight: 800, cursor: "pointer", background: editVisibility === "boosters" ? "#0284c7" : "#f1f5f9", color: editVisibility === "boosters" ? "white" : "#64748b" }}>Boosters</button>
+              <button onClick={() => setEditVisibility("private")} style={{ flex: 1, padding: "6px", borderRadius: "8px", border: "none", fontSize: "10px", fontWeight: 800, cursor: "pointer", background: editVisibility === "private" ? "#0284c7" : "#f1f5f9", color: editVisibility === "private" ? "white" : "#64748b" }}>Private</button>
+            </div>
+
+            <button onClick={saveEditedPost} disabled={isSavingEditPost} style={{ width: "100%", padding: "10px", background: "#0284c7", color: "white", border: "none", borderRadius: "10px", fontWeight: 800, fontSize: "12px", cursor: "pointer" }}>
+              {isSavingEditPost ? "Saving Changes..." : "Save Changes"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* FIXED BOTTOM NAVIGATION BAR */}
+      <div className="bottom-nav" style={{ boxSizing: "border-box", margin: "0 auto",  position: "fixed", bottom: 0, left: 0,
+          right: 0,
+          display: "flex",
+          justifyContent: "center",  maxWidth: "480px", width: "100%", background: "#ffffff", borderTop: "1px solid #e2e8f0", zIndex: 1000 }}>
+        <div className={"nav-item " + (activeTab === "home" ? "active" : "")} onClick={() => setActiveTab("home")}><i className="fa-solid fa-house"></i><span>Home</span></div>
+        <div className={"nav-item " + (activeTab === "diary" ? "active" : "")} onClick={() => setActiveTab("diary")}><i className="fa-regular fa-calendar-check"></i><span>Log</span></div>
+        <div className={"nav-item " + (activeTab === "community" ? "active" : "")} onClick={() => setActiveTab("community")}><i className="fa-solid fa-users"></i><span>Social</span></div>
+        <div className={"nav-item " + (activeTab === "progress" ? "active" : "")} onClick={() => setActiveTab("progress")}><i className="fa-solid fa-chart-simple"></i><span>Progress</span></div>
+        <div className={"nav-item " + (activeTab === "goals" ? "active" : "")} onClick={() => setActiveTab("goals")}><i className="fa-solid fa-bullseye"></i><span>Goals</span></div>
+        <div className={"nav-item " + (activeTab === "profile" ? "active" : "")} onClick={() => setActiveTab("profile")}><i className="fa-regular fa-user"></i><span>Profile</span></div>
+        
+        {isAdmin && (
+          <div className={"nav-item " + (activeTab === "admin" ? "active" : "")} onClick={() => setActiveTab("admin")} style={{ color: "#dc2626" }}><i className="fa-solid fa-shield-halved"></i><span>Admin</span></div>
+        )}
       </div>
     </div>
   );
