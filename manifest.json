@@ -1,27 +1,88 @@
 {
-  "background_color": "#ffffff",
   "dir": "ltr",
-  "display": "standalone",
+  "lang": "en-US",
   "name": "NutriPulse",
-  "orientation": "any",
-  "scope": "/",
-  "short_name": "NutriPulse",
+  "display": "standalone",
   "start_url": "/",
-  "theme_color": "#ffffff",
+  "short_name": "NutriPulse",
+  "theme_color": "#FFFFFF",
+  "description": "Calorie tracker and fitness management app",
+  "orientation": "any",
+  "background_color": "#FFFFFF",
+  "prefer_related_applications": false,
   "icons": [
     {
-      "src": "data:image/svg+xml,&lt;svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'&gt;&lt;path fill='%234f46e5' d='M256 512A256 256 0 1 0 256 0a256 256 0 1 0 0 512z'/&gt;&lt;path fill='%23ffffff' d='M160 256l32-64 48 128 48-96 32 32h64v32h-80l-32-32-32 64-48-128-32 64h-80v-32h64z'/&gt;&lt;/svg&gt;",
-      "type": "image/svg+xml",
-      "isSquare": false,
-      "isPng": false,
-      "isWebp": false,
-      "isJpg": false,
-      "width": 0,
-      "is512x512": false,
-      "is256x256": false,
-      "is192x192": false
+      "src": "/assets/icons/icon_512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/assets/icons/icon_192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/assets/icons/icon_120.png",
+      "sizes": "120x120",
+      "type": "image/png"
+    },
+    {
+      "src": "/assets/icons/icon_60.png",
+      "sizes": "60x60",
+      "type": "image/png"
+    },
+    {
+      "src": "/assets/icons/icon_57.png",
+      "sizes": "57x57",
+      "type": "image/png"
     }
   ],
-  "id": "cal-tracker-app",
-  "description": "Calorie Tracker and Fitness App"
+  "screenshots": [
+    {
+      "src": "/assets/screenshots/screen1.png",
+      "sizes": "1630x918",
+      "type": "image/png",
+      "description": "PWABuilder Home Screen"
+    },
+    {
+      "src": "/assets/screenshots/screen2.png",
+      "sizes": "1631x917",
+      "type": "image/png",
+      "description": "PWABuilder Report Card Page"
+    },
+    {
+      "src": "/assets/screenshots/screen3.png",
+      "sizes": "1631x917",
+      "type": "image/png",
+      "description": "Manifest Editor in the Report Card Page"
+    },
+    {
+      "src": "/assets/screenshots/screen4.png",
+      "sizes": "1631x917",
+      "type": "image/png",
+      "description": "Pick a pre-built Service Worker"
+    },
+    {
+      "src": "/assets/screenshots/screen5.png",
+      "sizes": "1633x919",
+      "type": "image/png",
+      "description": "Publish your PWA to the App Stores!"
+    },
+    {
+      "src": "/assets/screenshots/mobile.png",
+      "sizes": "387x844",
+      "type": "image/png",
+      "description": "PWABuilder also works on your phone!"
+    }
+  ],
+  "features": [
+    "Cross Platform",
+    "fast",
+    "simple"
+  ],
+  "categories": [
+    "utilities"
+  ],
+  "id": "https://edisonblablabla.github.io/cal-tracker-app/"
 }
