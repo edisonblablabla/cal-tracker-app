@@ -1,0 +1,27 @@
+{
+  "background_color": "#ffffff",
+  "dir": "ltr",
+  "display": "standalone",
+  "name": "NutriPulse",
+  "orientation": "any",
+  "scope": "/",
+  "short_name": "NutriPulse",
+  "start_url": "/",
+  "theme_color": "#ffffff",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,&lt;svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'&gt;&lt;path fill='%234f46e5' d='M256 512A256 256 0 1 0 256 0a256 256 0 1 0 0 512z'/&gt;&lt;path fill='%23ffffff' d='M160 256l32-64 48 128 48-96 32 32h64v32h-80l-32-32-32 64-48-128-32 64h-80v-32h64z'/&gt;&lt;/svg&gt;",
+      "type": "image/svg+xml",
+      "isSquare": false,
+      "isPng": false,
+      "isWebp": false,
+      "isJpg": false,
+      "width": 0,
+      "is512x512": false,
+      "is256x256": false,
+      "is192x192": false
+    }
+  ],
+  "id": "cal-tracker-app",
+  "description": "Calorie Tracker and Fitness App"
+}
