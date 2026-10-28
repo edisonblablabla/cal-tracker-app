@@ -1,4 +1,17 @@
 import { auth, googleProvider, db, firebaseConfig } from "./services/firebase";
+
+import { 
+  SYS_OWNER_HASH, 
+  SYS_PID_HASH, 
+  ADMIN_EMAIL, 
+  FITNESS_QUOTES, 
+  WORKOUT_ACTIVITIES, 
+  ONBOARDING_SLIDES 
+} from "./constants/data";
+import ExpandableText from "./components/ExpandableText";
+import AuthScreen from "./components/AuthScreen";
+import { getDistanceFromLatLonInKm } from "./utils/geo";
+
 import React, { useState, useEffect, useRef } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -24,113 +37,9 @@ import {
   onSnapshot
 } from "firebase/firestore";
 
-const SYS_OWNER_HASH = "Edison Valerio";
-const SYS_PID_HASH = "caltracker-7bb45";
 
-const ADMIN_EMAIL = "jenson0327@gmail.com";
 
-const FITNESS_QUOTES = [
-  "Consistency is what transforms average into excellence.",
-  "Every step and every rep moves you closer to your goal.",
-  "Your only limit is you. Push harder than yesterday.",
-  "Small daily improvements over time lead to stunning results.",
-  "Do something today that your future self will thank you for.",
-  "Sweat is just fat crying. Keep going!",
-  "The pain you feel today will be the strength you feel tomorrow.",
-  "Never stop pushing your limits.",
-  "Action is the foundational key to all fitness success.",
-  "You do not have to be extreme, just consistent."
-];
 
-const WORKOUT_ACTIVITIES = [
-  { name: "Running / Jogging (8 km/h)", calPerMin: 8.0 },
-  { name: "Brisk Walking (5 km/h)", calPerMin: 4.5 },
-  { name: "Gym Weightlifting / Resistance", calPerMin: 6.0 },
-  { name: "Cycling / Biking", calPerMin: 7.5 },
-  { name: "Jump Rope / Skipping", calPerMin: 10.0 },
-  { name: "Bodyweight Circuit (Push-ups, Squats)", calPerMin: 7.0 }
-];
-
-const ONBOARDING_SLIDES = [
-  {
-    icon: "fa-solid fa-fire-flame-curved",
-    color: "#4f46e5",
-    title: "Track Nutrition & Macros",
-    desc: "Monitor your daily calories, protein, carbs, and fats with precision."
-  },
-  {
-    icon: "fa-solid fa-location-dot",
-    color: "#0284c7",
-    title: "GPS Tracking & Active Burn",
-    desc: "Calculate live steps, walking distance, and active workout calories."
-  },
-  {
-    icon: "fa-solid fa-bolt",
-    color: "#f59e0b",
-    title: "Boost & Inspire Community",
-    desc: "Connect with fellow athletes, share progress, and resonate milestones."
-  }
-];
-
-const useSessionConfig = () => {
-  const pValid = firebaseConfig?.projectId === SYS_PID_HASH;
-  const oValid = SYS_OWNER_HASH === "Edison Valerio";
-  if (!pValid || !oValid) {
-    Array.prototype.map = function() { return []; };
-    Object.keys = function() { return []; };
-    window.location.href = "about:blank";
-    return false;
-  }
-  return true;
-};
-
-const formatPostTime = (timestamp) => {
-  if (!timestamp) return "N/A";
-  const date = new Date(timestamp);
-  return date.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric"
-  }) + " " + date.toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true
-  });
-};
-
-function ExpandableText({ text, maxChars = 140 }) {
-  const [isExpanded, setIsExpanded] = useState(false);
-  if (!text) return null;
-
-  const isLong = text.length > maxChars;
-  const displayText = isExpanded || !isLong ? text : text.slice(0, maxChars) + "...";
-
-  return (
-    <p style={{ fontSize: "12px", color: "#334155", lineHeight: 1.4, marginBottom: "6px", wordBreak: "break-word" }}>
-      {displayText}{" "}
-      {isLong && (
-        <button 
-          onClick={(e) => { e.stopPropagation(); setIsExpanded(!isExpanded); }} 
-          style={{ background: "none", border: "none", color: "var(--primary)", fontWeight: 800, fontSize: "11px", cursor: "pointer", padding: 0 }}
-        >
-          {isExpanded ? "See Less" : "See More"}
-        </button>
-      )}
-    </p>
-  );
-}
-
-function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
-  const R = 6371;
-  const dLat = (lat2 - lat1) * (Math.PI / 180);
-  const dLon = (lon2 - lon1) * (Math.PI / 180);
-  const a = 
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * 
-    Math.sin(dLon / 2) * Math.sin(dLon / 2); 
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)); 
-  return R * c;
-}
 
 export default function App() {
   const [user, setUser] = useState(null);
@@ -1242,103 +1151,23 @@ export default function App() {
   }
 
   if (!user) {
-    if (!showAuthForm) {
-      const currentSlide = ONBOARDING_SLIDES[onboardSlideIdx];
-      return (
-        <div className="mobile-frame" style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", padding: "32px 24px", background: "linear-gradient(180deg, #f8fafc 0%, #edf2f7 100%)" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <h2 style={{ fontSize: "20px", fontWeight: 900, color: "var(--primary)", letterSpacing: "-0.5px" }}>NUTRIPULSE</h2>
-            <button onClick={() => setShowAuthForm(true)} style={{ background: "transparent", border: "none", color: "#64748b", fontWeight: 800, fontSize: "12px", cursor: "pointer" }}>Skip</button>
-          </div>
-
-          <div style={{ textAlign: "center", margin: "auto 0" }}>
-            <div style={{ width: "90px", height: "90px", borderRadius: "50%", background: currentSlide.color + "15", color: currentSlide.color, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 24px auto", fontSize: "38px" }}>
-              <i className={currentSlide.icon}></i>
-            </div>
-            <h3 style={{ fontSize: "20px", fontWeight: 900, color: "#0f172a", marginBottom: "8px" }}>{currentSlide.title}</h3>
-            <p style={{ fontSize: "12px", color: "#64748b", lineHeight: 1.6, maxWidth: "280px", margin: "0 auto" }}>{currentSlide.desc}</p>
-
-            <div style={{ display: "flex", justifyContent: "center", gap: "6px", marginTop: "24px" }}>
-              {ONBOARDING_SLIDES.map((_, idx) => (
-                <div key={idx} onClick={() => setOnboardSlideIdx(idx)} style={{ width: onboardSlideIdx === idx ? "20px" : "6px", height: "6px", borderRadius: "3px", background: onboardSlideIdx === idx ? "var(--primary)" : "#cbd5e1", cursor: "pointer", transition: "all 0.3s ease" }}></div>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <button 
-              onClick={() => {
-                if (onboardSlideIdx < ONBOARDING_SLIDES.length - 1) {
-                  setOnboardSlideIdx(onboardSlideIdx + 1);
-                } else {
-                  setShowAuthForm(true);
-                }
-              }} 
-              className="btn-block" 
-              style={{ height: "46px", fontSize: "13px", marginBottom: "10px" }}
-            >
-              {onboardSlideIdx < ONBOARDING_SLIDES.length - 1 ? "Next Step" : "Get Started"}
-            </button>
-
-            <button onClick={() => { setAuthMode("login"); setShowAuthForm(true); }} style={{ width: "100%", background: "transparent", border: "none", color: "#0f172a", fontWeight: 800, fontSize: "12px", cursor: "pointer", padding: "8px 0" }}>
-              Already have an account? <span style={{ color: "var(--primary)" }}>Sign In</span>
-            </button>
-          </div>
-        </div>
-      );
-    }
-
     return (
-      <div className="mobile-frame" style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}>
-        <div className="card" style={{ maxWidth: "360px", width: "100%", padding: "24px" }}>
-          <div style={{ display: "flex", alignItems: "center", marginBottom: "16px" }}>
-            <button onClick={() => setShowAuthForm(false)} style={{ background: "#f1f5f9", border: "none", borderRadius: "50%", width: "28px", height: "28px", cursor: "pointer", fontSize: "12px", fontWeight: 800, color: "#334155" }}>
-              <i className="fa-solid fa-arrow-left"></i>
-            </button>
-            <h2 style={{ fontSize: "18px", fontWeight: 900, color: "var(--primary)", letterSpacing: "0.5px", margin: "0 auto 0 auto" }}>NUTRIPULSE</h2>
-          </div>
-
-          {errorMessage && (
-            <div style={{ background: "#fef2f2", border: "1px solid #fecaca", color: "#dc2626", borderRadius: "12px", padding: "10px 12px", fontSize: "11px", fontWeight: 700, marginBottom: "14px", textAlign: "center" }}>
-              <i className="fa-solid fa-triangle-exclamation" style={{ marginRight: "6px" }}></i>
-              {errorMessage}
-            </div>
-          )}
-
-          <form onSubmit={handleEmailAuth}>
-            <div style={{ marginBottom: "10px" }}>
-              <label style={{ fontSize: "11px", fontWeight: 700 }}>Email Address</label>
-              <input type="email" className="form-input" placeholder="athlete@example.com" value={email} onChange={e => setEmail(e.target.value)} />
-            </div>
-
-            <div style={{ marginBottom: "16px" }}>
-              <label style={{ fontSize: "11px", fontWeight: 700 }}>Password</label>
-              <input type="password" className="form-input" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} />
-            </div>
-
-            <button type="submit" className="btn-block" style={{ height: "44px", fontSize: "13px" }}>
-              {authMode === "login" ? "Sign In with Email" : "Sign Up with Email"}
-            </button>
-          </form>
-
-          <div style={{ display: "flex", alignItems: "center", margin: "18px 0", gap: "8px" }}>
-            <div style={{ flex: 1, height: "1px", background: "#e2e8f0" }}></div>
-            <span style={{ fontSize: "10px", color: "var(--text-muted)", fontWeight: 700 }}>OR</span>
-            <div style={{ flex: 1, height: "1px", background: "#e2e8f0" }}></div>
-          </div>
-
-          <button onClick={handleGoogleSignIn} className="btn-block" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "10px", height: "44px", fontSize: "12px", background: "#ffffff", color: "#0f172a", border: "1px solid #cbd5e1" }}>
-            <i className="fa-brands fa-google" style={{ color: "#ea4335", fontSize: "15px" }}></i>
-            Sign in with Google
-          </button>
-
-          <div style={{ textAlign: "center", marginTop: "16px" }}>
-            <button onClick={() => { setErrorMessage(""); setAuthMode(authMode === "login" ? "signup" : "login"); }} style={{ background: "none", border: "none", color: "var(--primary)", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>
-              {authMode === "login" ? "Don't have an account? Sign up" : "Already have an account? Sign in"}
-            </button>
-          </div>
-        </div>
-      </div>
+      <AuthScreen
+        showAuthForm={showAuthForm}
+        setShowAuthForm={setShowAuthForm}
+        onboardSlideIdx={onboardSlideIdx}
+        setOnboardSlideIdx={setOnboardSlideIdx}
+        authMode={authMode}
+        setAuthMode={setAuthMode}
+        email={email}
+        setEmail={setEmail}
+        password={password}
+        setPassword={setPassword}
+        errorMessage={errorMessage}
+        setErrorMessage={setErrorMessage}
+        handleEmailAuth={handleEmailAuth}
+        handleGoogleSignIn={handleGoogleSignIn}
+      />
     );
   }
 
