@@ -162,7 +162,221 @@ const [userList, setUserList] = useState([]);
 
   const isAdmin = user?.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase();
 
+  
+
   // REALTIME COMMENTS LISTENER FOR SELECTED POST IN SLIDE-OVER
+  useEffect(() => {
+    let unsubComments = null;
+    if (activePanel === 'post_detail' && selectedPost?.id) {
+      try {
+        const commentsRef = collection(db, "posts", selectedPost.id, "comments");
+        const q = query(commentsRef, orderBy("createdAt", "desc"));
+        unsubComments = onSnapshot(q, (snapshot) => {
+          const list = [];
+          snapshot.forEach((docSnap) => {
+            list.push({ id: docSnap.id, ...docSnap.data() });
+          });
+          setPostComments(list);
+        });
+      } catch (e) {
+        console.error("Comments listener error:", e);
+      }
+    } else {
+      setPostComments([]);
+    }
+    return () => { if (unsubComments) unsubComments(); };
+  }, [activePanel, selectedPost]);
+
+  // REALTIME FIRESTORE NOTIFICATIONS LISTENER
+  useEffect(() => {
+    let unsubNotifs = null;
+    if (user) {
+      try {
+        const notifRef = collection(db, "notifications");
+        const q = query(notifRef, orderBy("timestamp", "desc"), limit(40));
+        unsubNotifs = onSnapshot(q, (snapshot) => {
+          const list = [];
+          snapshot.forEach((docSnap) => {
+            const data = docSnap.data();
+            if (data.recipientUid === user.uid) {
+              list.push({ id: docSnap.id, ...data });
+            }
+          });
+          setFirestoreNotifs(list);
+        });
+      } catch (e) {
+        console.error("Notif listener error:", e);
+      }
+    }
+    return () => { if (unsubNotifs) unsubNotifs(); };
+  }, [user]);
+
+  useEffect(() => {
+    document.title = "NutriPulse - Health Dashboard";
+    let heartbeatInterval = null;
+
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      setUser(currentUser);
+      setShowSettingsModal(false);
+      if (currentUser) {
+        const userDocRef = doc(db, "users", currentUser.uid);
+        try {
+          const docSnap = await getDoc(userDocRef);
+          
+          if (docSnap.exists()) {
+            let data = docSnap.data();
+            const todayStr = new Date().toDateString();
+
+            if (data?.lastLogDate && data.lastLogDate !== todayStr) {
+              data = {
+                ...data,
+                todayBurnedCal: 0,
+                lastLogDate: todayStr
+              };
+              await setDoc(userDocRef, { todayBurnedCal: 0, lastLogDate: todayStr }, { merge: true });
+            }
+
+            setAppData(data || {});
+
+            const sendPresencePing = () => {
+              setDoc(userDocRef, { lastSeen: Date.now() }, { merge: true }).catch(console.error);
+            };
+
+            sendPresencePing();
+            heartbeatInterval = setInterval(sendPresencePing, 30000);
+
+            const handleVisibilityChange = () => {
+              if (document.visibilityState === "visible") {
+                sendPresencePing();
+              }
+            };
+
+            const handleBeforeUnload = () => {
+              setDoc(userDocRef, { lastSeen: Date.now() }, { merge: true });
+            };
+
+            window.addEventListener("visibilitychange", handleVisibilityChange);
+            window.addEventListener("focus", sendPresencePing);
+            window.addEventListener("beforeunload", handleBeforeUnload);
+
+            setProfName(data?.userName || currentUser.displayName || "Athlete");
+            setProfTitle(data?.userTitle || "Fitness Enthusiast");
+            setProfHeight(data?.height || 160);
+            setProfWeight(data?.weight || 60);
+            setProfActivity(data?.activityLevel || 1.55);
+            setProfIsBlocked(data?.isPrivateAccount || false);
+            setNewLogWeight(data?.weight || 60);
+            setAvatarPreview(data?.avatarUrl || "");
+            setCoverPreview(data?.coverUrl || "");
+
+            if (!data?.onboardingCompleted) {
+              setOnboardStep(1);
+            } else {
+              setOnboardStep(0);
+              setActiveTab("home"); setActivePanel(null);
+            }
+          } else {
+            setSetupName(currentUser.displayName || "Athlete");
+            setOnboardStep(1);
+          }
+        } catch (e) {
+          console.error("Auth doc fetch error:", e);
+        }
+      } else {
+        if (heartbeatInterval) clearInterval(heartbeatInterval);
+      }
+      setLoading(false);
+    });
+
+    return () => {
+      unsubscribe();
+      if (heartbeatInterval) clearInterval(heartbeatInterval);
+    };
+  }, []);
+
+  useEffect(() => {
+    let watchId = null;
+    if (activeTab === "home" && isGpsTracking && "geolocation" in navigator) {
+      setGpsStatus("Searching GPS Signal...");
+      watchId = navigator.geolocation.watchPosition(
+        (position) => {
+          setGpsStatus("GPS Tracking Active");
+          const { latitude, longitude } = position.coords;
+          const newCoord = [latitude, longitude];
+
+          setWaypoints(prev => [...prev, newCoord]);
+
+          if (lastPosRef.current) {
+            const dist = getDistanceFromLatLonInKm(
+              lastPosRef.current.latitude,
+              lastPosRef.current.longitude,
+              latitude,
+              longitude
+            );
+            if (dist > 0.002 && dist < 0.2) {
+              setTotalGpsDistanceKm(prev => prev + dist);
+            }
+          }
+          lastPosRef.current = { latitude, longitude };
+        },
+        (error) => {
+          setGpsStatus("Location Permission Required");
+          setIsGpsTracking(false);
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 1000 }
+      );
+    } else if (!isGpsTracking) {
+      setGpsStatus(waypoints.length > 0 ? "Tracking Paused" : "Tracker Inactive");
+      lastPosRef.current = null;
+    }
+    return () => { if (watchId !== null) navigator.geolocation.clearWatch(watchId); };
+  }, [activeTab, isGpsTracking]);
+
+  // Leaflet Map Initialization & Realtime Polyline Drawing
+  useEffect(() => {
+    if (activeTab === "home" && mapContainerRef.current) {
+      if (!mapRef.current) {
+        const initialCenter = waypoints.length > 0 ? waypoints[waypoints.length - 1] : [14.5995, 120.9842];
+        const map = L.map(mapContainerRef.current, { zoomControl: false }).setView(initialCenter, 16);
+        
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          attribution: '&copy; OpenStreetMap'
+        }).addTo(map);
+
+        mapRef.current = map;
+        polylineRef.current = L.polyline([], { color: "#38bdf8", weight: 5, opacity: 0.9 }).addTo(map);
+      }
+
+      if (waypoints.length > 0 && mapRef.current) {
+        const latestPoint = waypoints[waypoints.length - 1];
+        polylineRef.current.setLatLngs(waypoints);
+        mapRef.current.panTo(latestPoint);
+
+        if (!markerRef.current) {
+          const pulseIcon = L.divIcon({
+            className: "gps-pulse-marker",
+            html: '<div style="width:14px;height:14px;background:#0284c7;border:2px solid white;border-radius:50%;box-shadow:0 0 8px rgba(2,132,199,0.8);"></div>',
+            iconSize: [14, 14],
+            iconAnchor: [7, 7]
+          });
+          markerRef.current = L.marker(latestPoint, { icon: pulseIcon }).addTo(mapRef.current);
+        } else {
+          markerRef.current.setLatLng(latestPoint);
+        }
+      }
+    }
+
+    return () => {
+      if (activeTab !== "home" && mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
+        polylineRef.current = null;
+        markerRef.current = null;
+      }
+    };
+  }, [activeTab, waypoints]);
+
+  
 
 useEffect(() => {
     if (isTimerRunning) {
