@@ -1,10 +1,8 @@
+import { auth, googleProvider, db, firebaseConfig } from "./services/firebase";
 import React, { useState, useEffect, useRef } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { initializeApp } from "firebase/app";
 import { 
-  getAuth, 
-  GoogleAuthProvider, 
   signInWithPopup, 
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
@@ -12,7 +10,6 @@ import {
   onAuthStateChanged 
 } from "firebase/auth";
 import { 
-  getFirestore, 
   doc, 
   getDoc, 
   setDoc,
@@ -29,21 +26,6 @@ import {
 
 const SYS_OWNER_HASH = "Edison Valerio";
 const SYS_PID_HASH = "caltracker-7bb45";
-
-const firebaseConfig = {
-  apiKey: "AIzaSyDzwhPze3yvZfFD-Be7Rsh25FBGfDU6708",
-  authDomain: "caltracker-7bb45.firebaseapp.com",
-  projectId: "caltracker-7bb45",
-  storageBucket: "caltracker-7bb45.firebasestorage.app",
-  messagingSenderId: "432202919655",
-  appId: "1:432202919655:web:01c682ebad947f7763fc42",
-  measurementId: "G-3DYWESSTC3"
-};
-
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
-const googleProvider = new GoogleAuthProvider();
 
 const ADMIN_EMAIL = "jenson0327@gmail.com";
 
