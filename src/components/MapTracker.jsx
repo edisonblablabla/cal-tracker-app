@@ -1,15 +1,4 @@
-const fs = require("fs");
-
-if (!fs.existsSync("src/App.jsx")) {
-  console.error("❌ Hindi nahanap ang src/App.jsx");
-  process.exit(1);
-}
-
-// 1. Gumawa ng panibagong backup
-fs.copyFileSync("src/App.jsx", "src/App.backup4.jsx");
-
-// 2. Isulat ang src/components/MapTracker.jsx
-const mapTrackerCode = `import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { getDistanceFromLatLonInKm } from "../utils/geo";
@@ -169,7 +158,7 @@ export default function MapTracker({ activeTab, appData, saveToCloud, showToast 
             if (gpsCalBurned > 0) {
               const currentBurned = appData?.todayBurnedCal || 0;
               await saveToCloud({ ...appData, todayBurnedCal: currentBurned + gpsCalBurned });
-              showToast(`GPS Walk Logged! (+${gpsCalBurned} kcal burned)`);
+              showToast("GPS Walk Logged! (+" + gpsCalBurned + " kcal burned)");
             }
             setTotalGpsDistanceKm(0);
             setWaypoints([]);
@@ -183,50 +172,3 @@ export default function MapTracker({ activeTab, appData, saveToCloud, showToast 
     </div>
   );
 }
-`;
-
-fs.writeFileSync("src/components/MapTracker.jsx", mapTrackerCode);
-
-// 3. I-update ang App.jsx
-let appCode = fs.readFileSync("src/App.jsx", "utf8");
-
-// Alisin ang lumang Leaflet at Geo imports sa App.jsx
-appCode = appCode.replace(/import\s*\{\s*getDistanceFromLatLonInKm\s*\}\s*from\s*["\x27]\.\/utils\/geo["\x27];?\s*/g, "");
-appCode = appCode.replace(/import\s+L\s+from\s+["\x27]leaflet["\x27];?\s*/g, "");
-appCode = appCode.replace(/import\s+["\x27]leaflet\/dist\/leaflet\.css["\x27];?\s*/g, "");
-
-// Idagdag ang MapTracker import
-if (!appCode.includes("import MapTracker")) {
-  appCode = appCode.replace(
-    /import\s+AuthScreen\s+from\s+["\x27]\.\/components\/AuthScreen["\x27];?/,
-    'import AuthScreen from "./components/AuthScreen";\nimport MapTracker from "./components/MapTracker";'
-  );
-}
-
-// Alisin ang GPS states
-appCode = appCode.replace(/\s*const\s+\[gpsStatus[\s\S]*?lastPosRef\s*=\s*useRef\(null\);\s*/, "\n\n");
-
-// Alisin ang watchPosition useEffect
-appCode = appCode.replace(/\s*useEffect\(\(\)\s*=>\s*\{[\s\S]*?geolocation\.watchPosition[\s\S]*?\},\s*\[activeTab,\s*isGpsTracking\]\);\s*/, "\n\n");
-
-// Alisin ang Leaflet Map Initialization useEffect
-appCode = appCode.replace(/\s*\/\/\s*Leaflet Map Initialization[\s\S]*?\},\s*\[activeTab,\s*waypoints\]\);\s*/, "\n\n");
-
-// Alisin ang GPS calculation lines
-appCode = appCode.replace(/\s*const\s+gpsCalculatedSteps\s*=\s*Math\.round\(totalGpsDistanceKm\s*\*\s*1350\);\s*/, "\n");
-appCode = appCode.replace(/\s*const\s+gpsCalBurned\s*=\s*Math\.round\(gpsCalculatedSteps\s*\*\s*0\.04\);\s*/, "\n");
-
-// Palitan ang card JSX ng bagong <MapTracker />
-const cardRegex = /<div className="card"[^>]*?>\s*<div[^>]*?>[\s\S]*?GPS Step & Distance Tracker[\s\S]*?Finish & Reset\s*<\/button>\s*<\/div>\s*<\/div>/;
-
-const mapReplacement = `<MapTracker
-              activeTab={activeTab}
-              appData={appData}
-              saveToCloud={saveToCloud}
-              showToast={showToast}
-            />`;
-
-appCode = appCode.replace(cardRegex, mapReplacement);
-
-fs.writeFileSync("src/App.jsx", appCode);
-console.log("✅ Matagumpay! Naihiwalay na ang MapTracker.jsx at nalinis ang App.jsx.");
