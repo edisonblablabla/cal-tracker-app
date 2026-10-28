@@ -40,6 +40,16 @@ import {
 
 
 
+
+function formatPostTime(ts) {
+  if (!ts) return "Just now";
+  const d = Date.now() - ts;
+  if (d < 60000) return "Just now";
+  if (d < 3600000) return Math.floor(d / 60000) + "m ago";
+  if (d < 86400000) return Math.floor(d / 3600000) + "h ago";
+  return new Date(ts).toLocaleDateString();
+}
+
 export default function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
