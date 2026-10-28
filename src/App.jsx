@@ -11,6 +11,7 @@ import {
 import ExpandableText from "./components/ExpandableText";
 import AuthScreen from "./components/AuthScreen";
 import MapTracker from "./components/MapTracker";
+import DiaryTab from "./components/DiaryTab";
 import React, { useState, useEffect, useRef } from "react";
 import { 
   signInWithPopup, 
@@ -1265,13 +1266,27 @@ const goalTitles = {
 
         {/* TAB 2: LOG */}
         {activeTab === "diary" && (
-          <div className="screen active">
-            <h3 style={{ fontSize: "18px", fontWeight: 800, marginBottom: "14px" }}>Food & Nutrition Log</h3>
-
-            <div className="diary-summary" style={{ display: "flex", justifyContent: "space-around", textAlign: "center", padding: "12px 0", background: "#f1f5f9", borderRadius: "16px", marginBottom: "16px" }}>
-              <div><h4>{totalCal}</h4><p style={{ fontSize: "11px", color: "var(--text-muted)" }}>Eaten</p></div>
-              <div><h4>{activeGoal}</h4><p style={{ fontSize: "11px", color: "var(--text-muted)" }}>Goal</p></div>
-              <div style={{ color: "var(--success)" }}><h4>{Math.max(0, activeGoal - totalCal)}</h4><p style={{ fontSize: "11px" }}>Left</p></div>
+          <DiaryTab
+            totalCal={totalCal}
+            activeGoal={activeGoal}
+            customName={customName}
+            setCustomName={setCustomName}
+            customPortion={customPortion}
+            setCustomPortion={setCustomPortion}
+            customCal={customCal}
+            setCustomCal={setCustomCal}
+            customP={customP}
+            setCustomP={setCustomP}
+            customC={customC}
+            setCustomC={setCustomC}
+            customF={customF}
+            setCustomF={setCustomF}
+            addCustomMeal={addCustomMeal}
+            isAddingMeal={isAddingMeal}
+            todayMeals={todayMeals}
+            deleteMeal={deleteMeal}
+          />
+        )}</h4><p style={{ fontSize: "11px" }}>Left</p></div>
             </div>
 
             <div className="card">
