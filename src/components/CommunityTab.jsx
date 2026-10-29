@@ -55,6 +55,7 @@ export default function CommunityTab({
   showToast,
   formatPostTime = defaultFormatTime
 }) {
+  const unreadChatsCount = (inboxChats || []).filter(c => c.lastSenderUid !== user?.uid && (c.updatedAt || 0) > (lastSeenMsgTime || 0)).length;
   const formatTime = formatPostTime || defaultFormatTime;
 
   return (
