@@ -148,7 +148,7 @@ export default function ModalsLayer({
               )}
             </div>
 
-            <div style={{ flex: 1, overflowY: "auto", paddingRight: "2px" }}>
+            <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column-reverse", gap: "10px", paddingRight: "5px" }}>
               {searchQuery.trim() === "" ? (
                 <div style={{ textAlign: "center", padding: "30px 10px", color: "#94a3b8" }}>
                   <i className="fa-solid fa-users-viewfinder" style={{ fontSize: "36px", marginBottom: "10px", opacity: 0.6, display: "block" }}></i>
@@ -245,21 +245,22 @@ export default function ModalsLayer({
             justifyContent: "space-between",
             background: "#ffffff"
           }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-              <button onClick={() => setActivePanel(null)} style={{ background: "none", border: "none", fontSize: "18px", cursor: "pointer", color: "#334155" }}>
-                <i className="fa-solid fa-arrow-left"></i>
-              </button>
-              <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 800, color: "#0f172a" }}>
-                {activePanel === 'notif' && 'Notifications'}
-                {activePanel === 'inbox' && 'Messages'}
-                {activePanel === 'post_detail' && 'Post Detail'}
-                {activePanel === 'boosters' && 'Boosters'}
-                {activePanel === 'boosting' && 'Boosting'}
-                {activePanel === 'settings' && 'Profile Settings'}
-                {activePanel === 'visitor_profile' && (selectedVisitor?.userName || 'Athlete Profile')}
-                {activePanel === 'chat' && (activeChatPartner?.userName ? 'Chat with ' + activeChatPartner.userName : 'Direct Chat')}
-              </h3>
-            </div>
+            <div style={{ display: "flex", alignItems: "center", paddingBottom: "12px", borderBottom: "1px solid #f1f5f9", marginBottom: "12px", position: "relative" }}>
+                <button onClick={() => setActivePanel("inbox")} style={{ background: "none", border: "none", color: "#64748b", fontSize: "18px", cursor: "pointer", position: "absolute", left: 0 }}>
+                  <i className="fa-solid fa-arrow-left"></i>
+                </button>
+                <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+                  <div style={{ width: "48px", height: "48px", borderRadius: "50%", background: "#4f46e5", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: "20px", overflow: "hidden", marginBottom: "6px", boxShadow: "0 4px 10px rgba(0,0,0,0.1)" }}>
+                    {activeChatPartner?.avatarUrl ? (
+                      <img src={activeChatPartner.avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                    ) : (
+                      (activeChatPartner?.userName || "A").charAt(0).toUpperCase()
+                    )}
+                  </div>
+                  <strong style={{ fontSize: "15px", color: "#0f172a", fontWeight: 900 }}>{activeChatPartner?.userName || "Athlete"}</strong>
+                  <span style={{ fontSize: "11px", color: "#64748b" }}>{activeChatPartner?.userTitle || "Fitness Enthusiast"}</span>
+                </div>
+              </div>
             {activePanel === 'notif' && (
               <span style={{ fontSize: "11px", fontWeight: 700, color: "#0284c7", background: "#e0f2fe", padding: "4px 10px", borderRadius: "12px" }}>
                 {allUserNotifs.filter(n => (n.timestamp || 0) > lastSeenNotifTime).length} New
