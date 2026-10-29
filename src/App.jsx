@@ -216,7 +216,7 @@ export default function App() {
       try {
         const notifRef = collection(db, "notifications");
         // Strict match sa Firestore Security Rules para maiwasan ang permission-denied
-        const q = query(notifRef, where("recipientUid", "==", user.uid), limit(50));
+        const q = query(notifRef, where("recipientUid", "==", user.uid));
         unsubNotifs = onSnapshot(q, (snapshot) => {
           const list = [];
           snapshot.forEach((docSnap) => {
@@ -747,23 +747,31 @@ export default function App() {
 
     try {
       const postRef = doc(db, "posts", postId);
-      await updateDoc(postRef, { 
-        likes: updatedLikesCount, 
-        likedBy: updatedLikedBy 
-      });
-
       const targetPost = posts.find(p => p.id === postId);
+
+      // Sabay na ipatupad ang like update at notification para walang antala
+      const operations = [
+        updateDoc(postRef, { 
+          likes: updatedLikesCount, 
+          likedBy: updatedLikedBy 
+        })
+      ];
+
       if (!isAlreadyLiked && targetPost && targetPost.userId !== user?.uid) {
-        await addDoc(collection(db, "notifications"), {
-          recipientUid: targetPost.userId,
-          senderName: appData?.userName || user?.displayName || "Athlete",
-          senderAvatar: appData?.avatarUrl || avatarPreview || "",
-          type: "pulse",
-          text: `pulsed your post: "${(targetPost.text || "photo post").slice(0, 20)}..."`,
-          postId: postId,
-          timestamp: Date.now()
-        });
+        operations.push(
+          addDoc(collection(db, "notifications"), {
+            recipientUid: targetPost.userId,
+            senderName: appData?.userName || user?.displayName || "Athlete",
+            senderAvatar: appData?.avatarUrl || avatarPreview || "",
+            type: "pulse",
+            text: 'pulsed your post: "' + (targetPost.text || "photo post").slice(0, 20) + '..."',
+            postId: postId,
+            timestamp: Date.now()
+          })
+        );
       }
+
+      await Promise.all(operations);
     } catch (err) {
       console.error("Error toggling pulse:", err);
     }

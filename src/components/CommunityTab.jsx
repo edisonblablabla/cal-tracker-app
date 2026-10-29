@@ -288,18 +288,27 @@ export default function CommunityTab({
                 </div>
 
                 {p.imageUrl && (
-            <div style={{ marginTop: "10px", marginBottom: "12px", width: "100%", borderRadius: "14px", overflow: "hidden", background: "#f8fafc" }}>
+            <div style={{ 
+              marginTop: "10px", 
+              marginBottom: "12px", 
+              width: "100%", 
+              height: "320px", 
+              borderRadius: "16px", 
+              overflow: "hidden", 
+              background: "#0f172a", 
+              display: "flex", 
+              alignItems: "center", 
+              justifyContent: "center",
+              boxShadow: "inset 0 0 20px rgba(0,0,0,0.25)"
+            }}>
               <img 
                 src={p.imageUrl} 
                 alt="Post content" 
                 style={{ 
                   width: "100%", 
-                  height: "auto", 
-                  maxHeight: "550px", 
+                  height: "100%", 
                   objectFit: "contain", 
-                  display: "block",
-                  borderRadius: "14px",
-                  margin: "0 auto"
+                  display: "block" 
                 }} 
               />
             </div>
