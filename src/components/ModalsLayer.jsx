@@ -245,22 +245,83 @@ export default function ModalsLayer({
             justifyContent: "space-between",
             background: "#ffffff"
           }}>
-            <div style={{ display: "flex", alignItems: "center", paddingBottom: "12px", borderBottom: "1px solid #f1f5f9", marginBottom: "12px", position: "relative" }}>
-                <button onClick={() => setActivePanel("inbox")} style={{ background: "none", border: "none", color: "#64748b", fontSize: "18px", cursor: "pointer", position: "absolute", left: 0 }}>
+            {/* MESSENGER STYLE SLIDE-OVER TOP BAR */}
+            <div style={{ 
+              display: "flex", 
+              alignItems: "center", 
+              justifyContent: "space-between", 
+              padding: "8px 14px", 
+              borderBottom: "1px solid #e2e8f0", 
+              background: "#ffffff", 
+              minHeight: "56px",
+              boxSizing: "border-box",
+              position: "sticky",
+              top: 0,
+              zIndex: 100
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px", flex: 1, minWidth: 0 }}>
+                {/* BACK BUTTON */}
+                <button 
+                  onClick={() => {
+                    if (activePanel === "chat") setActivePanel("inbox");
+                    else setActivePanel(null);
+                  }} 
+                  style={{ background: "none", border: "none", color: "#0f172a", fontSize: "18px", cursor: "pointer", padding: "4px 6px 4px 0", display: "flex", alignItems: "center" }}
+                  title="Back"
+                >
                   <i className="fa-solid fa-arrow-left"></i>
                 </button>
-                <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
-                  <div style={{ width: "48px", height: "48px", borderRadius: "50%", background: "#4f46e5", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: "20px", overflow: "hidden", marginBottom: "6px", boxShadow: "0 4px 10px rgba(0,0,0,0.1)" }}>
-                    {activeChatPartner?.avatarUrl ? (
-                      <img src={activeChatPartner.avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                    ) : (
-                      (activeChatPartner?.userName || "A").charAt(0).toUpperCase()
-                    )}
+
+                {/* IF CHAT: Messenger Horizontal Header (Avatar + Name + Status sa iisang linya) */}
+                {activePanel === "chat" ? (
+                  <div 
+                    onClick={() => {
+                      if (activeChatPartner && typeof setSelectedVisitor === "function") {
+                        setSelectedVisitor(activeChatPartner);
+                        setActivePanel("visitor_profile");
+                      }
+                    }}
+                    style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer", minWidth: 0 }}
+                  >
+                    <div style={{ width: "36px", height: "36px", borderRadius: "50%", background: "#4f46e5", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: "14px", overflow: "hidden", flexShrink: 0 }}>
+                      {activeChatPartner?.avatarUrl ? (
+                        <img src={activeChatPartner.avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                      ) : (
+                        (activeChatPartner?.userName || "A").charAt(0).toUpperCase()
+                      )}
+                    </div>
+                    <div style={{ minWidth: 0, lineHeight: 1.2 }}>
+                      <div style={{ fontSize: "14px", fontWeight: 800, color: "#0f172a", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        {activeChatPartner?.userName || "Athlete"}
+                      </div>
+                      <div style={{ fontSize: "10px", color: "#10b981", fontWeight: 600 }}>
+                        ● Active now
+                      </div>
+                    </div>
                   </div>
-                  <strong style={{ fontSize: "15px", color: "#0f172a", fontWeight: 900 }}>{activeChatPartner?.userName || "Athlete"}</strong>
-                  <span style={{ fontSize: "11px", color: "#64748b" }}>{activeChatPartner?.userTitle || "Fitness Enthusiast"}</span>
-                </div>
+                ) : (
+                  /* IF INBOX, NOTIF, ETC.: Malinis na Header Title */
+                  <h3 style={{ margin: 0, fontSize: "17px", fontWeight: 900, color: "#0f172a" }}>
+                    {activePanel === "inbox" && "Messages"}
+                    {activePanel === "notif" && "Notifications"}
+                    {activePanel === "post_detail" && "Post Pulse"}
+                    {activePanel === "visitor_profile" && (selectedVisitor?.userName || "Athlete Profile")}
+                    {activePanel === "profile_settings" && "Profile Settings"}
+                    {activePanel === "boosters_list" && "Boosters"}
+                    {activePanel === "boosting_list" && "Boosting"}
+                  </h3>
+                )}
               </div>
+
+              {/* CLOSE BUTTON */}
+              <button 
+                onClick={() => setActivePanel(null)} 
+                style={{ background: "none", border: "none", color: "#94a3b8", fontSize: "18px", cursor: "pointer", padding: "4px" }}
+                title="Close"
+              >
+                <i className="fa-solid fa-xmark"></i>
+              </button>
+            </div>
             {activePanel === 'notif' && (
               <span style={{ fontSize: "11px", fontWeight: 700, color: "#0284c7", background: "#e0f2fe", padding: "4px 10px", borderRadius: "12px" }}>
                 {allUserNotifs.filter(n => (n.timestamp || 0) > lastSeenNotifTime).length} New
