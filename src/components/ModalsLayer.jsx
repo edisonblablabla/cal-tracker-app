@@ -18,6 +18,43 @@ function defaultFormatTime(ts) {
   return new Date(ms).toLocaleDateString();
 }
 
+
+// Helper para sa tumpak na online/offline presence calculation
+function calculatePresence(partner, userList = []) {
+  if (!partner) return { isOnline: false, text: "Offline", color: "#94a3b8" };
+  
+  // Hanapin ang pinakasariwang data mula sa realtime userList
+  const freshData = userList.find(u => u.uid === partner.uid) || partner;
+  const lastSeen = freshData.lastSeen;
+
+  // Kung walang record o naka-logout (lastSeen === 1)
+  if (!lastSeen || lastSeen === 1) {
+    return { isOnline: false, text: "Offline", color: "#94a3b8" };
+  }
+
+  const diffMs = Date.now() - lastSeen;
+
+  // Online kung may heartbeat sa loob ng huling 75 segundo (1.25 mins)
+  if (diffMs < 75000) {
+    return { isOnline: true, text: "Active now", color: "#10b981" };
+  }
+
+  // Huling aktibidad sa minuto
+  if (diffMs < 3600000) {
+    const mins = Math.floor(diffMs / 60000);
+    return { isOnline: false, text: `Active ${mins}m ago`, color: "#64748b" };
+  }
+
+  // Huling aktibidad sa oras
+  if (diffMs < 86400000) {
+    const hours = Math.floor(diffMs / 3600000);
+    return { isOnline: false, text: `Active ${hours}h ago`, color: "#64748b" };
+  }
+
+  // Higit sa isang araw
+  return { isOnline: false, text: "Offline", color: "#94a3b8" };
+}
+
 export default function ModalsLayer({
   showAboutModal,
   setShowAboutModal,
@@ -251,7 +288,6 @@ export default function ModalsLayer({
               alignItems: "center", 
               justifyContent: "space-between", 
               padding: "8px 14px", 
-              borderBottom: "1px solid #e2e8f0", 
               background: "#ffffff", 
               minHeight: "56px",
               boxSizing: "border-box",
@@ -265,7 +301,6 @@ export default function ModalsLayer({
               display: "flex", 
               alignItems: "center", 
               padding: "4px 16px", 
-              borderBottom: "1px solid #e2e8f0", 
               background: "#ffffff", 
               minHeight: "44px",
               boxSizing: "border-box", 
