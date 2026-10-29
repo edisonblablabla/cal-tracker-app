@@ -3,11 +3,19 @@ import ExpandableText from "./ExpandableText";
 
 function defaultFormatTime(ts) {
   if (!ts) return "Just now";
-  const d = Date.now() - ts;
+  let ms = null;
+  if (typeof ts === "number") ms = ts < 1e11 ? ts * 1000 : ts;
+  else if (ts && typeof ts.toDate === "function") ms = ts.toDate().getTime();
+  else if (ts && typeof ts.seconds === "number") ms = ts.seconds * 1000;
+  else if (typeof ts === "string") ms = Date.parse(ts);
+  else if (ts instanceof Date) ms = ts.getTime();
+
+  if (!ms || isNaN(ms)) return "Just now";
+  const d = Date.now() - ms;
   if (d < 60000) return "Just now";
   if (d < 3600000) return Math.floor(d / 60000) + "m ago";
   if (d < 86400000) return Math.floor(d / 3600000) + "h ago";
-  return new Date(ts).toLocaleDateString();
+  return new Date(ms).toLocaleDateString();
 }
 
 export default function ModalsLayer({
@@ -108,7 +116,6 @@ export default function ModalsLayer({
         <div style={{ position: "fixed", inset: 0, background: "rgba(15, 23, 42, 0.75)", backdropFilter: "blur(8px)", zIndex: 2800, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "16px", paddingTop: "30px" }}>
           <div className="card" style={{ width: "100%", maxWidth: "420px", padding: "20px", borderRadius: "24px", background: "#ffffff", maxHeight: "82vh", display: "flex", flexDirection: "column", boxShadow: "0 25px 50px -12px rgba(0,0,0,0.25)" }}>
             
-            {/* Search Header */}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                 <i className="fa-solid fa-magnifying-glass" style={{ color: "var(--primary)", fontSize: "16px" }}></i>
@@ -117,7 +124,6 @@ export default function ModalsLayer({
               <button onClick={() => { setShowSearchModal(false); setSearchQuery(""); }} style={{ background: "#f1f5f9", border: "none", borderRadius: "50%", width: "28px", height: "28px", cursor: "pointer", fontWeight: 800, fontSize: "12px", color: "#64748b" }}>X</button>
             </div>
 
-            {/* Input Box */}
             <div style={{ position: "relative", marginBottom: "14px" }}>
               <input 
                 type="text" 
@@ -132,7 +138,6 @@ export default function ModalsLayer({
               )}
             </div>
 
-            {/* Results List */}
             <div style={{ flex: 1, overflowY: "auto", paddingRight: "2px" }}>
               {searchQuery.trim() === "" ? (
                 <div style={{ textAlign: "center", padding: "30px 10px", color: "#94a3b8" }}>
@@ -153,7 +158,6 @@ export default function ModalsLayer({
                   return (
                     <div key={u.uid} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "#f8fafc", borderRadius: "16px", marginBottom: "8px", border: "1px solid #f1f5f9" }}>
                       
-                      {/* Avatar & Info */}
                       <div 
                         onClick={() => { setSelectedVisitor(u); setActivePanel("visitor_profile"); setShowSearchModal(false); setSearchQuery(""); }} 
                         style={{ display: "flex", alignItems: "center", gap: "10px", minWidth: 0, flex: 1, cursor: "pointer" }}
@@ -169,7 +173,6 @@ export default function ModalsLayer({
                         </div>
                       </div>
 
-                      {/* Action Buttons */}
                       <div style={{ display: "flex", gap: "6px", alignItems: "center", flexShrink: 0 }}>
                         {!isSelf && (
                           <button 
@@ -267,8 +270,9 @@ export default function ModalsLayer({
                     if (notif.postId) {
                       const found = posts.find(p => p.id === notif.postId);
                       if (found) { setSelectedPost(found); setActivePanel('post_detail'); }
-                    } else if (notif.uid) {
-                      const foundU = userList.find(u => u.uid === notif.uid);
+                    } else if (notif.uid || notif.senderUid) {
+                      const targetUid = notif.uid || notif.senderUid;
+                      const foundU = userList.find(u => u.uid === targetUid);
                       if (foundU) { setSelectedVisitor(foundU); setActivePanel('visitor_profile'); }
                     }
                   }} style={{
@@ -307,7 +311,18 @@ export default function ModalsLayer({
             {/* REAL-TIME POST DETAIL PANEL */}
             {activePanel === 'post_detail' && liveSelectedPost && (
               <div style={{ background: "#ffffff", borderRadius: "16px", padding: "14px", border: "1px solid #e2e8f0" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
+                <div 
+                  onClick={() => {
+                    const postAuthorObj = userList.find(u => u.uid === liveSelectedPost.userId);
+                    setSelectedVisitor(postAuthorObj || { 
+                      uid: liveSelectedPost.userId, 
+                      userName: liveSelectedPost.userName, 
+                      avatarUrl: liveSelectedPost.userAvatar 
+                    });
+                    setActivePanel("visitor_profile");
+                  }}
+                  style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px", cursor: "pointer" }}
+                >
                   {liveSelectedPost.userAvatar ? (
                     <img src={liveSelectedPost.userAvatar} alt="" style={{ width: "40px", height: "40px", borderRadius: "50%", objectFit: "cover" }} />
                   ) : (
@@ -352,16 +367,44 @@ export default function ModalsLayer({
                       <p style={{ fontSize: "11px", color: "#94a3b8", textAlign: "center", padding: "10px 0" }}>No comments yet. Be the first to comment!</p>
                     ) : (
                       postComments.map(c => {
-                        const isCommentOwner = (c.userId && c.userId === user?.uid) || 
-                                                (c.userName && c.userName.toLowerCase() === (appData?.userName || user?.displayName || "").toLowerCase()) || 
-                                                isAdmin;
+                        const isCommentOwner = (c.userId && c.userId === user?.uid) || isAdmin;
+
+                        const handleOpenCommenterProfile = (e) => {
+                          e.stopPropagation();
+                          if (c.userId === user?.uid) return;
+                          const foundU = userList.find(u => u.uid === c.userId);
+                          setSelectedVisitor(foundU || { 
+                            uid: c.userId, 
+                            userName: c.userName, 
+                            avatarUrl: c.userAvatar 
+                          });
+                          setActivePanel("visitor_profile");
+                        };
+
                         return (
-                          <div key={c.id} style={{ background: "#f8fafc", padding: "8px 10px", borderRadius: "10px", border: "1px solid #f1f5f9", position: "relative" }}>
-                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "2px" }}>
-                              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                                <strong style={{ fontSize: "11px", color: "#0f172a" }}>{c.userName}</strong>
+                          <div key={c.id} style={{ background: "#f8fafc", padding: "10px 12px", borderRadius: "12px", border: "1px solid #f1f5f9", position: "relative" }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                <div 
+                                  onClick={handleOpenCommenterProfile}
+                                  style={{ width: "24px", height: "24px", borderRadius: "50%", background: "#4f46e5", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "10px", fontWeight: 800, overflow: "hidden", cursor: "pointer", flexShrink: 0 }}
+                                >
+                                  {c.userAvatar ? (
+                                    <img src={c.userAvatar} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                                  ) : (
+                                    (c.userName || "A").charAt(0).toUpperCase()
+                                  )}
+                                </div>
+
+                                <strong 
+                                  onClick={handleOpenCommenterProfile}
+                                  style={{ fontSize: "11px", color: "#0f172a", cursor: "pointer" }}
+                                >
+                                  {c.userName}
+                                </strong>
                                 {c.isEdited && <span style={{ fontSize: "8px", color: "#94a3b8", fontStyle: "italic" }}>(edited)</span>}
                               </div>
+
                               <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                                 <span style={{ fontSize: "9px", color: "#94a3b8" }}>{formatTime(c.createdAt)}</span>
                                 {isCommentOwner && (
@@ -388,13 +431,13 @@ export default function ModalsLayer({
                                         backdropFilter: "blur(8px)"
                                       }}>
                                         <button 
-                                          onClick={() => { setActiveCommentMenuId(null); setCommentToEdit({ commentId: c.id, postId: liveSelectedPost.id }); setCommentEditText(c.text); }} 
+                                          onClick={(e) => { e.stopPropagation(); setActiveCommentMenuId(null); setCommentToEdit({ commentId: c.id, postId: liveSelectedPost.id }); setCommentEditText(c.text); }} 
                                           style={{ width: "100%", padding: "7px 10px", background: "transparent", border: "none", borderRadius: "8px", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "#334155", cursor: "pointer", display: "flex", alignItems: "center", gap: "8px" }}
                                         >
                                           <i className="fa-solid fa-pen" style={{ color: "#0284c7", fontSize: "11px" }}></i> Edit
                                         </button>
                                         <button 
-                                          onClick={() => { setActiveCommentMenuId(null); setCommentToDelete({ commentId: c.id, postId: liveSelectedPost.id }); }} 
+                                          onClick={(e) => { e.stopPropagation(); setActiveCommentMenuId(null); setCommentToDelete({ commentId: c.id, postId: liveSelectedPost.id }); }} 
                                           style={{ width: "100%", padding: "7px 10px", background: "transparent", border: "none", borderRadius: "8px", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "#ef4444", cursor: "pointer", display: "flex", alignItems: "center", gap: "8px" }}
                                         >
                                           <i className="fa-solid fa-trash" style={{ fontSize: "11px" }}></i> Delete
@@ -405,7 +448,7 @@ export default function ModalsLayer({
                                 )}
                               </div>
                             </div>
-                            <p style={{ fontSize: "11px", color: "#334155", margin: 0, wordBreak: "break-word" }}>{c.text}</p>
+                            <p style={{ fontSize: "11px", color: "#334155", margin: 0, paddingLeft: "32px", wordBreak: "break-word" }}>{c.text}</p>
                           </div>
                         );
                       })

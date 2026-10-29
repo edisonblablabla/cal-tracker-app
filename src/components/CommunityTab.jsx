@@ -5,11 +5,19 @@ import { collection, addDoc } from "firebase/firestore";
 
 function defaultFormatTime(ts) {
   if (!ts) return "Just now";
-  const d = Date.now() - ts;
+  let ms = null;
+  if (typeof ts === "number") ms = ts < 1e11 ? ts * 1000 : ts;
+  else if (ts && typeof ts.toDate === "function") ms = ts.toDate().getTime();
+  else if (ts && typeof ts.seconds === "number") ms = ts.seconds * 1000;
+  else if (typeof ts === "string") ms = Date.parse(ts);
+  else if (ts instanceof Date) ms = ts.getTime();
+
+  if (!ms || isNaN(ms)) return "Just now";
+  const d = Date.now() - ms;
   if (d < 60000) return "Just now";
   if (d < 3600000) return Math.floor(d / 60000) + "m ago";
   if (d < 86400000) return Math.floor(d / 3600000) + "h ago";
-  return new Date(ts).toLocaleDateString();
+  return new Date(ms).toLocaleDateString();
 }
 
 export default function CommunityTab({
@@ -84,7 +92,11 @@ export default function CommunityTab({
           </button>
 
           <button 
-            onClick={() => { setActivePanel("notif"); const nowT = Date.now(); setLastSeenNotifTime(nowT); localStorage.setItem("np_last_seen_notif", nowT.toString()); }} 
+            onClick={() => { 
+              setActivePanel("notif"); 
+              const nowT = Date.now(); 
+              if (typeof setLastSeenNotifTime === "function") setLastSeenNotifTime(nowT); 
+            }} 
             style={{ position: "relative", background: "#ffffff", border: "1px solid #e2e8f0", width: "36px", height: "36px", borderRadius: "50%", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#334155", fontSize: "15px", boxShadow: "0 2px 6px rgba(0,0,0,0.03)" }}
           >
             <i className="fa-regular fa-bell"></i>
@@ -169,7 +181,7 @@ export default function CommunityTab({
         </div>
       </div>
 
-      {/* COMMUNITY POSTS LIST */}
+      {/* COMMUNITY POSTS FEED */}
       <div>
         {publicCommunityPosts.length === 0 ? (
           <div style={{ textAlign: "center", padding: "40px 20px", color: "var(--text-muted)" }}>
@@ -182,14 +194,29 @@ export default function CommunityTab({
             const isOwner = p.userId === user?.uid;
             const postAuthorObj = userList.find(u => u.uid === p.userId);
 
+            const handleOpenAuthorProfile = (e) => {
+              e.stopPropagation();
+              if (p.userId === user?.uid) {
+                setActiveTab("profile");
+              } else {
+                setSelectedVisitor(postAuthorObj || { 
+                  uid: p.userId, 
+                  userName: p.userName, 
+                  userTitle: p.userTitle, 
+                  avatarUrl: p.userAvatar 
+                });
+                setActivePanel("visitor_profile");
+              }
+            };
+
             return (
               <div key={p.id} className="card" style={{ padding: "14px", borderRadius: "18px", marginBottom: "14px", boxShadow: "0 4px 15px rgba(0,0,0,0.03)", position: "relative" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
                   <div 
-                    onClick={() => { if (p.userId === user?.uid) { setActiveTab("profile"); } else { setSelectedVisitor(postAuthorObj || { uid: p.userId, userName: p.userName, userTitle: p.userTitle, avatarUrl: p.userAvatar }); setActivePanel("visitor_profile"); } }}
+                    onClick={handleOpenAuthorProfile}
                     style={{ display: "flex", gap: "8px", alignItems: "center", cursor: "pointer" }}
                   >
-                    <div style={{ width: "36px", height: "36px", borderRadius: "50%", background: "#4f46e5", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: "13px", overflow: "hidden" }}>
+                    <div style={{ width: "36px", height: "36px", borderRadius: "50%", background: "#4f46e5", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: "13px", overflow: "hidden", flexShrink: 0 }}>
                       {p.userAvatar ? (
                         <img src={p.userAvatar} alt="Avatar" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                       ) : (
@@ -207,7 +234,10 @@ export default function CommunityTab({
                   {isOwner && (
                     <div style={{ position: "relative" }}>
                       <button 
-                        onClick={() => setActiveMenuPostId(activeMenuPostId === p.id ? null : p.id)} 
+                        onClick={(e) => { 
+                          e.stopPropagation(); 
+                          setActiveMenuPostId(activeMenuPostId === p.id ? null : p.id); 
+                        }} 
                         style={{ background: "transparent", border: "none", color: "#64748b", fontSize: "15px", cursor: "pointer", padding: "4px 8px" }}
                       >
                         <i className="fa-solid fa-ellipsis-vertical"></i>
@@ -216,13 +246,13 @@ export default function CommunityTab({
                       {activeMenuPostId === p.id && (
                         <div style={{ position: "absolute", right: 0, top: "24px", background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "10px", boxShadow: "0 8px 20px -4px rgba(0,0,0,0.1)", zIndex: 100, minWidth: "120px", overflow: "hidden" }}>
                           <button 
-                            onClick={() => openEditModal(p)} 
+                            onClick={(e) => { e.stopPropagation(); setActiveMenuPostId(null); openEditModal(p); }} 
                             style={{ width: "100%", padding: "8px 10px", background: "transparent", border: "none", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "#334155", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px" }}
                           >
                             <i className="fa-solid fa-pen" style={{ color: "var(--primary)" }}></i> Edit
                           </button>
                           <button 
-                            onClick={() => handleDeletePost(p.id)} 
+                            onClick={(e) => { e.stopPropagation(); setActiveMenuPostId(null); handleDeletePost(p.id); }} 
                             style={{ width: "100%", padding: "8px 10px", background: "transparent", border: "none", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "#ef4444", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px", borderTop: "1px solid #f1f5f9" }}
                           >
                             <i className="fa-solid fa-trash"></i> Delete
@@ -233,7 +263,9 @@ export default function CommunityTab({
                   )}
                 </div>
 
-                <div onClick={() => { setSelectedPost(p); setActivePanel("post_detail"); }} style={{ cursor: "pointer" }}><ExpandableText text={p.text} /></div>
+                <div onClick={() => { setSelectedPost(p); setActivePanel("post_detail"); }} style={{ cursor: "pointer" }}>
+                  <ExpandableText text={p.text} />
+                </div>
 
                 {p.imageUrl && (
                   <div 
@@ -281,6 +313,7 @@ export default function CommunityTab({
                         try {
                           addDoc(collection(db, "notifications"), {
                             recipientUid: p.userId,
+                            senderUid: user?.uid || "",
                             senderName: appData?.userName || user?.displayName || "Athlete",
                             senderAvatar: appData?.avatarUrl || avatarPreview || "",
                             type: "resonate",

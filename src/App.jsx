@@ -27,20 +27,7 @@ import {
   signOut, 
   onAuthStateChanged 
 } from "firebase/auth";
-import { 
-  doc, 
-  getDoc, 
-  setDoc,
-  collection,
-  addDoc,
-  getDocs,
-  deleteDoc,
-  updateDoc,
-  query,
-  orderBy,
-  limit,
-  onSnapshot
-} from "firebase/firestore";
+import { doc, getDoc, setDoc, collection, addDoc, getDocs, deleteDoc, updateDoc, query, orderBy, limit, onSnapshot } from "firebase/firestore";
 
 
 
@@ -132,7 +119,17 @@ const [userList, setUserList] = useState([]);
   // SLIDE-OVER PANEL CENTRAL CONTROLLER
   const [activePanel, setActivePanel] = useState(null);
   const [firestoreNotifs, setFirestoreNotifs] = useState([]);
-  const [lastSeenNotifTime, setLastSeenNotifTime] = useState(() => parseInt(localStorage.getItem('np_last_seen_notif') || '0'));
+  const [lastSeenNotifTime, setLastSeenNotifTimeState] = useState(Date.now());
+  const setLastSeenNotifTime = async (timeVal) => {
+    setLastSeenNotifTimeState(timeVal);
+    localStorage.setItem("np_last_seen_notif", timeVal.toString());
+    if (user?.uid) {
+      try {
+        
+        await updateDoc(doc(db, "users", user.uid), { lastSeenNotifTime: timeVal });
+      } catch (err) { console.warn("Failed to sync notif time", err); }
+    }
+  };
   const [selectedPost, setSelectedPost] = useState(null);
   const [selectedVisitor, setSelectedVisitor] = useState(null);
   
@@ -243,6 +240,7 @@ const [userList, setUserList] = useState([]);
             }
 
             setAppData(data || {});
+        if (data || {}.lastSeenNotifTime) setLastSeenNotifTimeState(data || {}.lastSeenNotifTime);
 
             const sendPresencePing = () => {
               setDoc(userDocRef, { lastSeen: Date.now() }, { merge: true }).catch(console.error);
@@ -674,12 +672,12 @@ useEffect(() => {
     
     try {
       await addDoc(collection(db, "posts", postId, "comments"), {
-        userId: user?.uid,
-        userName: commentAuthorName,
-        avatarUrl: commentAuthorAvatar,
-        text: newCommentText.trim(),
-        createdAt: Date.now()
-      });
+      text: newCommentText,
+      userId: user.uid,
+      userName: appData?.userName || user.displayName || "Athlete",
+      userAvatar: appData?.avatarUrl || avatarPreview || "",
+      createdAt: Date.now()
+    });
 
       const postRef = doc(db, "posts", postId);
       const targetPost = posts.find(p => p.id === postId);
@@ -760,6 +758,7 @@ useEffect(() => {
 
   const saveToCloud = async (newData) => {
     setAppData(newData);
+        if (newData.lastSeenNotifTime) setLastSeenNotifTimeState(newData.lastSeenNotifTime);
     if (user) {
       try {
         const userDocRef = doc(db, "users", user.uid);
@@ -892,6 +891,7 @@ useEffect(() => {
     }
     await signOut(auth);
     setAppData(null);
+        if (null.lastSeenNotifTime) setLastSeenNotifTimeState(null.lastSeenNotifTime);
     setAvatarPreview("");
     setCoverPreview("");
     setProfPostText("");
@@ -984,6 +984,7 @@ useEffect(() => {
 
       await setDoc(userDocRef, updatedData, { merge: true });
       setAppData(updatedData);
+        if (updatedData.lastSeenNotifTime) setLastSeenNotifTimeState(updatedData.lastSeenNotifTime);
       setProfWeight(w);
       setNewLogWeight("");
       showToast("Weight logged & trend updated! ⚖️");
