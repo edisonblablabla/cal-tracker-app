@@ -29,11 +29,6 @@ import {
 } from "firebase/auth";
 import { doc, getDoc, setDoc, collection, addDoc, getDocs, deleteDoc, updateDoc, query, orderBy, limit, onSnapshot } from "firebase/firestore";
 
-
-
-
-
-
 function formatPostTime(ts) {
   if (!ts) return "Just now";
   const d = Date.now() - ts;
@@ -75,7 +70,7 @@ export default function App() {
   const [isTimerRunning, setIsTimerRunning] = useState(false);
   const timerRef = useRef(null);
 
-const [userList, setUserList] = useState([]);
+  const [userList, setUserList] = useState([]);
   const [adminSubTab, setAdminSubTab] = useState("posts");
 
   const [customName, setCustomName] = useState("");
@@ -124,6 +119,7 @@ const [userList, setUserList] = useState([]);
   const [isSendingMessage, setIsSendingMessage] = useState(false);
   const [firestoreNotifs, setFirestoreNotifs] = useState([]);
   const [lastSeenNotifTime, setLastSeenNotifTimeState] = useState(0);
+
   const setLastSeenNotifTime = async (timeVal) => {
     setLastSeenNotifTimeState(timeVal);
     localStorage.setItem("np_last_seen_notif", timeVal.toString());
@@ -133,6 +129,7 @@ const [userList, setUserList] = useState([]);
       } catch (err) { console.warn("Failed to sync notif time", err); }
     }
   };
+
   const [selectedPost, setSelectedPost] = useState(null);
   const [selectedVisitor, setSelectedVisitor] = useState(null);
   
@@ -168,8 +165,6 @@ const [userList, setUserList] = useState([]);
 
   const isAdmin = user?.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase();
 
-  
-
   // REALTIME COMMENTS LISTENER FOR SELECTED POST IN SLIDE-OVER
   useEffect(() => {
     let unsubComments = null;
@@ -190,8 +185,7 @@ const [userList, setUserList] = useState([]);
     } else {
       setPostComments([]);
     }
-
-  return () => { if (unsubComments) unsubComments(); };
+    return () => { if (unsubComments) unsubComments(); };
   }, [activePanel, selectedPost]);
 
   // REALTIME FIRESTORE NOTIFICATIONS LISTENER
@@ -218,6 +212,7 @@ const [userList, setUserList] = useState([]);
     return () => { if (unsubNotifs) unsubNotifs(); };
   }, [user]);
 
+  // ON AUTH STATE CHANGED LISTENER
   useEffect(() => {
     document.title = "NutriPulse - Health Dashboard";
     let heartbeatInterval = null;
@@ -244,8 +239,9 @@ const [userList, setUserList] = useState([]);
             }
 
             setAppData(data || {});
-        if (data || {} && data || {}.lastSeenNotifTime) { setLastSeenNotifTimeState(data || {}.lastSeenNotifTime); }
-        if (data || {}.lastSeenNotifTime) setLastSeenNotifTimeState(data || {}.lastSeenNotifTime);
+            if (data?.lastSeenNotifTime) {
+              setLastSeenNotifTimeState(data.lastSeenNotifTime);
+            }
 
             const sendPresencePing = () => {
               setDoc(userDocRef, { lastSeen: Date.now() }, { merge: true }).catch(console.error);
@@ -282,7 +278,8 @@ const [userList, setUserList] = useState([]);
               setOnboardStep(1);
             } else {
               setOnboardStep(0);
-              setActiveTab("home"); setActivePanel(null);
+              setActiveTab("home"); 
+              setActivePanel(null);
             }
           } else {
             setSetupName(currentUser.displayName || "Athlete");
@@ -303,13 +300,8 @@ const [userList, setUserList] = useState([]);
     };
   }, []);
 
-  
-
-  
-
-  
-
-useEffect(() => {
+  // WORKOUT TIMER LISTENER
+  useEffect(() => {
     if (isTimerRunning) {
       timerRef.current = setInterval(() => {
         setTimerSeconds(prev => {
@@ -328,7 +320,7 @@ useEffect(() => {
     return () => clearInterval(timerRef.current);
   }, [isTimerRunning]);
 
-  // ALL-TIME REALTIME LISTENERS FOR POSTS & USERS (To keep stats real-time anywhere)
+  // ALL-TIME REALTIME LISTENERS FOR POSTS & USERS
   useEffect(() => {
     if (activeTab === "home") {
       shuffleQuote();
@@ -340,6 +332,68 @@ useEffect(() => {
       if (unsubPosts) unsubPosts();
     };
   }, []);
+
+  // DIRECT CHAT REAL-TIME LISTENER (TOP-LEVEL HOOK - STRICTLY BEFORE ANY RETURNS)
+  useEffect(() => {
+    if (activePanel !== "chat" || !activeChatPartner || !user?.uid) {
+      setChatMessages([]);
+      return;
+    }
+    const chatId = [user.uid, activeChatPartner.uid].sort().join("_");
+    const q = query(collection(db, "chats", chatId, "messages"), orderBy("createdAt", "asc"));
+    const unsub = onSnapshot(q, (snapshot) => {
+      const msgs = [];
+      snapshot.forEach(d => msgs.push({ id: d.id, ...d.data() }));
+      setChatMessages(msgs);
+    }, (err) => console.error("Chat listener error:", err));
+
+    return () => unsub();
+  }, [activePanel, activeChatPartner, user]);
+
+  const handleSendChatMessage = async () => {
+    if (!newChatMessage.trim() || !user || !activeChatPartner) return;
+    const text = newChatMessage.trim();
+    const chatId = [user.uid, activeChatPartner.uid].sort().join("_");
+    setIsSendingMessage(true);
+    try {
+      await addDoc(collection(db, "chats", chatId, "messages"), {
+        text,
+        senderUid: user.uid,
+        senderName: appData?.userName || user.displayName || "Athlete",
+        senderAvatar: appData?.avatarUrl || avatarPreview || "",
+        createdAt: Date.now()
+      });
+
+      await setDoc(doc(db, "chats", chatId), {
+        lastMessage: text,
+        lastSenderUid: user.uid,
+        participants: [user.uid, activeChatPartner.uid],
+        updatedAt: Date.now()
+      }, { merge: true });
+
+      if (activeChatPartner.uid !== user.uid) {
+        try {
+          await addDoc(collection(db, "notifications"), {
+            recipientUid: activeChatPartner.uid,
+            senderUid: user.uid,
+            senderName: appData?.userName || user.displayName || "Athlete",
+            senderAvatar: appData?.avatarUrl || avatarPreview || "",
+            type: "chat",
+            text: 'sent you a message: "' + text.slice(0, 25) + '..."',
+            chatPartnerUid: user.uid,
+            timestamp: Date.now()
+          });
+        } catch (ne) { console.warn("Failed sending chat notif", ne); }
+      }
+
+      setNewChatMessage("");
+    } catch (err) {
+      console.error("Chat send error:", err);
+      showToast("Failed to send message.");
+    } finally {
+      setIsSendingMessage(false);
+    }
+  };
 
   const shuffleQuote = () => {
     const randomIndex = Math.floor(Math.random() * FITNESS_QUOTES.length);
@@ -630,7 +684,6 @@ useEffect(() => {
     }
   };
 
-  // UPGRADED REAL-TIME HANDLE LIKE WITH FIRESTORE NOTIFICATIONS
   const handleLike = async (postId, currentLikes, likedBy = []) => {
     const isAlreadyLiked = likedBy.includes(user.uid);
     let updatedLikedBy = [];
@@ -651,7 +704,6 @@ useEffect(() => {
         likedBy: updatedLikedBy 
       });
 
-      // TRIGGER REALTIME FIRESTORE NOTIFICATION IF PULSED (LIKED)
       const targetPost = posts.find(p => p.id === postId);
       if (!isAlreadyLiked && targetPost && targetPost.userId !== user?.uid) {
         await addDoc(collection(db, "notifications"), {
@@ -669,7 +721,6 @@ useEffect(() => {
     }
   };
 
-  // UPGRADED FIRESTORE REALTIME ADD COMMENT
   const handleAddComment = async (postId) => {
     if (!newCommentText.trim() || !user) return;
     try {
@@ -682,7 +733,6 @@ useEffect(() => {
       };
       await addDoc(collection(db, "posts", postId, "comments"), commentPayload);
       
-      // Magpadala ng notification sa may-ari ng post
       if (liveSelectedPost && liveSelectedPost.userId && liveSelectedPost.userId !== user.uid) {
         try {
           await addDoc(collection(db, "notifications"), {
@@ -706,7 +756,6 @@ useEffect(() => {
     }
   };
 
-  // MODERN REALTIME DELETE COMMENT FUNCTION
   const confirmDeleteComment = async () => {
     if (!commentToDelete) return;
     const { commentId, postId } = commentToDelete;
@@ -727,7 +776,6 @@ useEffect(() => {
     }
   };
 
-  // MODERN REALTIME EDIT COMMENT FUNCTION
   const saveEditedComment = async () => {
     if (!commentToEdit || !commentEditText.trim()) return;
     const targetComment = postComments.find(c => c.id === commentToEdit.commentId);
@@ -765,8 +813,9 @@ useEffect(() => {
 
   const saveToCloud = async (newData) => {
     setAppData(newData);
-        if (newData && newData.lastSeenNotifTime) { setLastSeenNotifTimeState(newData.lastSeenNotifTime); }
-        if (newData.lastSeenNotifTime) setLastSeenNotifTimeState(newData.lastSeenNotifTime);
+    if (newData?.lastSeenNotifTime) {
+      setLastSeenNotifTimeState(newData.lastSeenNotifTime);
+    }
     if (user) {
       try {
         const userDocRef = doc(db, "users", user.uid);
@@ -836,7 +885,8 @@ useEffect(() => {
       setProfActivity(act);
       setOnboardStep(0);
       setShowSettingsModal(false);
-      setActiveTab("home"); setActivePanel(null);
+      setActiveTab("home"); 
+      setActivePanel(null);
     } finally {
       setIsSavingOnboarding(false);
     }
@@ -857,7 +907,8 @@ useEffect(() => {
         await signInWithEmailAndPassword(auth, email, password);
         setActivePanel(null);
       }
-      setActiveTab("home"); setActivePanel(null);
+      setActiveTab("home"); 
+      setActivePanel(null);
     } catch (error) {
       if (error.code === "auth/invalid-credential" || error.code === "auth/user-not-found" || error.code === "auth/wrong-password") {
         setErrorMessage("Invalid email or password. Please try again.");
@@ -877,7 +928,8 @@ useEffect(() => {
     try {
       await signInWithPopup(auth, googleProvider);
       setActivePanel(null);
-      setActiveTab("home"); setActivePanel(null);
+      setActiveTab("home"); 
+      setActivePanel(null);
     } catch (error) {
       setErrorMessage("Google Login Error: " + error.message);
     }
@@ -899,15 +951,15 @@ useEffect(() => {
     }
     await signOut(auth);
     setAppData(null);
-        if (null && null.lastSeenNotifTime) { setLastSeenNotifTimeState(null.lastSeenNotifTime); }
-        if (null.lastSeenNotifTime) setLastSeenNotifTimeState(null.lastSeenNotifTime);
+    setLastSeenNotifTimeState(0);
     setAvatarPreview("");
     setCoverPreview("");
     setProfPostText("");
     setProfImagePreview(null);
     setOnboardStep(0);
     setShowAuthForm(false);
-    setActiveTab("home"); setActivePanel(null);
+    setActiveTab("home"); 
+    setActivePanel(null);
     setIsLoggingOut(false);
   };
 
@@ -933,7 +985,12 @@ useEffect(() => {
         dateLogged: todayStr
       });
 
-      setCustomName(""); setCustomPortion("1 serving"); setCustomCal(""); setCustomP(""); setCustomC(""); setCustomF("");
+      setCustomName(""); 
+      setCustomPortion("1 serving"); 
+      setCustomCal(""); 
+      setCustomP(""); 
+      setCustomC(""); 
+      setCustomF("");
     } finally {
       setIsAddingMeal(false);
     }
@@ -993,8 +1050,9 @@ useEffect(() => {
 
       await setDoc(userDocRef, updatedData, { merge: true });
       setAppData(updatedData);
-        if (updatedData && updatedData.lastSeenNotifTime) { setLastSeenNotifTimeState(updatedData.lastSeenNotifTime); }
-        if (updatedData.lastSeenNotifTime) setLastSeenNotifTimeState(updatedData.lastSeenNotifTime);
+      if (updatedData?.lastSeenNotifTime) {
+        setLastSeenNotifTimeState(updatedData.lastSeenNotifTime);
+      }
       setProfWeight(w);
       setNewLogWeight("");
       showToast("Weight logged & trend updated! ⚖️");
@@ -1066,6 +1124,10 @@ useEffect(() => {
       setIsSavingProfile(false);
     }
   };
+
+  // =========================================================================
+  // CONDITIONAL EARLY RETURNS (ALL HOOKS ARE STRICTLY DEFINED ABOVE THIS LINE)
+  // =========================================================================
 
   if (loading) {
     return (
@@ -1184,6 +1246,10 @@ useEffect(() => {
     );
   }
 
+  // =========================================================================
+  // NORMAL DASHBOARD CALCULATIONS (ONLY PRIMITIVE / DERIVED VALUES BELOW)
+  // =========================================================================
+
   const todayStr = new Date().toDateString();
   const allMeals = appData?.meals || [];
   const todayMeals = allMeals.filter(m => !m.dateLogged || m.dateLogged === todayStr);
@@ -1199,7 +1265,7 @@ useEffect(() => {
 
   const currentWeight = appData?.weight || 60;
   const estimatedWaterLiters = ((currentWeight * 35) / 1000).toFixed(1);
-const goalTitles = {
+  const goalTitles = {
     "jogger": "Daily Jogger",
     "marathon": "Endurance & Marathon",
     "steps": "Daily 10k Steps",
@@ -1317,71 +1383,6 @@ const goalTitles = {
 
   // LIVE SELECTED POST IN SLIDE-OVER FOR INSTANT REAL-TIME PULSE/COMMENT UPDATES
   const liveSelectedPost = (selectedPost && posts.find(p => p.id === selectedPost.id)) || selectedPost;
-
-    
-
-  
-  // Direct Chat Real-time Listener (Top-level Hook)
-  useEffect(() => {
-    if (activePanel !== "chat" || !activeChatPartner || !user?.uid) {
-      setChatMessages([]);
-      return;
-    }
-    const chatId = [user.uid, activeChatPartner.uid].sort().join("_");
-    const q = query(collection(db, "chats", chatId, "messages"), orderBy("createdAt", "asc"));
-    const unsub = onSnapshot(q, (snapshot) => {
-      const msgs = [];
-      snapshot.forEach(d => msgs.push({ id: d.id, ...d.data() }));
-      setChatMessages(msgs);
-    }, (err) => console.error("Chat listener error:", err));
-
-    return () => unsub();
-  }, [activePanel, activeChatPartner, user]);
-
-  const handleSendChatMessage = async () => {
-    if (!newChatMessage.trim() || !user || !activeChatPartner) return;
-    const text = newChatMessage.trim();
-    const chatId = [user.uid, activeChatPartner.uid].sort().join("_");
-    setIsSendingMessage(true);
-    try {
-      await addDoc(collection(db, "chats", chatId, "messages"), {
-        text,
-        senderUid: user.uid,
-        senderName: appData?.userName || user.displayName || "Athlete",
-        senderAvatar: appData?.avatarUrl || avatarPreview || "",
-        createdAt: Date.now()
-      });
-
-      await setDoc(doc(db, "chats", chatId), {
-        lastMessage: text,
-        lastSenderUid: user.uid,
-        participants: [user.uid, activeChatPartner.uid],
-        updatedAt: Date.now()
-      }, { merge: true });
-
-      if (activeChatPartner.uid !== user.uid) {
-        try {
-          await addDoc(collection(db, "notifications"), {
-            recipientUid: activeChatPartner.uid,
-            senderUid: user.uid,
-            senderName: appData?.userName || user.displayName || "Athlete",
-            senderAvatar: appData?.avatarUrl || avatarPreview || "",
-            type: "chat",
-            text: 'sent you a message: "' + text.slice(0, 25) + '..."',
-            chatPartnerUid: user.uid,
-            timestamp: Date.now()
-          });
-        } catch (ne) { console.warn("Failed sending chat notif", ne); }
-      }
-
-      setNewChatMessage("");
-    } catch (err) {
-      console.error("Chat send error:", err);
-      showToast("Failed to send message.");
-    } finally {
-      setIsSendingMessage(false);
-    }
-  };
 
   return (
     <div className="mobile-frame" style={{ maxWidth: "480px", margin: "0 auto", background: "#f8fafc", minHeight: "100vh", position: "relative" }}>
