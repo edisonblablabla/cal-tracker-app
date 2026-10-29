@@ -119,13 +119,12 @@ const [userList, setUserList] = useState([]);
   // SLIDE-OVER PANEL CENTRAL CONTROLLER
   const [activePanel, setActivePanel] = useState(null);
   const [firestoreNotifs, setFirestoreNotifs] = useState([]);
-  const [lastSeenNotifTime, setLastSeenNotifTimeState] = useState(Date.now());
+  const [lastSeenNotifTime, setLastSeenNotifTimeState] = useState(0);
   const setLastSeenNotifTime = async (timeVal) => {
     setLastSeenNotifTimeState(timeVal);
     localStorage.setItem("np_last_seen_notif", timeVal.toString());
     if (user?.uid) {
       try {
-        
         await updateDoc(doc(db, "users", user.uid), { lastSeenNotifTime: timeVal });
       } catch (err) { console.warn("Failed to sync notif time", err); }
     }
@@ -240,6 +239,7 @@ const [userList, setUserList] = useState([]);
             }
 
             setAppData(data || {});
+        if (data || {} && data || {}.lastSeenNotifTime) { setLastSeenNotifTimeState(data || {}.lastSeenNotifTime); }
         if (data || {}.lastSeenNotifTime) setLastSeenNotifTimeState(data || {}.lastSeenNotifTime);
 
             const sendPresencePing = () => {
@@ -666,41 +666,38 @@ useEffect(() => {
 
   // UPGRADED FIRESTORE REALTIME ADD COMMENT
   const handleAddComment = async (postId) => {
-    if (!newCommentText.trim()) return;
-    const commentAuthorName = appData?.userName || user?.displayName || "Athlete";
-    const commentAuthorAvatar = appData?.avatarUrl || avatarPreview || "";
-    
+    if (!newCommentText.trim() || !user) return;
     try {
-      await addDoc(collection(db, "posts", postId, "comments"), {
-      text: newCommentText,
-      userId: user.uid,
-      userName: appData?.userName || user.displayName || "Athlete",
-      userAvatar: appData?.avatarUrl || avatarPreview || "",
-      createdAt: Date.now()
-    });
-
-      const postRef = doc(db, "posts", postId);
-      const targetPost = posts.find(p => p.id === postId);
-      await updateDoc(postRef, {
-        commentsCount: ((targetPost?.commentsCount) || 0) + 1
-      });
-      if (targetPost && targetPost.userId !== user?.uid) {
-        await addDoc(collection(db, "notifications"), {
-          recipientUid: targetPost.userId,
-          senderName: commentAuthorName,
-          senderAvatar: commentAuthorAvatar,
-          type: "comment",
-          text: `commented on your post: "${newCommentText.trim().slice(0, 20)}..."`,
-          postId: postId,
-          timestamp: Date.now()
-        });
+      const commentPayload = {
+        text: newCommentText.trim(),
+        userId: user.uid,
+        userName: appData?.userName || user.displayName || "Athlete",
+        userAvatar: appData?.avatarUrl || avatarPreview || "",
+        createdAt: Date.now()
+      };
+      await addDoc(collection(db, "posts", postId, "comments"), commentPayload);
+      
+      // Magpadala ng notification sa may-ari ng post
+      if (liveSelectedPost && liveSelectedPost.userId && liveSelectedPost.userId !== user.uid) {
+        try {
+          await addDoc(collection(db, "notifications"), {
+            recipientUid: liveSelectedPost.userId,
+            senderUid: user.uid,
+            senderName: appData?.userName || user.displayName || "Athlete",
+            senderAvatar: appData?.avatarUrl || avatarPreview || "",
+            type: "comment",
+            text: "commented: " + newCommentText.trim().slice(0, 25) + "...",
+            postId: postId,
+            timestamp: Date.now()
+          });
+        } catch (ne) { console.warn("Failed sending comment notif", ne); }
       }
 
       setNewCommentText("");
-      showToast("Comment added!");
-    } catch (err) {
-      console.error("Comment submit error:", err);
-      showToast("Failed to post comment", "info");
+      showToast("Comment posted!");
+    } catch (e) {
+      console.error(e);
+      showToast("Failed to post comment.");
     }
   };
 
@@ -728,19 +725,24 @@ useEffect(() => {
   // MODERN REALTIME EDIT COMMENT FUNCTION
   const saveEditedComment = async () => {
     if (!commentToEdit || !commentEditText.trim()) return;
-    const { commentId, postId } = commentToEdit;
+    const targetComment = postComments.find(c => c.id === commentToEdit.commentId);
+    if (targetComment && targetComment.userId && targetComment.userId !== user?.uid) {
+      showToast("Unauthorized: You can only edit your own comment!");
+      setCommentToEdit(null);
+      return;
+    }
     try {
-      const commentRef = doc(db, "posts", postId, "comments", commentId);
-      await updateDoc(commentRef, {
+      await updateDoc(doc(db, "posts", commentToEdit.postId, "comments", commentToEdit.commentId), {
         text: commentEditText.trim(),
-        isEdited: true
+        isEdited: true,
+        editedAt: Date.now()
       });
-      showToast("Comment updated!");
-    } catch (err) {
-      console.error("Error editing comment:", err);
-    } finally {
       setCommentToEdit(null);
       setCommentEditText("");
+      showToast("Comment updated!");
+    } catch (e) {
+      console.error(e);
+      showToast("Failed to edit comment.");
     }
   };
 
@@ -758,6 +760,7 @@ useEffect(() => {
 
   const saveToCloud = async (newData) => {
     setAppData(newData);
+        if (newData && newData.lastSeenNotifTime) { setLastSeenNotifTimeState(newData.lastSeenNotifTime); }
         if (newData.lastSeenNotifTime) setLastSeenNotifTimeState(newData.lastSeenNotifTime);
     if (user) {
       try {
@@ -891,6 +894,7 @@ useEffect(() => {
     }
     await signOut(auth);
     setAppData(null);
+        if (null && null.lastSeenNotifTime) { setLastSeenNotifTimeState(null.lastSeenNotifTime); }
         if (null.lastSeenNotifTime) setLastSeenNotifTimeState(null.lastSeenNotifTime);
     setAvatarPreview("");
     setCoverPreview("");
@@ -984,6 +988,7 @@ useEffect(() => {
 
       await setDoc(userDocRef, updatedData, { merge: true });
       setAppData(updatedData);
+        if (updatedData && updatedData.lastSeenNotifTime) { setLastSeenNotifTimeState(updatedData.lastSeenNotifTime); }
         if (updatedData.lastSeenNotifTime) setLastSeenNotifTimeState(updatedData.lastSeenNotifTime);
       setProfWeight(w);
       setNewLogWeight("");

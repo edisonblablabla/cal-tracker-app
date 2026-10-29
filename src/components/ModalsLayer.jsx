@@ -269,11 +269,22 @@ export default function ModalsLayer({
                   <div key={notif.id} onClick={() => {
                     if (notif.postId) {
                       const found = posts.find(p => p.id === notif.postId);
-                      if (found) { setSelectedPost(found); setActivePanel('post_detail'); }
+                      if (found) {
+                        setSelectedPost(found);
+                        setActivePanel("post_detail");
+                      } else {
+                        showToast("Post may have been removed.");
+                      }
                     } else if (notif.uid || notif.senderUid) {
                       const targetUid = notif.uid || notif.senderUid;
                       const foundU = userList.find(u => u.uid === targetUid);
-                      if (foundU) { setSelectedVisitor(foundU); setActivePanel('visitor_profile'); }
+                      setSelectedVisitor(foundU || {
+                        uid: targetUid,
+                        userName: notif.senderName || notif.title || "Athlete",
+                        userTitle: "Athlete",
+                        avatarUrl: notif.avatar || notif.senderAvatar || ""
+                      });
+                      setActivePanel("visitor_profile");
                     }
                   }} style={{
                     display: "flex",
@@ -367,19 +378,9 @@ export default function ModalsLayer({
                       <p style={{ fontSize: "11px", color: "#94a3b8", textAlign: "center", padding: "10px 0" }}>No comments yet. Be the first to comment!</p>
                     ) : (
                       postComments.map(c => {
-                        const isCommentOwner = (c.userId && c.userId === user?.uid) || isAdmin;
-
-                        const handleOpenCommenterProfile = (e) => {
-                          e.stopPropagation();
-                          if (c.userId === user?.uid) return;
-                          const foundU = userList.find(u => u.uid === c.userId);
-                          setSelectedVisitor(foundU || { 
-                            uid: c.userId, 
-                            userName: c.userName, 
-                            avatarUrl: c.userAvatar 
-                          });
-                          setActivePanel("visitor_profile");
-                        };
+                        const canEditComment = Boolean(c.userId && user?.uid && c.userId === user.uid);
+                        const canDeleteComment = Boolean((c.userId && user?.uid && c.userId === user.uid) || isAdmin);
+                        const showCommentMenu = canEditComment || canDeleteComment;
 
                         return (
                           <div key={c.id} style={{ background: "#f8fafc", padding: "10px 12px", borderRadius: "12px", border: "1px solid #f1f5f9", position: "relative" }}>
@@ -407,7 +408,7 @@ export default function ModalsLayer({
 
                               <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                                 <span style={{ fontSize: "9px", color: "#94a3b8" }}>{formatTime(c.createdAt)}</span>
-                                {isCommentOwner && (
+                                {showCommentMenu && (
                                   <div style={{ position: "relative" }}>
                                     <button 
                                       onClick={(e) => { e.stopPropagation(); setActiveCommentMenuId(activeCommentMenuId === c.id ? null : c.id); }} 
@@ -430,18 +431,22 @@ export default function ModalsLayer({
                                         padding: "4px",
                                         backdropFilter: "blur(8px)"
                                       }}>
-                                        <button 
-                                          onClick={(e) => { e.stopPropagation(); setActiveCommentMenuId(null); setCommentToEdit({ commentId: c.id, postId: liveSelectedPost.id }); setCommentEditText(c.text); }} 
-                                          style={{ width: "100%", padding: "7px 10px", background: "transparent", border: "none", borderRadius: "8px", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "#334155", cursor: "pointer", display: "flex", alignItems: "center", gap: "8px" }}
-                                        >
-                                          <i className="fa-solid fa-pen" style={{ color: "#0284c7", fontSize: "11px" }}></i> Edit
-                                        </button>
-                                        <button 
-                                          onClick={(e) => { e.stopPropagation(); setActiveCommentMenuId(null); setCommentToDelete({ commentId: c.id, postId: liveSelectedPost.id }); }} 
-                                          style={{ width: "100%", padding: "7px 10px", background: "transparent", border: "none", borderRadius: "8px", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "#ef4444", cursor: "pointer", display: "flex", alignItems: "center", gap: "8px" }}
-                                        >
-                                          <i className="fa-solid fa-trash" style={{ fontSize: "11px" }}></i> Delete
-                                        </button>
+                                        {canEditComment && (
+                                          <button 
+                                            onClick={(e) => { e.stopPropagation(); setActiveCommentMenuId(null); setCommentToEdit({ commentId: c.id, postId: liveSelectedPost.id }); setCommentEditText(c.text); }} 
+                                            style={{ width: "100%", padding: "7px 10px", background: "transparent", border: "none", borderRadius: "8px", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "#334155", cursor: "pointer", display: "flex", alignItems: "center", gap: "8px" }}
+                                          >
+                                            <i className="fa-solid fa-pen" style={{ color: "#0284c7", fontSize: "11px" }}></i> Edit
+                                          </button>
+                                        )}
+                                        {canDeleteComment && (
+                                          <button 
+                                            onClick={(e) => { e.stopPropagation(); setActiveCommentMenuId(null); setCommentToDelete({ commentId: c.id, postId: liveSelectedPost.id }); }} 
+                                            style={{ width: "100%", padding: "7px 10px", background: "transparent", border: "none", borderRadius: "8px", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "#ef4444", cursor: "pointer", display: "flex", alignItems: "center", gap: "8px" }}
+                                          >
+                                            <i className="fa-solid fa-trash" style={{ fontSize: "11px" }}></i> Delete
+                                          </button>
+                                        )}
                                       </div>
                                     )}
                                   </div>
