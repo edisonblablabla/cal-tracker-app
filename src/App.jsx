@@ -118,6 +118,10 @@ const [userList, setUserList] = useState([]);
   
   // SLIDE-OVER PANEL CENTRAL CONTROLLER
   const [activePanel, setActivePanel] = useState(null);
+  const [activeChatPartner, setActiveChatPartner] = useState(null);
+  const [chatMessages, setChatMessages] = useState([]);
+  const [newChatMessage, setNewChatMessage] = useState("");
+  const [isSendingMessage, setIsSendingMessage] = useState(false);
   const [firestoreNotifs, setFirestoreNotifs] = useState([]);
   const [lastSeenNotifTime, setLastSeenNotifTimeState] = useState(0);
   const setLastSeenNotifTime = async (timeVal) => {
@@ -186,7 +190,70 @@ const [userList, setUserList] = useState([]);
     } else {
       setPostComments([]);
     }
-    return () => { if (unsubComments) unsubComments(); };
+    
+  // Direct Chat Real-time Listener
+  useEffect(() => {
+    if (activePanel !== "chat" || !activeChatPartner || !user?.uid) {
+      setChatMessages([]);
+      return;
+    }
+    const chatId = [user.uid, activeChatPartner.uid].sort().join("_");
+    const q = query(collection(db, "chats", chatId, "messages"), orderBy("createdAt", "asc"));
+    const unsub = onSnapshot(q, (snapshot) => {
+      const msgs = [];
+      snapshot.forEach(d => msgs.push({ id: d.id, ...d.data() }));
+      setChatMessages(msgs);
+    }, (err) => console.error("Chat listener error:", err));
+
+    return () => unsub();
+  }, [activePanel, activeChatPartner, user]);
+
+  const handleSendChatMessage = async () => {
+    if (!newChatMessage.trim() || !user || !activeChatPartner) return;
+    const text = newChatMessage.trim();
+    const chatId = [user.uid, activeChatPartner.uid].sort().join("_");
+    setIsSendingMessage(true);
+    try {
+      await addDoc(collection(db, "chats", chatId, "messages"), {
+        text,
+        senderUid: user.uid,
+        senderName: appData?.userName || user.displayName || "Athlete",
+        senderAvatar: appData?.avatarUrl || avatarPreview || "",
+        createdAt: Date.now()
+      });
+
+      await setDoc(doc(db, "chats", chatId), {
+        lastMessage: text,
+        lastSenderUid: user.uid,
+        participants: [user.uid, activeChatPartner.uid],
+        updatedAt: Date.now()
+      }, { merge: true });
+
+      if (activeChatPartner.uid !== user.uid) {
+        try {
+          await addDoc(collection(db, "notifications"), {
+            recipientUid: activeChatPartner.uid,
+            senderUid: user.uid,
+            senderName: appData?.userName || user.displayName || "Athlete",
+            senderAvatar: appData?.avatarUrl || avatarPreview || "",
+            type: "chat",
+            text: 'sent you a message: "' + text.slice(0, 25) + '..."',
+            chatPartnerUid: user.uid,
+            timestamp: Date.now()
+          });
+        } catch (ne) { console.warn("Failed sending chat notif", ne); }
+      }
+
+      setNewChatMessage("");
+    } catch (err) {
+      console.error("Chat send error:", err);
+      showToast("Failed to send message.");
+    } finally {
+      setIsSendingMessage(false);
+    }
+  };
+
+  return () => { if (unsubComments) unsubComments(); };
   }, [activePanel, selectedPost]);
 
   // REALTIME FIRESTORE NOTIFICATIONS LISTENER
@@ -1494,6 +1561,13 @@ const goalTitles = {
 
       {/* MODALS LAYER */}
       <ModalsLayer
+        activeChatPartner={activeChatPartner}
+        setActiveChatPartner={setActiveChatPartner}
+        chatMessages={chatMessages}
+        newChatMessage={newChatMessage}
+        setNewChatMessage={setNewChatMessage}
+        handleSendChatMessage={handleSendChatMessage}
+        isSendingMessage={isSendingMessage}
         showAboutModal={showAboutModal}
         setShowAboutModal={setShowAboutModal}
         showSearchModal={showSearchModal}

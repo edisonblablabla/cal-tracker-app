@@ -78,7 +78,14 @@ export default function ModalsLayer({
   commentToDelete,
   confirmDeleteComment,
   isAdmin = false,
-  formatPostTime = defaultFormatTime
+  formatPostTime = defaultFormatTime,
+  activeChatPartner = null,
+  setActiveChatPartner,
+  chatMessages = [],
+  newChatMessage = "",
+  setNewChatMessage,
+  handleSendChatMessage,
+  isSendingMessage = false
 }) {
   const formatTime = formatPostTime || defaultFormatTime;
   const activePost = liveSelectedPost || selectedPost || posts.find(p => p.id === (selectedPost?.id || liveSelectedPost?.id));
@@ -248,6 +255,7 @@ export default function ModalsLayer({
                 {activePanel === 'boosting' && 'Boosting'}
                 {activePanel === 'settings' && 'Profile Settings'}
                 {activePanel === 'visitor_profile' && (selectedVisitor?.userName || 'Athlete Profile')}
+                {activePanel === 'chat' && (activeChatPartner?.userName ? 'Chat with ' + activeChatPartner.userName : 'Direct Chat')}
               </h3>
             </div>
             {activePanel === 'notif' && (
@@ -277,6 +285,17 @@ export default function ModalsLayer({
                       } else {
                         showToast("Post may have been removed.");
                       }
+                    } else if (notif.type === "chat" || notif.chatPartnerUid) {
+                      const targetUid = notif.chatPartnerUid || notif.senderUid;
+                      const foundU = userList.find(u => u.uid === targetUid);
+                      if (typeof setActiveChatPartner === "function") {
+                        setActiveChatPartner(foundU || {
+                          uid: targetUid,
+                          userName: notif.senderName || "Athlete",
+                          avatarUrl: notif.senderAvatar || ""
+                        });
+                      }
+                      setActivePanel("chat");
                     } else if (notif.uid || notif.senderUid) {
                       const targetUid = notif.uid || notif.senderUid;
                       const foundU = userList.find(u => u.uid === targetUid);
@@ -484,6 +503,89 @@ export default function ModalsLayer({
               )
             )}
 
+            
+            {/* DIRECT 1-ON-1 CHAT PANEL */}
+            {activePanel === 'chat' && activeChatPartner && (
+              <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 180px)", justifyContent: "space-between" }}>
+                <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: "10px", padding: "8px 4px 16px 4px" }}>
+                  <div style={{ textAlign: "center", padding: "12px", background: "#f8fafc", borderRadius: "14px", border: "1px solid #f1f5f9", marginBottom: "8px" }}>
+                    <div style={{ width: "48px", height: "48px", borderRadius: "50%", background: "#4f46e5", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: "18px", margin: "0 auto 6px auto", overflow: "hidden" }}>
+                      {activeChatPartner.avatarUrl ? (
+                        <img src={activeChatPartner.avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                      ) : (
+                        (activeChatPartner.userName || "A").charAt(0).toUpperCase()
+                      )}
+                    </div>
+                    <strong style={{ fontSize: "13px", color: "#0f172a", display: "block" }}>{activeChatPartner.userName || "Athlete"}</strong>
+                    <span style={{ fontSize: "10px", color: "#64748b" }}>{activeChatPartner.userTitle || "Fitness Enthusiast"}</span>
+                  </div>
+
+                  {chatMessages.length === 0 ? (
+                    <div style={{ textAlign: "center", padding: "30px 10px", color: "#94a3b8" }}>
+                      <i className="fa-regular fa-comments" style={{ fontSize: "32px", marginBottom: "8px", display: "block" }}></i>
+                      <p style={{ fontSize: "12px", margin: 0, fontWeight: 700 }}>No messages yet</p>
+                      <span style={{ fontSize: "10px" }}>Start the conversation with {activeChatPartner.userName || "this athlete"}!</span>
+                    </div>
+                  ) : (
+                    chatMessages.map(msg => {
+                      const isMe = msg.senderUid === user?.uid;
+                      return (
+                        <div key={msg.id} style={{ display: "flex", justifyContent: isMe ? "flex-end" : "flex-start" }}>
+                          <div style={{
+                            maxWidth: "75%",
+                            padding: "8px 12px",
+                            borderRadius: "14px",
+                            borderBottomRightRadius: isMe ? "2px" : "14px",
+                            borderBottomLeftRadius: !isMe ? "2px" : "14px",
+                            background: isMe ? "var(--primary)" : "#f1f5f9",
+                            color: isMe ? "#ffffff" : "#0f172a",
+                            fontSize: "12px",
+                            lineHeight: "1.4",
+                            wordBreak: "break-word",
+                            boxShadow: "0 1px 4px rgba(0,0,0,0.04)"
+                          }}>
+                            <div>{msg.text}</div>
+                            <div style={{ fontSize: "8px", color: isMe ? "rgba(255,255,255,0.7)" : "#94a3b8", textAlign: "right", marginTop: "3px" }}>
+                              {formatTime(msg.createdAt)}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+
+                <div style={{ display: "flex", gap: "8px", paddingTop: "10px", borderTop: "1px solid #e2e8f0", background: "#ffffff" }}>
+                  <input 
+                    type="text" 
+                    className="form-input" 
+                    placeholder={"Message " + (activeChatPartner.userName || "Athlete") + "..."}
+                    value={newChatMessage} 
+                    onChange={e => setNewChatMessage(e.target.value)}
+                    onKeyDown={e => { if (e.key === "Enter") handleSendChatMessage(); }}
+                    style={{ marginBottom: 0, borderRadius: "12px", padding: "10px 12px", fontSize: "12px", flex: 1, background: "#f8fafc", border: "1px solid #cbd5e1" }}
+                  />
+                  <button 
+                    onClick={handleSendChatMessage} 
+                    disabled={isSendingMessage || !newChatMessage.trim()}
+                    style={{ 
+                      background: "var(--primary)", 
+                      color: "white", 
+                      border: "none", 
+                      padding: "0 16px", 
+                      borderRadius: "12px", 
+                      fontWeight: 800, 
+                      fontSize: "13px", 
+                      cursor: "pointer",
+                      opacity: (!newChatMessage.trim() || isSendingMessage) ? 0.6 : 1
+                    }}
+                  >
+                    <i className="fa-solid fa-paper-plane"></i>
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* PROFILE SETTINGS PANEL */}
             {activePanel === 'settings' && (
               <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
@@ -610,23 +712,45 @@ export default function ModalsLayer({
                     <h3 style={{ margin: 0, fontSize: "18px", fontWeight: 900, color: "#0f172a" }}>{selectedVisitor.userName || "Athlete"}</h3>
                     <p style={{ margin: "2px 0 12px 0", fontSize: "11px", color: "#64748b", fontWeight: 600 }}>{selectedVisitor.userTitle || "Fitness Enthusiast"}</p>
 
-                    <button 
-                      onClick={() => toggleBoostAthlete(selectedVisitor.uid, selectedVisitor.isPrivateAccount)} 
-                      style={{ 
-                        width: "100%", 
-                        padding: "10px", 
-                        background: isBoostingThisVisitor ? "#f1f5f9" : "var(--primary)", 
-                        color: isBoostingThisVisitor ? "#334155" : "#ffffff", 
-                        border: isBoostingThisVisitor ? "1px solid #cbd5e1" : "none", 
-                        borderRadius: "12px", 
-                        fontWeight: 800, 
-                        fontSize: "12px", 
-                        cursor: "pointer", 
-                        marginBottom: "14px" 
-                      }}
-                    >
-                      {isBoostingThisVisitor ? "Unboost Athlete" : "Boost Athlete"}
-                    </button>
+                    <div style={{ display: "flex", gap: "8px", marginBottom: "14px" }}>
+                      <button 
+                        onClick={() => toggleBoostAthlete(selectedVisitor.uid, selectedVisitor.isPrivateAccount)} 
+                        style={{ 
+                          flex: 1, 
+                          padding: "10px", 
+                          background: isBoostingThisVisitor ? "#f1f5f9" : "var(--primary)", 
+                          color: isBoostingThisVisitor ? "#334155" : "#ffffff", 
+                          border: isBoostingThisVisitor ? "1px solid #cbd5e1" : "none", 
+                          borderRadius: "12px", 
+                          fontWeight: 800, 
+                          fontSize: "12px", 
+                          cursor: "pointer" 
+                        }}
+                      >
+                        {isBoostingThisVisitor ? "Unboost Athlete" : "Boost Athlete"}
+                      </button>
+                      <button 
+                        onClick={() => {
+                          if (typeof setActiveChatPartner === "function") setActiveChatPartner(selectedVisitor);
+                          setActivePanel("chat");
+                        }} 
+                        style={{ 
+                          padding: "10px 16px", 
+                          background: "#e0e7ff", 
+                          color: "var(--primary)", 
+                          border: "none", 
+                          borderRadius: "12px", 
+                          fontWeight: 800, 
+                          fontSize: "12px", 
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "6px"
+                        }}
+                      >
+                        <i className="fa-solid fa-message"></i> Message
+                      </button>
+                    </div>
 
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "4px", background: "#f8fafc", padding: "10px", borderRadius: "14px", border: "1px solid #f1f5f9" }}>
                       <div>
