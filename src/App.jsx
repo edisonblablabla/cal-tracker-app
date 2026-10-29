@@ -196,23 +196,27 @@ export default function App() {
   // 2. REALTIME FIRESTORE NOTIFICATIONS LISTENER
   useEffect(() => {
     let unsubNotifs = null;
-    if (user) {
+    if (user?.uid) {
       try {
         const notifRef = collection(db, "notifications");
-        const q = query(notifRef, orderBy("timestamp", "desc"), limit(40));
+        // Strict match sa Firestore Security Rules para maiwasan ang permission-denied
+        const q = query(notifRef, where("recipientUid", "==", user.uid), limit(50));
         unsubNotifs = onSnapshot(q, (snapshot) => {
           const list = [];
           snapshot.forEach((docSnap) => {
-            const data = docSnap.data();
-            if (data.recipientUid === user.uid) {
-              list.push({ id: docSnap.id, ...data });
-            }
+            list.push({ id: docSnap.id, ...docSnap.data() });
           });
+          // Sort client-side para hindi mangailangan ng custom Firebase composite index
+          list.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
           setFirestoreNotifs(list);
+        }, (err) => {
+          console.warn("Notif listener error:", err);
         });
       } catch (e) {
         console.error("Notif listener error:", e);
       }
+    } else {
+      setFirestoreNotifs([]);
     }
     return () => { if (unsubNotifs) unsubNotifs(); };
   }, [user]);
@@ -361,14 +365,16 @@ export default function App() {
     let unsubInbox = null;
     if (user?.uid) {
       try {
+        // Simple query na walang composite index requirement
         const q = query(
           collection(db, "chats"), 
-          where("participants", "array-contains", user.uid), 
-          orderBy("updatedAt", "desc")
+          where("participants", "array-contains", user.uid)
         );
         unsubInbox = onSnapshot(q, (snapshot) => {
           const list = [];
           snapshot.forEach(docSnap => list.push({ id: docSnap.id, ...docSnap.data() }));
+          // Sort client-side by updatedAt descending
+          list.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
           setInboxChats(list);
         }, (err) => console.warn("Inbox listener error:", err));
       } catch (e) {
