@@ -314,13 +314,7 @@ export default function ModalsLayer({
               </div>
 
               {/* CLOSE BUTTON */}
-              <button 
-                onClick={() => setActivePanel(null)} 
-                style={{ background: "none", border: "none", color: "#94a3b8", fontSize: "18px", cursor: "pointer", padding: "4px" }}
-                title="Close"
-              >
-                <i className="fa-solid fa-xmark"></i>
-              </button>
+              {/* Inalis ang X icon */}
             </div>
             {activePanel === 'notif' && (
               <span style={{ fontSize: "11px", fontWeight: 700, color: "#0284c7", background: "#e0f2fe", padding: "4px 10px", borderRadius: "12px" }}>
