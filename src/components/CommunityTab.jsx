@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import ExpandableText from "./ExpandableText";
 import { db } from "../services/firebase";
 import { collection, addDoc } from "firebase/firestore";
@@ -53,6 +53,51 @@ export default function CommunityTab({
   formatPostTime = defaultFormatTime
 }) {
   const formatTime = formatPostTime || defaultFormatTime;
+  
+  const [displayedPosts, setDisplayedPosts] = useState(publicCommunityPosts);
+  const [newPostsCount, setNewPostsCount] = useState(0);
+
+  useEffect(() => {
+    if (publicCommunityPosts.length > 0) {
+      if (displayedPosts.length === 0) {
+        setDisplayedPosts(publicCommunityPosts);
+      } else {
+        const currentTopId = displayedPosts[0]?.id;
+        const newTopIndex = publicCommunityPosts.findIndex(p => p.id === currentTopId);
+        
+        if (newTopIndex > 0) {
+          // May mga bagong post sa itaas!
+          // Tingnan kung sariling post ng user ang isa sa mga bago
+          const hasMyNewPost = publicCommunityPosts.slice(0, newTopIndex).some(p => p.userId === user?.uid);
+          if (hasMyNewPost) {
+            setDisplayedPosts(publicCommunityPosts);
+            setNewPostsCount(0);
+            window.scrollTo({ top: 0, behavior: "smooth" });
+          } else {
+            setNewPostsCount(newTopIndex);
+            // I-update lang nang tahimik ang likes/comments ng mga kasalukuyang nakikita
+            const updatedCurrentPosts = publicCommunityPosts.slice(newTopIndex, newTopIndex + displayedPosts.length);
+            setDisplayedPosts(updatedCurrentPosts);
+          }
+        } else if (newTopIndex === -1 || publicCommunityPosts.length < displayedPosts.length) {
+          // May post na na-delete o na-hide, i-sync agad para iwas crash
+          setDisplayedPosts(publicCommunityPosts);
+          setNewPostsCount(0);
+        } else {
+          // Walang bagong post, tahimik na i-update ang likes/comments ng nakikita
+          setDisplayedPosts(publicCommunityPosts.slice(0, displayedPosts.length));
+        }
+      }
+    } else {
+      setDisplayedPosts([]);
+    }
+  }, [publicCommunityPosts]);
+
+  const handleShowNewPosts = () => {
+    setDisplayedPosts(publicCommunityPosts);
+    setNewPostsCount(0);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
 
   return (
     <div className="screen active">
@@ -183,13 +228,13 @@ export default function CommunityTab({
 
       {/* COMMUNITY POSTS FEED */}
       <div>
-        {publicCommunityPosts.length === 0 ? (
+        {displayedPosts.length === 0 ? (
           <div style={{ textAlign: "center", padding: "40px 20px", color: "var(--text-muted)" }}>
             <i className="fa-regular fa-newspaper" style={{ fontSize: "32px", marginBottom: "8px", opacity: 0.5 }}></i>
             <p style={{ fontSize: "12px", fontWeight: 600 }}>No public or booster posts in the feed yet.<br />Be the first to share your progress!</p>
           </div>
         ) : (
-          publicCommunityPosts.map(p => {
+          displayedPosts.map(p => {
             const isLiked = p.likedBy && p.likedBy.includes(user?.uid);
             const isOwner = p.userId === user?.uid;
             const postAuthorObj = userList.find(u => u.uid === p.userId);
