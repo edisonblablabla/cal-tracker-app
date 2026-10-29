@@ -166,7 +166,11 @@ export default function App() {
 
   const isAdmin = user?.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase();
 
-  // REALTIME COMMENTS LISTENER FOR SELECTED POST IN SLIDE-OVER
+  // =========================================================================
+  // TOP-LEVEL HOOKS (ALL 7 USEEFFECTS MUST RESIDE HERE BEFORE ANY RETURNS)
+  // =========================================================================
+
+  // 1. REALTIME COMMENTS LISTENER FOR SELECTED POST IN SLIDE-OVER
   useEffect(() => {
     let unsubComments = null;
     if (activePanel === 'post_detail' && selectedPost?.id) {
@@ -189,7 +193,7 @@ export default function App() {
     return () => { if (unsubComments) unsubComments(); };
   }, [activePanel, selectedPost]);
 
-  // REALTIME FIRESTORE NOTIFICATIONS LISTENER
+  // 2. REALTIME FIRESTORE NOTIFICATIONS LISTENER
   useEffect(() => {
     let unsubNotifs = null;
     if (user) {
@@ -213,7 +217,7 @@ export default function App() {
     return () => { if (unsubNotifs) unsubNotifs(); };
   }, [user]);
 
-  // ON AUTH STATE CHANGED LISTENER
+  // 3. ON AUTH STATE CHANGED LISTENER
   useEffect(() => {
     document.title = "NutriPulse - Health Dashboard";
     let heartbeatInterval = null;
@@ -234,9 +238,10 @@ export default function App() {
               data = {
                 ...data,
                 todayBurnedCal: 0,
+                todayWaterMl: 0,
                 lastLogDate: todayStr
               };
-              await setDoc(userDocRef, { todayBurnedCal: 0, lastLogDate: todayStr }, { merge: true });
+              await setDoc(userDocRef, { todayBurnedCal: 0, todayWaterMl: 0, lastLogDate: todayStr }, { merge: true });
             }
 
             setAppData(data || {});
@@ -301,7 +306,7 @@ export default function App() {
     };
   }, []);
 
-  // WORKOUT TIMER LISTENER
+  // 4. WORKOUT TIMER LISTENER
   useEffect(() => {
     if (isTimerRunning) {
       timerRef.current = setInterval(() => {
@@ -321,7 +326,7 @@ export default function App() {
     return () => clearInterval(timerRef.current);
   }, [isTimerRunning]);
 
-  // ALL-TIME REALTIME LISTENERS FOR POSTS & USERS
+  // 5. ALL-TIME REALTIME LISTENERS FOR POSTS & USERS
   useEffect(() => {
     if (activeTab === "home") {
       shuffleQuote();
@@ -334,7 +339,7 @@ export default function App() {
     };
   }, []);
 
-  // DIRECT CHAT REAL-TIME LISTENER (TOP-LEVEL HOOK - STRICTLY BEFORE ANY RETURNS)
+  // 6. DIRECT CHAT REAL-TIME LISTENER
   useEffect(() => {
     if (activePanel !== "chat" || !activeChatPartner || !user?.uid) {
       setChatMessages([]);
@@ -350,6 +355,34 @@ export default function App() {
 
     return () => unsub();
   }, [activePanel, activeChatPartner, user]);
+
+  // 7. INBOX LISTENER (FOR CHAT LIST PANEL - MUST BE TOP LEVEL)
+  useEffect(() => {
+    let unsubInbox = null;
+    if (user?.uid) {
+      try {
+        const q = query(
+          collection(db, "chats"), 
+          where("participants", "array-contains", user.uid), 
+          orderBy("updatedAt", "desc")
+        );
+        unsubInbox = onSnapshot(q, (snapshot) => {
+          const list = [];
+          snapshot.forEach(docSnap => list.push({ id: docSnap.id, ...docSnap.data() }));
+          setInboxChats(list);
+        }, (err) => console.warn("Inbox listener error:", err));
+      } catch (e) {
+        console.error("Inbox listener setup error:", e);
+      }
+    } else {
+      setInboxChats([]);
+    }
+    return () => { if (unsubInbox) unsubInbox(); };
+  }, [user]);
+
+  // =========================================================================
+  // HELPER FUNCTIONS & ACTIONS
+  // =========================================================================
 
   const handleSendChatMessage = async () => {
     if (!newChatMessage.trim() || !user || !activeChatPartner) return;
@@ -471,7 +504,7 @@ export default function App() {
         });
         setPosts(list);
       }, (err) => {
-        console.error("Error listening to posts:", err);
+        console.warn("Error listening to posts:", err);
       });
     } catch (err) {
       console.error("Error setting up posts listener:", err);
@@ -492,6 +525,8 @@ export default function App() {
           return timeB - timeA;
         });
         setUserList(list);
+      }, (err) => {
+        console.warn("Error listening to users:", err);
       });
     } catch (err) {
       console.error("Error fetching users:", err);
@@ -867,6 +902,7 @@ export default function App() {
         activeGoalType: setupGoalType,
         baseGoal, goal: baseGoal, pGoal, cGoal, fGoal,
         todayBurnedCal: 0,
+        todayWaterMl: 0,
         isBlocked: false,
         isPrivateAccount: false,
         boosting: [],
@@ -1127,7 +1163,7 @@ export default function App() {
   };
 
   // =========================================================================
-  // CONDITIONAL EARLY RETURNS (ALL HOOKS ARE STRICTLY DEFINED ABOVE THIS LINE)
+  // CONDITIONAL EARLY RETURNS (ALL 7 HOOKS ARE STRICTLY DEFINED ABOVE THIS LINE)
   // =========================================================================
 
   if (loading) {
@@ -1385,25 +1421,6 @@ export default function App() {
   // LIVE SELECTED POST IN SLIDE-OVER FOR INSTANT REAL-TIME PULSE/COMMENT UPDATES
   const liveSelectedPost = (selectedPost && posts.find(p => p.id === selectedPost.id)) || selectedPost;
 
-  
-  // INBOX LISTENER (For Chat List Panel)
-  useEffect(() => {
-    let unsubInbox = null;
-    if (user) {
-      try {
-        const q = query(collection(db, "chats"), where("participants", "array-contains", user.uid), orderBy("updatedAt", "desc"));
-        unsubInbox = onSnapshot(q, (snapshot) => {
-          const list = [];
-          snapshot.forEach(docSnap => list.push({ id: docSnap.id, ...docSnap.data() }));
-          setInboxChats(list);
-        });
-      } catch (e) {
-        console.error("Inbox listener error:", e);
-      }
-    }
-    return () => { if (unsubInbox) unsubInbox(); };
-  }, [user]);
-
   return (
     <div className="mobile-frame" style={{ maxWidth: "480px", margin: "0 auto", background: "#f8fafc", minHeight: "100vh", position: "relative" }}>
       <div className="screen-container" style={{ padding: "16px", paddingBottom: "120px" }}>
@@ -1465,13 +1482,13 @@ export default function App() {
         {/* TAB 3: SOCIAL TAB */}
         {activeTab === "community" && (
           <CommunityTab
-            inboxChats={inboxChats}
             user={user}
             appData={appData}
             avatarPreview={avatarPreview}
             setShowSearchModal={setShowSearchModal}
             setActivePanel={setActivePanel}
             allUserNotifs={allUserNotifs}
+            inboxChats={inboxChats}
             lastSeenNotifTime={lastSeenNotifTime}
             setLastSeenNotifTime={setLastSeenNotifTime}
             postVisibility={postVisibility}
