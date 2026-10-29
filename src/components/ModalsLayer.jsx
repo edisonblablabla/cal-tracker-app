@@ -148,7 +148,7 @@ export default function ModalsLayer({
               )}
             </div>
 
-            <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column-reverse", gap: "10px", paddingRight: "5px" }}>
+            <div style={{ flex: 1, overflowY: activePanel === 'chat' ? "hidden" : "auto", padding: activePanel === 'chat' ? "0" : "16px", display: "flex", flexDirection: "column", position: "relative" }}>
               {searchQuery.trim() === "" ? (
                 <div style={{ textAlign: "center", padding: "30px 10px", color: "#94a3b8" }}>
                   <i className="fa-solid fa-users-viewfinder" style={{ fontSize: "36px", marginBottom: "10px", opacity: 0.6, display: "block" }}></i>
@@ -565,7 +565,7 @@ export default function ModalsLayer({
             {/* DIRECT 1-ON-1 CHAT PANEL */}
             {/* MESSENGER CHAT PANEL */}
             {activePanel === 'chat' && (
-              <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 120px)" }}>
+              <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
                 {/* MESSENGER MESSAGES CONTAINER WITH AUTO-SCROLL TO BOTTOM */}
                 <div 
                   ref={(el) => {
@@ -674,7 +674,7 @@ export default function ModalsLayer({
                     handleSendChatMessage();
                   }}
                   style={{ 
-                    padding: "10px 12px", 
+                    padding: "12px 16px", paddingBottom: "24px", 
                     background: "#ffffff", 
                     borderTop: "1px solid #e2e8f0", 
                     display: "flex", 
