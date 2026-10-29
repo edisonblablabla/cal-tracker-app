@@ -294,87 +294,9 @@ const [userList, setUserList] = useState([]);
     };
   }, []);
 
-  useEffect(() => {
-    let watchId = null;
-    if (activeTab === "home" && isGpsTracking && "geolocation" in navigator) {
-      setGpsStatus("Searching GPS Signal...");
-      watchId = navigator.geolocation.watchPosition(
-        (position) => {
-          setGpsStatus("GPS Tracking Active");
-          const { latitude, longitude } = position.coords;
-          const newCoord = [latitude, longitude];
+  
 
-          setWaypoints(prev => [...prev, newCoord]);
-
-          if (lastPosRef.current) {
-            const dist = getDistanceFromLatLonInKm(
-              lastPosRef.current.latitude,
-              lastPosRef.current.longitude,
-              latitude,
-              longitude
-            );
-            if (dist > 0.002 && dist < 0.2) {
-              setTotalGpsDistanceKm(prev => prev + dist);
-            }
-          }
-          lastPosRef.current = { latitude, longitude };
-        },
-        (error) => {
-          setGpsStatus("Location Permission Required");
-          setIsGpsTracking(false);
-        },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 1000 }
-      );
-    } else if (!isGpsTracking) {
-      setGpsStatus(waypoints.length > 0 ? "Tracking Paused" : "Tracker Inactive");
-      lastPosRef.current = null;
-    }
-    return () => { if (watchId !== null) navigator.geolocation.clearWatch(watchId); };
-  }, [activeTab, isGpsTracking]);
-
-  // Leaflet Map Initialization & Realtime Polyline Drawing
-  useEffect(() => {
-    if (activeTab === "home" && mapContainerRef.current) {
-      if (!mapRef.current) {
-        const initialCenter = waypoints.length > 0 ? waypoints[waypoints.length - 1] : [14.5995, 120.9842];
-        const map = L.map(mapContainerRef.current, { zoomControl: false }).setView(initialCenter, 16);
-        
-        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-          attribution: '&copy; OpenStreetMap'
-        }).addTo(map);
-
-        mapRef.current = map;
-        polylineRef.current = L.polyline([], { color: "#38bdf8", weight: 5, opacity: 0.9 }).addTo(map);
-      }
-
-      if (waypoints.length > 0 && mapRef.current) {
-        const latestPoint = waypoints[waypoints.length - 1];
-        polylineRef.current.setLatLngs(waypoints);
-        mapRef.current.panTo(latestPoint);
-
-        if (!markerRef.current) {
-          const pulseIcon = L.divIcon({
-            className: "gps-pulse-marker",
-            html: '<div style="width:14px;height:14px;background:#0284c7;border:2px solid white;border-radius:50%;box-shadow:0 0 8px rgba(2,132,199,0.8);"></div>',
-            iconSize: [14, 14],
-            iconAnchor: [7, 7]
-          });
-          markerRef.current = L.marker(latestPoint, { icon: pulseIcon }).addTo(mapRef.current);
-        } else {
-          markerRef.current.setLatLng(latestPoint);
-        }
-      }
-    }
-
-    return () => {
-      if (activeTab !== "home" && mapRef.current) {
-        mapRef.current.remove();
-        mapRef.current = null;
-        polylineRef.current = null;
-        markerRef.current = null;
-      }
-    };
-  }, [activeTab, waypoints]);
+  
 
   
 
