@@ -275,7 +275,7 @@ export default function ModalsLayer({
         }}>
           {/* Header */}
           <div style={{
-            padding: "16px",
+            padding: "5px",
             borderBottom: "1px solid #e2e8f0",
             display: "flex",
             alignItems: "center",
@@ -287,7 +287,7 @@ export default function ModalsLayer({
               display: "flex", 
               alignItems: "center", 
               justifyContent: "space-between", 
-              padding: "8px 14px", 
+              padding: "5px 10px", 
               background: "#ffffff", 
               minHeight: "56px",
               boxSizing: "border-box",
@@ -300,9 +300,9 @@ export default function ModalsLayer({
             <div style={{ 
               display: "flex", 
               alignItems: "center", 
-              padding: "4px 16px", 
+              padding: "4px 10px", 
               background: "#ffffff", 
-              minHeight: "44px",
+              minHeight: "34px",
               boxSizing: "border-box", 
               position: "sticky", 
               top: 0, 
@@ -320,7 +320,7 @@ export default function ModalsLayer({
                   color: "#0f172a", 
                   fontSize: "18px", 
                   cursor: "pointer", 
-                  padding: "4px 12px 4px 0", 
+                  padding: "4px 8px 4px 0", 
                   display: "flex", 
                   alignItems: "center",
                   marginRight: "4px"

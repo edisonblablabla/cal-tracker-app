@@ -288,19 +288,27 @@ export default function CommunityTab({
                 </div>
 
                 {p.imageUrl && (
-            <div style={{ 
-              marginTop: "10px", 
-              marginBottom: "12px", 
-              width: "100%", 
-              height: "320px", 
-              borderRadius: "16px", 
-              overflow: "hidden", 
-              background: "#0f172a", 
-              display: "flex", 
-              alignItems: "center", 
-              justifyContent: "center",
-              boxShadow: "inset 0 0 20px rgba(0,0,0,0.25)"
-            }}>
+            <div 
+              onClick={() => {
+                if (typeof setSelectedPost === "function") setSelectedPost(p);
+                if (typeof setActivePanel === "function") setActivePanel("post_detail");
+              }}
+              style={{ 
+                marginTop: "10px", 
+                marginBottom: "12px", 
+                width: "100%", 
+                height: "320px", 
+                borderRadius: "16px", 
+                overflow: "hidden", 
+                background: "#0f172a", 
+                display: "flex", 
+                alignItems: "center", 
+                justifyContent: "center",
+                boxShadow: "inset 0 0 20px rgba(0,0,0,0.25)",
+                cursor: "pointer"
+              }}
+              title="Tap to view post details & comments"
+            >
               <img 
                 src={p.imageUrl} 
                 alt="Post content" 
@@ -308,7 +316,8 @@ export default function CommunityTab({
                   width: "100%", 
                   height: "100%", 
                   objectFit: "contain", 
-                  display: "block" 
+                  display: "block",
+                  pointerEvents: "none"
                 }} 
               />
             </div>
