@@ -1,13 +1,35 @@
 import React from "react";
 import ExpandableText from "./ExpandableText";
 
-function defaultFormatTime(ts) {
-  if (!ts) return "Just now";
-  const d = Date.now() - ts;
-  if (d < 60000) return "Just now";
-  if (d < 3600000) return Math.floor(d / 60000) + "m ago";
-  if (d < 86400000) return Math.floor(d / 3600000) + "h ago";
-  return new Date(ts).toLocaleDateString();
+function formatAdminCreated(ts) {
+  if (!ts) return "N/A";
+  let ms = null;
+  if (typeof ts === "number") ms = ts < 1e11 ? ts * 1000 : ts;
+  else if (ts && typeof ts.toDate === "function") ms = ts.toDate().getTime();
+  else if (ts && typeof ts.seconds === "number") ms = ts.seconds * 1000;
+  else if (typeof ts === "string") ms = Date.parse(ts);
+  else if (ts instanceof Date) ms = ts.getTime();
+
+  if (!ms || isNaN(ms)) return "N/A";
+  return new Date(ms).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
+function formatAdminLastOnline(ts) {
+  if (!ts || ts === 1) return "Never";
+  let ms = null;
+  if (typeof ts === "number") ms = ts < 1e11 ? ts * 1000 : ts;
+  else if (ts && typeof ts.toDate === "function") ms = ts.toDate().getTime();
+  else if (ts && typeof ts.seconds === "number") ms = ts.seconds * 1000;
+  else if (typeof ts === "string") ms = Date.parse(ts);
+  else if (ts instanceof Date) ms = ts.getTime();
+
+  if (!ms || isNaN(ms)) return "Never";
+  const diff = Date.now() - ms;
+  if (diff < 0 || diff < 60000) return "Just now";
+  if (diff < 3600000) return Math.floor(diff / 60000) + "m ago";
+  if (diff < 86400000) return Math.floor(diff / 3600000) + "h ago";
+  if (diff < 604800000) return Math.floor(diff / 86400000) + "d ago";
+  return new Date(ms).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
 export default function AdminTab({
@@ -22,11 +44,8 @@ export default function AdminTab({
   toggleHidePost,
   toggleBlockUser,
   setSelectedPost,
-  setActivePanel,
-  formatPostTime = defaultFormatTime
+  setActivePanel
 }) {
-  const formatTime = formatPostTime || defaultFormatTime;
-
   return (
     <div className="screen active">
       <div style={{ marginBottom: "10px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -121,7 +140,9 @@ export default function AdminTab({
                     </div>
                   )}
 
-                  <div style={{ fontSize: "8px", color: "var(--text-muted)", fontWeight: 600 }}>User ID: {p.userId} • {formatTime(p.createdAt)}</div>
+                  <div style={{ fontSize: "8px", color: "var(--text-muted)", fontWeight: 600 }}>
+                    User ID: {p.userId} • {formatAdminCreated(p.createdAt)}
+                  </div>
                 </div>
               );
             })
@@ -158,8 +179,8 @@ export default function AdminTab({
                   <div style={{ fontSize: "9px", color: "#64748b", lineHeight: 1.3, wordBreak: "break-all" }}>
                     <div><strong>Email:</strong> {u.userEmail || "N/A"}</div>
                     <div style={{ display: "flex", justifyContent: "space-between", marginTop: "2px", color: "#475569" }}>
-                      <span><strong>Created:</strong> {formatTime(u.createdAt)}</span>
-                      <span><strong>Last Online:</strong> <strong style={{ color: isOnline ? "#10b981" : "#475569" }}>{isOnline ? "Active Now" : (u.lastLoggedOutAt ? formatTime(u.lastLoggedOutAt) : ((u.lastSeen && u.lastSeen > 1) ? formatTime(u.lastSeen) : "Never"))}</strong></span>
+                      <span><strong>Created:</strong> {formatAdminCreated(u.createdAt)}</span>
+                      <span><strong>Last Online:</strong> <strong style={{ color: isOnline ? "#10b981" : "#475569" }}>{isOnline ? "Active Now" : (u.lastLoggedOutAt ? formatAdminLastOnline(u.lastLoggedOutAt) : ((u.lastSeen && u.lastSeen > 1) ? formatAdminLastOnline(u.lastSeen) : "Never"))}</strong></span>
                     </div>
                   </div>
                 </div>
