@@ -1318,7 +1318,10 @@ const goalTitles = {
   // LIVE SELECTED POST IN SLIDE-OVER FOR INSTANT REAL-TIME PULSE/COMMENT UPDATES
   const liveSelectedPost = (selectedPost && posts.find(p => p.id === selectedPost.id)) || selectedPost;
 
-    // Direct Chat Real-time Listener
+    
+
+  
+  // Direct Chat Real-time Listener (Top-level Hook)
   useEffect(() => {
     if (activePanel !== "chat" || !activeChatPartner || !user?.uid) {
       setChatMessages([]);
