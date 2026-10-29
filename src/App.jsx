@@ -190,68 +190,6 @@ const [userList, setUserList] = useState([]);
     } else {
       setPostComments([]);
     }
-    
-  // Direct Chat Real-time Listener
-  useEffect(() => {
-    if (activePanel !== "chat" || !activeChatPartner || !user?.uid) {
-      setChatMessages([]);
-      return;
-    }
-    const chatId = [user.uid, activeChatPartner.uid].sort().join("_");
-    const q = query(collection(db, "chats", chatId, "messages"), orderBy("createdAt", "asc"));
-    const unsub = onSnapshot(q, (snapshot) => {
-      const msgs = [];
-      snapshot.forEach(d => msgs.push({ id: d.id, ...d.data() }));
-      setChatMessages(msgs);
-    }, (err) => console.error("Chat listener error:", err));
-
-    return () => unsub();
-  }, [activePanel, activeChatPartner, user]);
-
-  const handleSendChatMessage = async () => {
-    if (!newChatMessage.trim() || !user || !activeChatPartner) return;
-    const text = newChatMessage.trim();
-    const chatId = [user.uid, activeChatPartner.uid].sort().join("_");
-    setIsSendingMessage(true);
-    try {
-      await addDoc(collection(db, "chats", chatId, "messages"), {
-        text,
-        senderUid: user.uid,
-        senderName: appData?.userName || user.displayName || "Athlete",
-        senderAvatar: appData?.avatarUrl || avatarPreview || "",
-        createdAt: Date.now()
-      });
-
-      await setDoc(doc(db, "chats", chatId), {
-        lastMessage: text,
-        lastSenderUid: user.uid,
-        participants: [user.uid, activeChatPartner.uid],
-        updatedAt: Date.now()
-      }, { merge: true });
-
-      if (activeChatPartner.uid !== user.uid) {
-        try {
-          await addDoc(collection(db, "notifications"), {
-            recipientUid: activeChatPartner.uid,
-            senderUid: user.uid,
-            senderName: appData?.userName || user.displayName || "Athlete",
-            senderAvatar: appData?.avatarUrl || avatarPreview || "",
-            type: "chat",
-            text: 'sent you a message: "' + text.slice(0, 25) + '..."',
-            chatPartnerUid: user.uid,
-            timestamp: Date.now()
-          });
-        } catch (ne) { console.warn("Failed sending chat notif", ne); }
-      }
-
-      setNewChatMessage("");
-    } catch (err) {
-      console.error("Chat send error:", err);
-      showToast("Failed to send message.");
-    } finally {
-      setIsSendingMessage(false);
-    }
-  };
 
   return () => { if (unsubComments) unsubComments(); };
   }, [activePanel, selectedPost]);
@@ -1379,6 +1317,68 @@ const goalTitles = {
 
   // LIVE SELECTED POST IN SLIDE-OVER FOR INSTANT REAL-TIME PULSE/COMMENT UPDATES
   const liveSelectedPost = (selectedPost && posts.find(p => p.id === selectedPost.id)) || selectedPost;
+
+    // Direct Chat Real-time Listener
+  useEffect(() => {
+    if (activePanel !== "chat" || !activeChatPartner || !user?.uid) {
+      setChatMessages([]);
+      return;
+    }
+    const chatId = [user.uid, activeChatPartner.uid].sort().join("_");
+    const q = query(collection(db, "chats", chatId, "messages"), orderBy("createdAt", "asc"));
+    const unsub = onSnapshot(q, (snapshot) => {
+      const msgs = [];
+      snapshot.forEach(d => msgs.push({ id: d.id, ...d.data() }));
+      setChatMessages(msgs);
+    }, (err) => console.error("Chat listener error:", err));
+
+    return () => unsub();
+  }, [activePanel, activeChatPartner, user]);
+
+  const handleSendChatMessage = async () => {
+    if (!newChatMessage.trim() || !user || !activeChatPartner) return;
+    const text = newChatMessage.trim();
+    const chatId = [user.uid, activeChatPartner.uid].sort().join("_");
+    setIsSendingMessage(true);
+    try {
+      await addDoc(collection(db, "chats", chatId, "messages"), {
+        text,
+        senderUid: user.uid,
+        senderName: appData?.userName || user.displayName || "Athlete",
+        senderAvatar: appData?.avatarUrl || avatarPreview || "",
+        createdAt: Date.now()
+      });
+
+      await setDoc(doc(db, "chats", chatId), {
+        lastMessage: text,
+        lastSenderUid: user.uid,
+        participants: [user.uid, activeChatPartner.uid],
+        updatedAt: Date.now()
+      }, { merge: true });
+
+      if (activeChatPartner.uid !== user.uid) {
+        try {
+          await addDoc(collection(db, "notifications"), {
+            recipientUid: activeChatPartner.uid,
+            senderUid: user.uid,
+            senderName: appData?.userName || user.displayName || "Athlete",
+            senderAvatar: appData?.avatarUrl || avatarPreview || "",
+            type: "chat",
+            text: 'sent you a message: "' + text.slice(0, 25) + '..."',
+            chatPartnerUid: user.uid,
+            timestamp: Date.now()
+          });
+        } catch (ne) { console.warn("Failed sending chat notif", ne); }
+      }
+
+      setNewChatMessage("");
+    } catch (err) {
+      console.error("Chat send error:", err);
+      showToast("Failed to send message.");
+    } finally {
+      setIsSendingMessage(false);
+    }
+  };
 
   return (
     <div className="mobile-frame" style={{ maxWidth: "480px", margin: "0 auto", background: "#f8fafc", minHeight: "100vh", position: "relative" }}>
