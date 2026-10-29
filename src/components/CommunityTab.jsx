@@ -109,6 +109,22 @@ export default function CommunityTab({
               </span>
             )}
           </button>
+          {/* INBOX / MESSAGES BUTTON */}
+          <button 
+            onClick={() => {
+              if (typeof setLastSeenMsgTime === "function") setLastSeenMsgTime(Date.now());
+              setActivePanel("inbox");
+            }} 
+            style={{ position: "relative", background: "#ffffff", border: "1px solid #e2e8f0", width: "36px", height: "36px", borderRadius: "50%", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#334155", fontSize: "15px", boxShadow: "0 2px 6px rgba(0,0,0,0.03)" }}
+            title="Messages"
+          >
+            <i className="fa-regular fa-envelope"></i>
+            {unreadChatsCount > 0 && (
+              <span style={{ position: "absolute", top: "-4px", right: "-4px", background: "#0284c7", color: "white", fontSize: "10px", fontWeight: 900, minWidth: "18px", height: "18px", borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "center", padding: "0 4px", boxShadow: "0 2px 6px rgba(2, 132, 199, 0.4)", border: "2px solid #ffffff" }}>
+                {unreadChatsCount > 9 ? "9+" : unreadChatsCount}
+              </span>
+            )}
+          </button>
         </div>
       </div>
 
@@ -271,13 +287,22 @@ export default function CommunityTab({
                 </div>
 
                 {p.imageUrl && (
-                  <div 
-                    onClick={(e) => { e.stopPropagation(); setSelectedPost(p); setActivePanel("post_detail"); }} 
-                    style={{ borderRadius: "12px", overflow: "hidden", marginBottom: "10px", border: "1px solid #f1f5f9", background: "#f8fafc", aspectRatio: "4/3", cursor: "pointer", position: "relative" }}
-                  >
-                    <img src={p.imageUrl} alt="Transformation Post" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-                  </div>
-                )}
+            <div style={{ marginTop: "10px", marginBottom: "12px", width: "100%", borderRadius: "14px", overflow: "hidden", background: "#f8fafc" }}>
+              <img 
+                src={p.imageUrl} 
+                alt="Post content" 
+                style={{ 
+                  width: "100%", 
+                  height: "auto", 
+                  maxHeight: "550px", 
+                  objectFit: "contain", 
+                  display: "block",
+                  borderRadius: "14px",
+                  margin: "0 auto"
+                }} 
+              />
+            </div>
+          )}
 
                 <div style={{ display: "flex", alignItems: "center", gap: "10px", borderTop: "1px solid #f1f5f9", paddingTop: "8px", marginTop: "4px" }}>
                   <button 
