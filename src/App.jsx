@@ -1311,7 +1311,7 @@ const goalTitles = {
   const timerSecDisplay = String(timerSeconds % 60).padStart(2, '0');
 
   // LIVE SELECTED POST IN SLIDE-OVER FOR INSTANT REAL-TIME PULSE/COMMENT UPDATES
-  const liveSelectedPost = posts.find(p => p.id === selectedPost?.id) || selectedPost;
+  const liveSelectedPost = (selectedPost && posts.find(p => p.id === selectedPost.id)) || selectedPost;
 
   return (
     <div className="mobile-frame" style={{ maxWidth: "480px", margin: "0 auto", background: "#f8fafc", minHeight: "100vh", position: "relative" }}>
@@ -1510,6 +1510,7 @@ const goalTitles = {
         lastSeenNotifTime={lastSeenNotifTime}
         posts={posts}
         liveSelectedPost={liveSelectedPost}
+        selectedPost={selectedPost}
         setSelectedPost={setSelectedPost}
         handleLike={handleLike}
         showToast={showToast}

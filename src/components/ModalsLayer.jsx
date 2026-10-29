@@ -35,6 +35,7 @@ export default function ModalsLayer({
   lastSeenNotifTime = 0,
   posts = [],
   liveSelectedPost,
+  selectedPost,
   setSelectedPost,
   handleLike,
   showToast,
@@ -80,6 +81,7 @@ export default function ModalsLayer({
   formatPostTime = defaultFormatTime
 }) {
   const formatTime = formatPostTime || defaultFormatTime;
+  const activePost = liveSelectedPost || selectedPost || posts.find(p => p.id === (selectedPost?.id || liveSelectedPost?.id));
 
   return (
     <>
@@ -320,147 +322,166 @@ export default function ModalsLayer({
             )}
 
             {/* REAL-TIME POST DETAIL PANEL */}
-            {activePanel === 'post_detail' && liveSelectedPost && (
-              <div style={{ background: "#ffffff", borderRadius: "16px", padding: "14px", border: "1px solid #e2e8f0" }}>
-                <div 
-                  onClick={() => {
-                    const postAuthorObj = userList.find(u => u.uid === liveSelectedPost.userId);
-                    setSelectedVisitor(postAuthorObj || { 
-                      uid: liveSelectedPost.userId, 
-                      userName: liveSelectedPost.userName, 
-                      avatarUrl: liveSelectedPost.userAvatar 
-                    });
-                    setActivePanel("visitor_profile");
-                  }}
-                  style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px", cursor: "pointer" }}
-                >
-                  {liveSelectedPost.userAvatar ? (
-                    <img src={liveSelectedPost.userAvatar} alt="" style={{ width: "40px", height: "40px", borderRadius: "50%", objectFit: "cover" }} />
-                  ) : (
-                    <div style={{ width: "40px", height: "40px", borderRadius: "50%", background: "#0284c7", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: "14px" }}>
-                      {(liveSelectedPost.userName || "A").charAt(0).toUpperCase()}
-                    </div>
-                  )}
-                  <div>
-                    <strong style={{ fontSize: "14px", color: "#0f172a", display: "block" }}>{liveSelectedPost.userName || "Athlete"}</strong>
-                    <span style={{ fontSize: "10px", color: "#94a3b8" }}>{formatTime(liveSelectedPost.createdAt)}</span>
-                  </div>
-                </div>
-                {liveSelectedPost.text && <p style={{ fontSize: "13px", color: "#334155", lineHeight: "1.5", marginBottom: "12px", wordBreak: "break-word" }}>{liveSelectedPost.text}</p>}
-                {liveSelectedPost.imageUrl && <img src={liveSelectedPost.imageUrl} alt="" style={{ width: "100%", borderRadius: "12px", marginBottom: "12px", objectFit: "cover" }} />}
-                
-                <div style={{ display: "flex", gap: "16px", padding: "10px 0", borderTop: "1px solid #f1f5f9", borderBottom: "1px solid #f1f5f9" }}>
-                  <button onClick={() => handleLike(liveSelectedPost.id, liveSelectedPost.likes || 0, liveSelectedPost.likedBy || [])} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "12px", fontWeight: 700, color: (liveSelectedPost.likedBy || []).includes(user?.uid) ? "#ef4444" : "#64748b" }}>
-                    <i className="fa-solid fa-heart" style={{ marginRight: "4px" }}></i> Pulse ({liveSelectedPost.likes || 0})
-                  </button>
-                  <button onClick={() => { navigator.clipboard.writeText(window.location.href); showToast("Link copied to clipboard!"); }} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "12px", fontWeight: 700, color: "#64748b" }}>
-                    <i className="fa-solid fa-share-nodes" style={{ marginRight: "4px" }}></i> Resonate
-                  </button>
-                </div>
-
-                {/* REAL-TIME COMMENTS LIST */}
-                <div style={{ marginTop: "14px" }}>
-                  <h4 style={{ fontSize: "12px", fontWeight: 800, color: "#0f172a", marginBottom: "8px" }}>Comments ({postComments.length})</h4>
-                  
-                  <div style={{ display: "flex", gap: "8px", marginBottom: "12px" }}>
-                    <input 
-                      type="text" 
-                      placeholder="Write a comment..." 
-                      value={newCommentText} 
-                      onChange={(e) => setNewCommentText(e.target.value)} 
-                      style={{ flex: 1, padding: "8px 12px", borderRadius: "10px", border: "1px solid #cbd5e1", fontSize: "11px", outline: "none" }} 
-                    />
-                    <button onClick={() => handleAddComment(liveSelectedPost.id)} style={{ padding: "8px 14px", background: "#0284c7", color: "white", border: "none", borderRadius: "10px", fontWeight: 800, fontSize: "11px", cursor: "pointer" }}>Post</button>
-                  </div>
-
-                  <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                    {postComments.length === 0 ? (
-                      <p style={{ fontSize: "11px", color: "#94a3b8", textAlign: "center", padding: "10px 0" }}>No comments yet. Be the first to comment!</p>
+            {activePanel === 'post_detail' && (
+              activePost ? (
+                <div style={{ background: "#ffffff", borderRadius: "16px", padding: "14px", border: "1px solid #e2e8f0" }}>
+                  <div 
+                    onClick={() => {
+                      const postAuthorObj = userList.find(u => u.uid === activePost.userId);
+                      setSelectedVisitor(postAuthorObj || { 
+                        uid: activePost.userId, 
+                        userName: activePost.userName, 
+                        avatarUrl: activePost.userAvatar 
+                      });
+                      setActivePanel("visitor_profile");
+                    }}
+                    style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px", cursor: "pointer" }}
+                  >
+                    {activePost.userAvatar ? (
+                      <img src={activePost.userAvatar} alt="" style={{ width: "40px", height: "40px", borderRadius: "50%", objectFit: "cover" }} />
                     ) : (
-                      postComments.map(c => {
-                        const canEditComment = Boolean(c.userId && user?.uid && c.userId === user.uid);
-                        const canDeleteComment = Boolean((c.userId && user?.uid && c.userId === user.uid) || isAdmin);
-                        const showCommentMenu = canEditComment || canDeleteComment;
+                      <div style={{ width: "40px", height: "40px", borderRadius: "50%", background: "#0284c7", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: "14px" }}>
+                        {(activePost.userName || "A").charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                    <div>
+                      <strong style={{ fontSize: "14px", color: "#0f172a", display: "block" }}>{activePost.userName || "Athlete"}</strong>
+                      <span style={{ fontSize: "10px", color: "#94a3b8" }}>{formatTime(activePost.createdAt)}</span>
+                    </div>
+                  </div>
+                  {activePost.text && <p style={{ fontSize: "13px", color: "#334155", lineHeight: "1.5", marginBottom: "12px", wordBreak: "break-word" }}>{activePost.text}</p>}
+                  {activePost.imageUrl && <img src={activePost.imageUrl} alt="" style={{ width: "100%", borderRadius: "12px", marginBottom: "12px", objectFit: "cover" }} />}
+                  
+                  <div style={{ display: "flex", gap: "16px", padding: "10px 0", borderTop: "1px solid #f1f5f9", borderBottom: "1px solid #f1f5f9" }}>
+                    <button onClick={() => handleLike(activePost.id, activePost.likes || 0, activePost.likedBy || [])} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "12px", fontWeight: 700, color: (activePost.likedBy || []).includes(user?.uid) ? "#ef4444" : "#64748b" }}>
+                      <i className="fa-solid fa-heart" style={{ marginRight: "4px" }}></i> Pulse ({activePost.likes || 0})
+                    </button>
+                    <button onClick={() => { navigator.clipboard.writeText(window.location.href); showToast("Link copied to clipboard!"); }} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "12px", fontWeight: 700, color: "#64748b" }}>
+                      <i className="fa-solid fa-share-nodes" style={{ marginRight: "4px" }}></i> Resonate
+                    </button>
+                  </div>
 
-                        return (
-                          <div key={c.id} style={{ background: "#f8fafc", padding: "10px 12px", borderRadius: "12px", border: "1px solid #f1f5f9", position: "relative" }}>
-                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
-                              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                                <div 
-                                  onClick={handleOpenCommenterProfile}
-                                  style={{ width: "24px", height: "24px", borderRadius: "50%", background: "#4f46e5", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "10px", fontWeight: 800, overflow: "hidden", cursor: "pointer", flexShrink: 0 }}
-                                >
-                                  {c.userAvatar ? (
-                                    <img src={c.userAvatar} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                                  ) : (
-                                    (c.userName || "A").charAt(0).toUpperCase()
-                                  )}
-                                </div>
+                  {/* REAL-TIME COMMENTS LIST */}
+                  <div style={{ marginTop: "14px" }}>
+                    <h4 style={{ fontSize: "12px", fontWeight: 800, color: "#0f172a", marginBottom: "8px" }}>Comments ({postComments.length})</h4>
+                    
+                    <div style={{ display: "flex", gap: "8px", marginBottom: "12px" }}>
+                      <input 
+                        type="text" 
+                        placeholder="Write a comment..." 
+                        value={newCommentText} 
+                        onChange={(e) => setNewCommentText(e.target.value)} 
+                        style={{ flex: 1, padding: "8px 12px", borderRadius: "10px", border: "1px solid #cbd5e1", fontSize: "11px", outline: "none" }} 
+                      />
+                      <button onClick={() => handleAddComment(activePost.id)} style={{ padding: "8px 14px", background: "#0284c7", color: "white", border: "none", borderRadius: "10px", fontWeight: 800, fontSize: "11px", cursor: "pointer" }}>Post</button>
+                    </div>
 
-                                <strong 
-                                  onClick={handleOpenCommenterProfile}
-                                  style={{ fontSize: "11px", color: "#0f172a", cursor: "pointer" }}
-                                >
-                                  {c.userName}
-                                </strong>
-                                {c.isEdited && <span style={{ fontSize: "8px", color: "#94a3b8", fontStyle: "italic" }}>(edited)</span>}
-                              </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                      {postComments.length === 0 ? (
+                        <p style={{ fontSize: "11px", color: "#94a3b8", textAlign: "center", padding: "10px 0" }}>No comments yet. Be the first to comment!</p>
+                      ) : (
+                        postComments.map(c => {
+                          const canEditComment = Boolean(c.userId && user?.uid && c.userId === user.uid);
+                          const canDeleteComment = Boolean((c.userId && user?.uid && c.userId === user.uid) || isAdmin);
+                          const showCommentMenu = canEditComment || canDeleteComment;
 
-                              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                                <span style={{ fontSize: "9px", color: "#94a3b8" }}>{formatTime(c.createdAt)}</span>
-                                {showCommentMenu && (
-                                  <div style={{ position: "relative" }}>
-                                    <button 
-                                      onClick={(e) => { e.stopPropagation(); setActiveCommentMenuId(activeCommentMenuId === c.id ? null : c.id); }} 
-                                      style={{ background: "none", border: "none", color: "#64748b", fontSize: "12px", cursor: "pointer", padding: "2px 4px" }}
-                                    >
-                                      <i className="fa-solid fa-ellipsis-vertical"></i>
-                                    </button>
+                          const handleOpenCommenterProfile = (e) => {
+                            e.stopPropagation();
+                            if (c.userId === user?.uid) return;
+                            const foundU = userList.find(u => u.uid === c.userId);
+                            setSelectedVisitor(foundU || { 
+                              uid: c.userId, 
+                              userName: c.userName, 
+                              avatarUrl: c.userAvatar 
+                            });
+                            setActivePanel("visitor_profile");
+                          };
 
-                                    {activeCommentMenuId === c.id && (
-                                      <div style={{ 
-                                        position: "absolute", 
-                                        right: 0, 
-                                        top: "22px", 
-                                        background: "#ffffff", 
-                                        border: "1px solid rgba(226, 232, 240, 0.8)", 
-                                        borderRadius: "12px", 
-                                        boxShadow: "0 10px 25px -5px rgba(15, 23, 42, 0.12), 0 8px 10px -6px rgba(15, 23, 42, 0.04)", 
-                                        zIndex: 999, 
-                                        minWidth: "110px", 
-                                        padding: "4px",
-                                        backdropFilter: "blur(8px)"
-                                      }}>
-                                        {canEditComment && (
-                                          <button 
-                                            onClick={(e) => { e.stopPropagation(); setActiveCommentMenuId(null); setCommentToEdit({ commentId: c.id, postId: liveSelectedPost.id }); setCommentEditText(c.text); }} 
-                                            style={{ width: "100%", padding: "7px 10px", background: "transparent", border: "none", borderRadius: "8px", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "#334155", cursor: "pointer", display: "flex", alignItems: "center", gap: "8px" }}
-                                          >
-                                            <i className="fa-solid fa-pen" style={{ color: "#0284c7", fontSize: "11px" }}></i> Edit
-                                          </button>
-                                        )}
-                                        {canDeleteComment && (
-                                          <button 
-                                            onClick={(e) => { e.stopPropagation(); setActiveCommentMenuId(null); setCommentToDelete({ commentId: c.id, postId: liveSelectedPost.id }); }} 
-                                            style={{ width: "100%", padding: "7px 10px", background: "transparent", border: "none", borderRadius: "8px", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "#ef4444", cursor: "pointer", display: "flex", alignItems: "center", gap: "8px" }}
-                                          >
-                                            <i className="fa-solid fa-trash" style={{ fontSize: "11px" }}></i> Delete
-                                          </button>
-                                        )}
-                                      </div>
+                          return (
+                            <div key={c.id} style={{ background: "#f8fafc", padding: "10px 12px", borderRadius: "12px", border: "1px solid #f1f5f9", position: "relative" }}>
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                  <div 
+                                    onClick={handleOpenCommenterProfile}
+                                    style={{ width: "24px", height: "24px", borderRadius: "50%", background: "#4f46e5", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "10px", fontWeight: 800, overflow: "hidden", cursor: "pointer", flexShrink: 0 }}
+                                  >
+                                    {c.userAvatar ? (
+                                      <img src={c.userAvatar} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                                    ) : (
+                                      (c.userName || "A").charAt(0).toUpperCase()
                                     )}
                                   </div>
-                                )}
+
+                                  <strong 
+                                    onClick={handleOpenCommenterProfile}
+                                    style={{ fontSize: "11px", color: "#0f172a", cursor: "pointer" }}
+                                  >
+                                    {c.userName}
+                                  </strong>
+                                  {c.isEdited && <span style={{ fontSize: "8px", color: "#94a3b8", fontStyle: "italic" }}>(edited)</span>}
+                                </div>
+
+                                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                                  <span style={{ fontSize: "9px", color: "#94a3b8" }}>{formatTime(c.createdAt)}</span>
+                                  {showCommentMenu && (
+                                    <div style={{ position: "relative" }}>
+                                      <button 
+                                        onClick={(e) => { e.stopPropagation(); setActiveCommentMenuId(activeCommentMenuId === c.id ? null : c.id); }} 
+                                        style={{ background: "none", border: "none", color: "#64748b", fontSize: "12px", cursor: "pointer", padding: "2px 4px" }}
+                                      >
+                                        <i className="fa-solid fa-ellipsis-vertical"></i>
+                                      </button>
+
+                                      {activeCommentMenuId === c.id && (
+                                        <div style={{ 
+                                          position: "absolute", 
+                                          right: 0, 
+                                          top: "22px", 
+                                          background: "#ffffff", 
+                                          border: "1px solid rgba(226, 232, 240, 0.8)", 
+                                          borderRadius: "12px", 
+                                          boxShadow: "0 10px 25px -5px rgba(15, 23, 42, 0.12), 0 8px 10px -6px rgba(15, 23, 42, 0.04)", 
+                                          zIndex: 999, 
+                                          minWidth: "110px", 
+                                          padding: "4px",
+                                          backdropFilter: "blur(8px)"
+                                        }}>
+                                          {canEditComment && (
+                                            <button 
+                                              onClick={(e) => { e.stopPropagation(); setActiveCommentMenuId(null); setCommentToEdit({ commentId: c.id, postId: activePost.id }); setCommentEditText(c.text); }} 
+                                              style={{ width: "100%", padding: "7px 10px", background: "transparent", border: "none", borderRadius: "8px", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "#334155", cursor: "pointer", display: "flex", alignItems: "center", gap: "8px" }}
+                                            >
+                                              <i className="fa-solid fa-pen" style={{ color: "#0284c7", fontSize: "11px" }}></i> Edit
+                                            </button>
+                                          )}
+                                          {canDeleteComment && (
+                                            <button 
+                                              onClick={(e) => { e.stopPropagation(); setActiveCommentMenuId(null); setCommentToDelete({ commentId: c.id, postId: activePost.id }); }} 
+                                              style={{ width: "100%", padding: "7px 10px", background: "transparent", border: "none", borderRadius: "8px", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "#ef4444", cursor: "pointer", display: "flex", alignItems: "center", gap: "8px" }}
+                                            >
+                                              <i className="fa-solid fa-trash" style={{ fontSize: "11px" }}></i> Delete
+                                            </button>
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
                               </div>
+                              <p style={{ fontSize: "11px", color: "#334155", margin: 0, paddingLeft: "32px", wordBreak: "break-word" }}>{c.text}</p>
                             </div>
-                            <p style={{ fontSize: "11px", color: "#334155", margin: 0, paddingLeft: "32px", wordBreak: "break-word" }}>{c.text}</p>
-                          </div>
-                        );
-                      })
-                    )}
+                          );
+                        })
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
+              ) : (
+                <div style={{ textAlign: "center", padding: "40px 20px", color: "#94a3b8" }}>
+                  <i className="fa-solid fa-spinner fa-spin" style={{ fontSize: "28px", marginBottom: "8px", display: "block" }}></i>
+                  Loading post details...
+                </div>
+              )
             )}
 
             {/* PROFILE SETTINGS PANEL */}
