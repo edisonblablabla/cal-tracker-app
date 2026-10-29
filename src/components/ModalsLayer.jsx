@@ -260,10 +260,11 @@ export default function ModalsLayer({
               zIndex: 100
             }}>
             {/* ULTRA-SLIM MESSENGER TOP BAR (44px COMPACT) */}
+            {/* MINIMALIST TOP BAR (BACK ARROW + NAME ONLY) */}
             <div style={{ 
               display: "flex", 
               alignItems: "center", 
-              padding: "4px 12px", 
+              padding: "4px 16px", 
               borderBottom: "1px solid #e2e8f0", 
               background: "#ffffff", 
               minHeight: "44px",
@@ -282,56 +283,28 @@ export default function ModalsLayer({
                   background: "none", 
                   border: "none", 
                   color: "#0f172a", 
-                  fontSize: "16px", 
+                  fontSize: "18px", 
                   cursor: "pointer", 
-                  padding: "4px 8px 4px 0", 
+                  padding: "4px 12px 4px 0", 
                   display: "flex", 
-                  alignItems: "center" 
+                  alignItems: "center",
+                  marginRight: "4px"
                 }} 
-                title="Back"
               >
                 <i className="fa-solid fa-arrow-left"></i>
               </button>
 
-              {/* IF CHAT: Messenger Horizontal Header (30px avatar + Name + Active dot sa iisang linya) */}
-              {activePanel === "chat" ? (
-                <div 
-                  onClick={() => {
-                    if (activeChatPartner && typeof setSelectedVisitor === "function") {
-                      setSelectedVisitor(activeChatPartner);
-                      setActivePanel("visitor_profile");
-                    }
-                  }} 
-                  style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", flex: 1, minWidth: 0 }}
-                >
-                  <div style={{ width: "30px", height: "30px", borderRadius: "50%", background: "#4f46e5", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: "12px", overflow: "hidden", flexShrink: 0 }}>
-                    {activeChatPartner?.avatarUrl ? (
-                      <img src={activeChatPartner.avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                    ) : (
-                      (activeChatPartner?.userName || "A").charAt(0).toUpperCase()
-                    )}
-                  </div>
-                  <div style={{ minWidth: 0, lineHeight: 1.15 }}>
-                    <div style={{ fontSize: "13px", fontWeight: 800, color: "#0f172a", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                      {activeChatPartner?.userName || "Athlete"}
-                    </div>
-                    <div style={{ fontSize: "9px", color: "#10b981", fontWeight: 700 }}>
-                      ● Active now
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                /* IF INBOX, PROFILE, NOTIFS: Clean Title (NO avatar, NO X button) */
-                <h3 style={{ margin: 0, fontSize: "15px", fontWeight: 900, color: "#0f172a", flex: 1 }}>
-                  {activePanel === "inbox" && "Messages"}
-                  {activePanel === "notif" && "Notifications"}
-                  {activePanel === "post_detail" && "Post Pulse"}
-                  {activePanel === "visitor_profile" && (selectedVisitor?.userName || "Athlete Profile")}
-                  {activePanel === "profile_settings" && "Profile Settings"}
-                  {activePanel === "boosters_list" && "Boosters"}
-                  {activePanel === "boosting_list" && "Boosting"}
-                </h3>
-              )}
+              {/* PANEL TITLE (Just text, no avatars) */}
+              <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 800, color: "#0f172a", flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                {activePanel === "chat" && (activeChatPartner?.userName || "Athlete")}
+                {activePanel === "inbox" && "Messages"}
+                {activePanel === "notif" && "Notifications"}
+                {activePanel === "post_detail" && "Post Pulse"}
+                {activePanel === "visitor_profile" && (selectedVisitor?.userName || "Athlete Profile")}
+                {activePanel === "profile_settings" && "Profile Settings"}
+                {activePanel === "boosters_list" && "Boosters"}
+                {activePanel === "boosting_list" && "Boosting"}
+              </h3>
             </div>
 
               {/* CLOSE BUTTON */}
