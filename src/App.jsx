@@ -129,6 +129,20 @@ export default function App() {
         await updateDoc(doc(db, "users", user.uid), { lastSeenNotifTime: timeVal });
       } catch (err) { console.warn("Failed to sync notif time", err); }
     }
+  }; 
+
+  const [lastSeenMsgTime, setLastSeenMsgTimeState] = useState(() => {
+    return parseInt(localStorage.getItem("np_last_seen_msg") || "0", 10);
+  });
+
+  const setLastSeenMsgTime = async (timeVal) => {
+    setLastSeenMsgTimeState(timeVal);
+    localStorage.setItem("np_last_seen_msg", timeVal.toString());
+    if (user?.uid) {
+      try {
+        await updateDoc(doc(db, "users", user.uid), { lastSeenMsgTime: timeVal });
+      } catch (err) { console.warn("Failed to sync msg time", err); }
+    }
   };
 
   const [selectedPost, setSelectedPost] = useState(null);
@@ -251,6 +265,9 @@ export default function App() {
             setAppData(data || {});
             if (data?.lastSeenNotifTime) {
               setLastSeenNotifTimeState(data.lastSeenNotifTime);
+            }
+            if (data?.lastSeenMsgTime) {
+              setLastSeenMsgTimeState(data.lastSeenMsgTime);
             }
 
             const sendPresencePing = () => {
@@ -411,20 +428,7 @@ export default function App() {
         updatedAt: Date.now()
       }, { merge: true });
 
-      if (activeChatPartner.uid !== user.uid) {
-        try {
-          await addDoc(collection(db, "notifications"), {
-            recipientUid: activeChatPartner.uid,
-            senderUid: user.uid,
-            senderName: appData?.userName || user.displayName || "Athlete",
-            senderAvatar: appData?.avatarUrl || avatarPreview || "",
-            type: "chat",
-            text: 'sent you a message: "' + text.slice(0, 25) + '..."',
-            chatPartnerUid: user.uid,
-            timestamp: Date.now()
-          });
-        } catch (ne) { console.warn("Failed sending chat notif", ne); }
-      }
+      // Inalis ang duplicate chat notification para sa Bell icon
 
       setNewChatMessage("");
     } catch (err) {
@@ -1414,7 +1418,7 @@ export default function App() {
     };
   });
 
-  const allUserNotifs = [...firestoreNotifs, ...pendingRequestsNotifs].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+  const allUserNotifs = [...firestoreNotifs.filter(n => n.type !== "chat"), ...pendingRequestsNotifs].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
 
   const activeWorkoutObj = WORKOUT_ACTIVITIES.find(a => a.name === selectedActivity) || WORKOUT_ACTIVITIES[0];
   const initialMins = parseInt(workoutDuration) || 30;
@@ -1488,6 +1492,8 @@ export default function App() {
         {/* TAB 3: SOCIAL TAB */}
         {activeTab === "community" && (
           <CommunityTab
+            lastSeenMsgTime={lastSeenMsgTime}
+            setLastSeenMsgTime={setLastSeenMsgTime}
             user={user}
             appData={appData}
             avatarPreview={avatarPreview}

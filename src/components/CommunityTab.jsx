@@ -28,6 +28,8 @@ export default function CommunityTab({
   setActivePanel,
   allUserNotifs = [],
   inboxChats = [],
+  lastSeenMsgTime = 0,
+  setLastSeenMsgTime,
   lastSeenNotifTime = 0,
   setLastSeenNotifTime,
   postVisibility,
@@ -153,12 +155,35 @@ export default function CommunityTab({
             )}
           </button>
           <button 
-            onClick={() => setActivePanel("inbox")} 
+            onClick={() => {
+              if (typeof setLastSeenMsgTime === "function") setLastSeenMsgTime(Date.now());
+              setActivePanel("inbox");
+            }} 
             style={{ position: "relative", background: "#ffffff", border: "1px solid #e2e8f0", width: "36px", height: "36px", borderRadius: "50%", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#334155", fontSize: "15px", boxShadow: "0 2px 6px rgba(0,0,0,0.03)" }}
+            title="Messages"
           >
             <i className="fa-regular fa-envelope"></i>
-            {inboxChats.filter(c => c.lastSenderUid !== user?.uid && c.updatedAt > (lastSeenNotifTime || 0)).length > 0 && (
-              <span style={{ position: "absolute", top: "2px", right: "2px", background: "#0ea5e9", color: "white", fontSize: "9px", fontWeight: 800, width: "12px", height: "12px", borderRadius: "50%" }}></span>
+            {unreadChatsCount > 0 && (
+              <span style={{ 
+                position: "absolute", 
+                top: "-4px", 
+                right: "-4px", 
+                background: "#0284c7", 
+                color: "white", 
+                fontSize: "10px", 
+                fontWeight: 900, 
+                minWidth: "18px", 
+                height: "18px", 
+                borderRadius: "10px", 
+                display: "flex", 
+                alignItems: "center", 
+                justifyContent: "center", 
+                padding: "0 4px", 
+                boxShadow: "0 2px 6px rgba(2, 132, 199, 0.4)", 
+                border: "2px solid #ffffff" 
+              }}>
+                {unreadChatsCount > 9 ? "9+" : unreadChatsCount}
+              </span>
             )}
           </button>
         </div>
