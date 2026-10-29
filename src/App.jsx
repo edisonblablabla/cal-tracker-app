@@ -119,7 +119,9 @@ export default function App() {
   const [newChatMessage, setNewChatMessage] = useState("");
   const [isSendingMessage, setIsSendingMessage] = useState(false);
   const [firestoreNotifs, setFirestoreNotifs] = useState([]);
-  const [lastSeenNotifTime, setLastSeenNotifTimeState] = useState(0);
+  const [lastSeenNotifTime, setLastSeenNotifTimeState] = useState(() => {
+    return parseInt(localStorage.getItem("np_last_seen_notif") || "0", 10);
+  });
 
   const setLastSeenNotifTime = async (timeVal) => {
     setLastSeenNotifTimeState(timeVal);
@@ -1414,7 +1416,7 @@ export default function App() {
       avatar: reqUser?.avatarUrl || "",
       text: "sent you a booster request",
       uid: reqUid,
-      timestamp: reqUser?.lastSeen || Date.now()
+      timestamp: reqUser?.createdAt || reqUser?.lastSeen || 0
     };
   });
 
