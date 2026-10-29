@@ -82,6 +82,7 @@ export default function ModalsLayer({
   activeChatPartner = null,
   setActiveChatPartner,
   chatMessages = [],
+  inboxChats = [],
   newChatMessage = "",
   setNewChatMessage,
   handleSendChatMessage,
@@ -250,6 +251,7 @@ export default function ModalsLayer({
               </button>
               <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 800, color: "#0f172a" }}>
                 {activePanel === 'notif' && 'Notifications'}
+                {activePanel === 'inbox' && 'Messages'}
                 {activePanel === 'post_detail' && 'Post Detail'}
                 {activePanel === 'boosters' && 'Boosters'}
                 {activePanel === 'boosting' && 'Boosting'}
@@ -586,6 +588,55 @@ export default function ModalsLayer({
               </div>
             )}
 
+            
+            {/* INBOX PANEL */}
+            {activePanel === 'inbox' && (
+              <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                {inboxChats.length === 0 ? (
+                  <div style={{ textAlign: "center", padding: "40px 20px", color: "#94a3b8" }}>
+                    <i className="fa-regular fa-envelope-open" style={{ fontSize: "32px", marginBottom: "10px", display: "block" }}></i>
+                    <p style={{ fontSize: "12px", margin: 0, fontWeight: 700 }}>Your inbox is empty</p>
+                    <span style={{ fontSize: "10px" }}>Boost an athlete to start a conversation!</span>
+                  </div>
+                ) : (
+                  inboxChats.map(chat => {
+                    const partnerUid = (chat.participants || []).find(id => id !== user?.uid);
+                    const partner = userList.find(u => u.uid === partnerUid) || {};
+                    const isUnread = chat.lastSenderUid !== user?.uid && chat.updatedAt > (lastSeenNotifTime || 0);
+                    
+                    return (
+                      <div 
+                        key={chat.id} 
+                        onClick={() => {
+                          setActiveChatPartner({ uid: partnerUid, userName: partner.userName || "Athlete", avatarUrl: partner.avatarUrl || "" });
+                          setActivePanel("chat");
+                        }}
+                        style={{ display: "flex", alignItems: "center", gap: "12px", padding: "12px", background: "#ffffff", borderRadius: "16px", border: "1px solid #e2e8f0", cursor: "pointer", boxShadow: "0 2px 6px rgba(0,0,0,0.02)" }}
+                      >
+                        <div style={{ width: "42px", height: "42px", borderRadius: "50%", background: "#4f46e5", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: "15px", overflow: "hidden", flexShrink: 0 }}>
+                          {partner.avatarUrl ? (
+                            <img src={partner.avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                          ) : (
+                            (partner.userName || "A").charAt(0).toUpperCase()
+                          )}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <strong style={{ fontSize: "13px", color: "#0f172a", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{partner.userName || "Athlete"}</strong>
+                            <span style={{ fontSize: "9px", color: "#94a3b8" }}>{formatTime(chat.updatedAt)}</span>
+                          </div>
+                          <div style={{ fontSize: "11px", color: isUnread ? "#0f172a" : "#64748b", fontWeight: isUnread ? 800 : 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", marginTop: "3px" }}>
+                            {chat.lastSenderUid === user?.uid ? "You: " : ""}{chat.lastMessage}
+                          </div>
+                        </div>
+                        {isUnread && <div style={{ width: "10px", height: "10px", borderRadius: "50%", background: "#0ea5e9", boxShadow: "0 0 6px rgba(14,165,233,0.5)" }}></div>}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            )}
+  
             {/* PROFILE SETTINGS PANEL */}
             {activePanel === 'settings' && (
               <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>

@@ -27,6 +27,7 @@ export default function CommunityTab({
   setShowSearchModal,
   setActivePanel,
   allUserNotifs = [],
+  inboxChats = [],
   lastSeenNotifTime = 0,
   setLastSeenNotifTime,
   postVisibility,
@@ -149,6 +150,15 @@ export default function CommunityTab({
               <span style={{ position: "absolute", top: "2px", right: "2px", background: "#ef4444", color: "white", fontSize: "9px", fontWeight: 800, width: "15px", height: "15px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 {allUserNotifs.filter(n => (n.timestamp || 0) > lastSeenNotifTime).length}
               </span>
+            )}
+          </button>
+          <button 
+            onClick={() => setActivePanel("inbox")} 
+            style={{ position: "relative", background: "#ffffff", border: "1px solid #e2e8f0", width: "36px", height: "36px", borderRadius: "50%", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#334155", fontSize: "15px", boxShadow: "0 2px 6px rgba(0,0,0,0.03)" }}
+          >
+            <i className="fa-regular fa-envelope"></i>
+            {inboxChats.filter(c => c.lastSenderUid !== user?.uid && c.updatedAt > (lastSeenNotifTime || 0)).length > 0 && (
+              <span style={{ position: "absolute", top: "2px", right: "2px", background: "#0ea5e9", color: "white", fontSize: "9px", fontWeight: 800, width: "12px", height: "12px", borderRadius: "50%" }}></span>
             )}
           </button>
         </div>

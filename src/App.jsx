@@ -27,7 +27,7 @@ import {
   signOut, 
   onAuthStateChanged 
 } from "firebase/auth";
-import { doc, getDoc, setDoc, collection, addDoc, getDocs, deleteDoc, updateDoc, query, orderBy, limit, onSnapshot } from "firebase/firestore";
+import { doc, getDoc, setDoc, collection, addDoc, getDocs, deleteDoc, updateDoc, query, orderBy, limit, onSnapshot, where } from "firebase/firestore";
 
 function formatPostTime(ts) {
   if (!ts) return "Just now";
@@ -115,6 +115,7 @@ export default function App() {
   const [activePanel, setActivePanel] = useState(null);
   const [activeChatPartner, setActiveChatPartner] = useState(null);
   const [chatMessages, setChatMessages] = useState([]);
+  const [inboxChats, setInboxChats] = useState([]);
   const [newChatMessage, setNewChatMessage] = useState("");
   const [isSendingMessage, setIsSendingMessage] = useState(false);
   const [firestoreNotifs, setFirestoreNotifs] = useState([]);
@@ -1384,6 +1385,25 @@ export default function App() {
   // LIVE SELECTED POST IN SLIDE-OVER FOR INSTANT REAL-TIME PULSE/COMMENT UPDATES
   const liveSelectedPost = (selectedPost && posts.find(p => p.id === selectedPost.id)) || selectedPost;
 
+  
+  // INBOX LISTENER (For Chat List Panel)
+  useEffect(() => {
+    let unsubInbox = null;
+    if (user) {
+      try {
+        const q = query(collection(db, "chats"), where("participants", "array-contains", user.uid), orderBy("updatedAt", "desc"));
+        unsubInbox = onSnapshot(q, (snapshot) => {
+          const list = [];
+          snapshot.forEach(docSnap => list.push({ id: docSnap.id, ...docSnap.data() }));
+          setInboxChats(list);
+        });
+      } catch (e) {
+        console.error("Inbox listener error:", e);
+      }
+    }
+    return () => { if (unsubInbox) unsubInbox(); };
+  }, [user]);
+
   return (
     <div className="mobile-frame" style={{ maxWidth: "480px", margin: "0 auto", background: "#f8fafc", minHeight: "100vh", position: "relative" }}>
       <div className="screen-container" style={{ padding: "16px", paddingBottom: "120px" }}>
@@ -1445,6 +1465,7 @@ export default function App() {
         {/* TAB 3: SOCIAL TAB */}
         {activeTab === "community" && (
           <CommunityTab
+            inboxChats={inboxChats}
             user={user}
             appData={appData}
             avatarPreview={avatarPreview}
@@ -1565,6 +1586,7 @@ export default function App() {
 
       {/* MODALS LAYER */}
       <ModalsLayer
+        inboxChats={inboxChats}
         activeChatPartner={activeChatPartner}
         setActiveChatPartner={setActiveChatPartner}
         chatMessages={chatMessages}
