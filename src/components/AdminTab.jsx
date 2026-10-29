@@ -1,35 +1,40 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import ExpandableText from "./ExpandableText";
 
-function formatAdminCreated(ts) {
-  if (!ts) return "N/A";
-  let ms = null;
-  if (typeof ts === "number") ms = ts < 1e11 ? ts * 1000 : ts;
-  else if (ts && typeof ts.toDate === "function") ms = ts.toDate().getTime();
-  else if (ts && typeof ts.seconds === "number") ms = ts.seconds * 1000;
-  else if (typeof ts === "string") ms = Date.parse(ts);
-  else if (ts instanceof Date) ms = ts.getTime();
+const ONLINE_THRESHOLD = 75000; // 75 seconds (ang presence heartbeat ay 30s)
 
-  if (!ms || isNaN(ms)) return "N/A";
-  return new Date(ms).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+function parseMs(ts) {
+  if (!ts) return null;
+  if (typeof ts === "number") return ts < 1e11 ? ts * 1000 : ts;
+  if (ts && typeof ts.toDate === "function") return ts.toDate().getTime();
+  if (ts && typeof ts.seconds === "number") return ts.seconds * 1000;
+  if (typeof ts === "string") return Date.parse(ts);
+  if (ts instanceof Date) return ts.getTime();
+  return null;
 }
 
-function formatAdminLastOnline(ts) {
-  if (!ts || ts === 1) return "Never";
-  let ms = null;
-  if (typeof ts === "number") ms = ts < 1e11 ? ts * 1000 : ts;
-  else if (ts && typeof ts.toDate === "function") ms = ts.toDate().getTime();
-  else if (ts && typeof ts.seconds === "number") ms = ts.seconds * 1000;
-  else if (typeof ts === "string") ms = Date.parse(ts);
-  else if (ts instanceof Date) ms = ts.getTime();
+function formatAdminCreated(ts) {
+  const ms = parseMs(ts);
+  if (!ms || isNaN(ms)) return "N/A";
+  const d = new Date(ms);
+  const dateStr = d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  const timeStr = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+  return `${dateStr}, ${timeStr}`;
+}
 
+function formatAdminLastOnline(ts, now) {
+  if (!ts || ts === 1) return "Never";
+  const ms = parseMs(ts);
   if (!ms || isNaN(ms)) return "Never";
-  const diff = Date.now() - ms;
-  if (diff < 0 || diff < 60000) return "Just now";
-  if (diff < 3600000) return Math.floor(diff / 60000) + "m ago";
-  if (diff < 86400000) return Math.floor(diff / 3600000) + "h ago";
-  if (diff < 604800000) return Math.floor(diff / 86400000) + "d ago";
-  return new Date(ms).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  const diff = (now || Date.now()) - ms;
+  const d = new Date(ms);
+  const timeStr = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+
+  if (diff < ONLINE_THRESHOLD) return "Active Now";
+  if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago (${timeStr})`;
+  if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago (${timeStr})`;
+  const dateStr = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  return `${dateStr}, ${timeStr}`;
 }
 
 export default function AdminTab({
@@ -44,8 +49,40 @@ export default function AdminTab({
   toggleHidePost,
   toggleBlockUser,
   setSelectedPost,
-  setActivePanel
+  setActivePanel,
+  showToast
 }) {
+  // Live ticker na nag-uupdate bawat 5 segundo para realtime ang online/offline
+  const [now, setNow] = useState(Date.now());
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 5000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const handleRefreshClick = async () => {
+    if (isRefreshing) return;
+    setIsRefreshing(true);
+    try {
+      if (typeof fetchPosts === "function") fetchPosts();
+      if (typeof fetchUsers === "function") fetchUsers();
+      // 700ms animation delay para kitang-kita ang spinning feedback
+      await new Promise(r => setTimeout(r, 700));
+      if (typeof showToast === "function") {
+        showToast("Admin data successfully refreshed! 🔄");
+      }
+    } catch (e) {
+      console.error("Refresh error:", e);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  const onlineCount = userList.filter(u => {
+    const ms = parseMs(u.lastSeen);
+    return ms && (now - ms < ONLINE_THRESHOLD);
+  }).length;
+
   return (
     <div className="screen active">
       <div style={{ marginBottom: "10px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -54,11 +91,26 @@ export default function AdminTab({
           <span style={{ fontSize: "10px", color: "var(--text-muted)", fontWeight: 600 }}>Moderation & Evidence Vault</span>
         </div>
         <button 
-          onClick={async () => { setIsRefreshing(true); await fetchPosts(); await fetchUsers(); setIsRefreshing(false); }} 
+          onClick={handleRefreshClick} 
           disabled={isRefreshing} 
-          style={{ background: "#f1f5f9", border: "1px solid #cbd5e1", padding: "4px 10px", borderRadius: "10px", fontSize: "10px", fontWeight: 700, cursor: "pointer" }}
+          style={{ 
+            background: isRefreshing ? "#e0f2fe" : "#ffffff", 
+            border: isRefreshing ? "1px solid #38bdf8" : "1px solid #cbd5e1", 
+            color: isRefreshing ? "#0284c7" : "#334155",
+            padding: "5px 12px", 
+            borderRadius: "10px", 
+            fontSize: "10px", 
+            fontWeight: 800, 
+            cursor: isRefreshing ? "wait" : "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: "5px",
+            boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+            transition: "all 0.2s ease"
+          }}
         >
-          <i className={"fa-solid fa-rotate-right " + (isRefreshing ? "fa-spin" : "")} style={{ marginRight: "4px" }}></i> Refresh
+          <i className={"fa-solid fa-rotate-right " + (isRefreshing ? "fa-spin" : "")} style={{ color: isRefreshing ? "#0284c7" : "#64748b" }}></i> 
+          <span>{isRefreshing ? "Refreshing..." : "Refresh"}</span>
         </button>
       </div>
 
@@ -78,9 +130,9 @@ export default function AdminTab({
       </div>
 
       {adminSubTab === "users" && (
-        <div style={{ background: "#0f172a", color: "white", padding: "6px 10px", borderRadius: "10px", marginBottom: "8px", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "10px", fontWeight: 700 }}>
-          <span>🟢 Online: <strong style={{ color: "#10b981" }}>{userList.filter(u => u.lastSeen && (Date.now() - u.lastSeen < 300000)).length}</strong></span>
-          <span> Accounts: <strong style={{ color: "#38bdf8" }}>{userList.length}</strong></span>
+        <div style={{ background: "#0f172a", color: "white", padding: "8px 12px", borderRadius: "12px", marginBottom: "8px", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "11px", fontWeight: 700 }}>
+          <span>🟢 Online: <strong style={{ color: "#10b981", fontSize: "12px" }}>{onlineCount}</strong></span>
+          <span>👥 Accounts: <strong style={{ color: "#38bdf8", fontSize: "12px" }}>{userList.length}</strong></span>
         </div>
       )}
 
@@ -141,7 +193,7 @@ export default function AdminTab({
                   )}
 
                   <div style={{ fontSize: "8px", color: "var(--text-muted)", fontWeight: 600 }}>
-                    User ID: {p.userId} • {formatAdminCreated(p.createdAt)}
+                    User ID: {p.userId} • Created: {formatAdminCreated(p.createdAt)}
                   </div>
                 </div>
               );
@@ -154,18 +206,20 @@ export default function AdminTab({
             <p style={{ textAlign: "center", padding: "16px", color: "var(--text-muted)", fontSize: "11px" }}>No registered user profiles found.</p>
           ) : (
             userList.map(u => {
-              const isOnline = u.lastSeen && (Date.now() - u.lastSeen < 120000);
+              const lastSeenMs = parseMs(u.lastSeen);
+              const isOnline = lastSeenMs && (now - lastSeenMs < ONLINE_THRESHOLD);
+
               return (
-                <div key={u.uid} className="card" style={{ padding: "8px 10px", borderRadius: "12px", marginBottom: "6px", border: u.isBlocked ? "1px solid #dc2626" : "1px solid #e2e8f0", background: u.isBlocked ? "#fef2f2" : "#ffffff" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "3px" }}>
+                <div key={u.uid} className="card" style={{ padding: "10px 12px", borderRadius: "14px", marginBottom: "8px", border: u.isBlocked ? "1px solid #dc2626" : "1px solid #e2e8f0", background: u.isBlocked ? "#fef2f2" : "#ffffff", boxShadow: "0 2px 6px rgba(0,0,0,0.02)" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "6px", minWidth: 0, flex: 1 }}>
                       <span style={{ fontSize: "12px", fontWeight: 900, color: "#0f172a", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{u.userName || "Athlete"}</span>
                       {isOnline ? (
-                        <span style={{ fontSize: "8px", background: "#10b981", color: "white", padding: "1px 4px", borderRadius: "4px", fontWeight: 800, flexShrink: 0 }}>🟢 ON</span>
+                        <span style={{ fontSize: "8px", background: "#10b981", color: "white", padding: "2px 6px", borderRadius: "6px", fontWeight: 800, flexShrink: 0, boxShadow: "0 1px 4px rgba(16,185,129,0.3)" }}>🟢 ONLINE</span>
                       ) : (
-                        <span style={{ fontSize: "8px", background: "#94a3b8", color: "white", padding: "1px 4px", borderRadius: "4px", fontWeight: 800, flexShrink: 0 }}>OFF</span>
+                        <span style={{ fontSize: "8px", background: "#94a3b8", color: "white", padding: "2px 6px", borderRadius: "6px", fontWeight: 800, flexShrink: 0 }}>OFFLINE</span>
                       )}
-                      {u.isBlocked && <span style={{ fontSize: "8px", background: "#dc2626", color: "white", padding: "1px 4px", borderRadius: "4px", fontWeight: 800, flexShrink: 0 }}>BLOCKED (SAVED)</span>}
+                      {u.isBlocked && <span style={{ fontSize: "8px", background: "#dc2626", color: "white", padding: "2px 6px", borderRadius: "6px", fontWeight: 800, flexShrink: 0 }}>BLOCKED</span>}
                     </div>
 
                     <button 
@@ -176,11 +230,11 @@ export default function AdminTab({
                     </button>
                   </div>
 
-                  <div style={{ fontSize: "9px", color: "#64748b", lineHeight: 1.3, wordBreak: "break-all" }}>
+                  <div style={{ fontSize: "10px", color: "#64748b", lineHeight: 1.4, wordBreak: "break-all" }}>
                     <div><strong>Email:</strong> {u.userEmail || "N/A"}</div>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginTop: "2px", color: "#475569" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "4px", marginTop: "3px", color: "#475569" }}>
                       <span><strong>Created:</strong> {formatAdminCreated(u.createdAt)}</span>
-                      <span><strong>Last Online:</strong> <strong style={{ color: isOnline ? "#10b981" : "#475569" }}>{isOnline ? "Active Now" : (u.lastLoggedOutAt ? formatAdminLastOnline(u.lastLoggedOutAt) : ((u.lastSeen && u.lastSeen > 1) ? formatAdminLastOnline(u.lastSeen) : "Never"))}</strong></span>
+                      <span><strong>Last Online:</strong> <strong style={{ color: isOnline ? "#10b981" : "#475569" }}>{isOnline ? "Active Now" : (u.lastLoggedOutAt ? formatAdminLastOnline(u.lastLoggedOutAt, now) : formatAdminLastOnline(u.lastSeen, now))}</strong></span>
                     </div>
                   </div>
                 </div>
