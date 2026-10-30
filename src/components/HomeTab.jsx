@@ -6,7 +6,6 @@ export default function HomeTab({
   appData,
   activeTab,
   setActiveTab,
-  setLogPanelCategory,
   setShowAboutModal,
   quote,
   shuffleQuote,
@@ -31,9 +30,8 @@ export default function HomeTab({
   pauseTimer,
   finishWorkoutSession
 }) {
-  const [activeHUD, setActiveHUD] = useState("timer"); // 'timer' | 'gps'
-  
-  // Custom Dynamic Quest lines batay sa visual design map
+  const [activeHUD, setActiveHUD] = useState("timer");
+
   const [questIndex, setQuestIndex] = useState(0);
   const quests = [
     "🔥 Burn 300 kcal today to maintain your streak!",
@@ -41,6 +39,10 @@ export default function HomeTab({
     "💧 Drink 8 glasses of water to stay hydrated!",
     "🧘 Record a 15-minute cool down session!"
   ];
+
+  const pNum = Number(totalP) || 0;
+  const cNum = Number(totalC) || 0;
+  const fNum = Number(totalF) || 0;
 
   return (
     <div className="screen active" style={{ maxWidth: "460px", margin: "0 auto", paddingBottom: "32px" }}>
@@ -56,21 +58,20 @@ export default function HomeTab({
           </h2>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-          {/* Flame streak badge */}
           <div style={{ background: "#fff5eb", border: "1px solid #ffedd5", padding: "4px 10px", borderRadius: "12px", display: "flex", alignItems: "center", gap: "4px", fontSize: "11px", fontWeight: 800, color: "#ea580c" }}>
             <span>🔥 {appData?.streakDays || 1}</span>
           </div>
-          {/* About / Help Button */}
           <button 
-            onClick={() => setShowAboutModal(true)} 
+            onClick={() => setShowAboutModal && setShowAboutModal(true)} 
             style={{ width: "28px", height: "28px", borderRadius: "10px", background: "#f1f5f9", border: "none", color: "#64748b", fontWeight: 900, fontSize: "12px", cursor: "pointer" }}
+            title="Info"
           >
             ?
           </button>
         </div>
       </div>
 
-      {/* 2. DALY QUEST (Soft Gradient Banner) */}
+      {/* 2. DAILY QUEST (Soft Gradient Banner) */}
       <div 
         onClick={() => setQuestIndex((prev) => (prev + 1) % quests.length)}
         style={{ 
@@ -85,9 +86,10 @@ export default function HomeTab({
           justifyContent: "space-between",
           alignItems: "center"
         }}
+        title="Tap to switch daily quest"
       >
         <div>
-          <span style={{ fontSize: "9px", textTransform: "uppercase", fontWeight: 800, opacity: 0.8, letterSpacing: "0.5px" }}>
+          <span style={{ fontSize: "9px", textTransform: "uppercase", fontWeight: 800, opacity: 0.85, letterSpacing: "0.5px" }}>
             DAILY QUEST
           </span>
           <div style={{ fontSize: "12px", fontWeight: 700, marginTop: "2px" }}>
@@ -97,7 +99,7 @@ export default function HomeTab({
         <i className="fa-solid fa-chevron-right" style={{ fontSize: "10px", opacity: 0.8 }}></i>
       </div>
 
-      {/* 3. ENERGY & NUTRITION OVERVIEW CARD (White & Subtle Border Shadow) */}
+      {/* 3. ENERGY & NUTRITION OVERVIEW CARD */}
       <div style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "24px", padding: "18px", marginBottom: "16px", boxShadow: "0 6px 18px rgba(15, 23, 42, 0.04)" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
           <div>
@@ -108,8 +110,8 @@ export default function HomeTab({
               Calorie tracking with active burn calculations
             </div>
             <div style={{ display: "flex", alignItems: "baseline", gap: "6px", marginTop: "6px" }}>
-              <span style={{ fontSize: "32px", fontWeight: 900, color: "#0f172a" }}>{totalCal}</span>
-              <span style={{ fontSize: "13px", fontWeight: 600, color: "#64748b" }}>kcal of {activeGoal}</span>
+              <span style={{ fontSize: "32px", fontWeight: 900, color: "#0f172a" }}>{totalCal ?? 0}</span>
+              <span style={{ fontSize: "13px", fontWeight: 600, color: "#64748b" }}>kcal of {activeGoal ?? 2000}</span>
             </div>
           </div>
 
@@ -124,14 +126,14 @@ export default function HomeTab({
                 stroke="#6366f1" 
                 strokeWidth="10" 
                 strokeDasharray="264" 
-                strokeDashoffset={strokeOffset} 
+                strokeDashoffset={strokeOffset ?? 0} 
                 strokeLinecap="round" 
                 fill="transparent" 
                 style={{ transition: "stroke-dashoffset 0.8s ease" }}
               />
             </svg>
             <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "13px", fontWeight: 900, color: "#4f46e5" }}>
-              {pct}%
+              {pct ?? 0}%
             </div>
           </div>
         </div>
@@ -146,10 +148,10 @@ export default function HomeTab({
           <div>
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", fontWeight: 700, color: "#475569", marginBottom: "2px" }}>
               <span>Proteins</span>
-              <span>{totalP}g</span>
+              <span>{pNum}g</span>
             </div>
             <div style={{ height: "6px", background: "#f1f5f9", borderRadius: "3px", overflow: "hidden" }}>
-              <div style={{ width: `${Math.min((totalP / 120) * 100, 100)}%`, height: "100%", background: "#f97316", borderRadius: "3px" }}></div>
+              <div style={{ width: `${Math.min((pNum / 120) * 100, 100)}%`, height: "100%", background: "#f97316", borderRadius: "3px" }}></div>
             </div>
           </div>
 
@@ -157,10 +159,10 @@ export default function HomeTab({
           <div>
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", fontWeight: 700, color: "#475569", marginBottom: "2px" }}>
               <span>Carbs</span>
-              <span>{totalC}g</span>
+              <span>{cNum}g</span>
             </div>
             <div style={{ height: "6px", background: "#f1f5f9", borderRadius: "3px", overflow: "hidden" }}>
-              <div style={{ width: `${Math.min((totalC / 260) * 100, 100)}%`, height: "100%", background: "#3b82f6", borderRadius: "3px" }}></div>
+              <div style={{ width: `${Math.min((cNum / 260) * 100, 100)}%`, height: "100%", background: "#3b82f6", borderRadius: "3px" }}></div>
             </div>
           </div>
 
@@ -168,16 +170,16 @@ export default function HomeTab({
           <div>
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", fontWeight: 700, color: "#475569", marginBottom: "2px" }}>
               <span>Fats</span>
-              <span>{totalF}g</span>
+              <span>{fNum}g</span>
             </div>
             <div style={{ height: "6px", background: "#f1f5f9", borderRadius: "3px", overflow: "hidden" }}>
-              <div style={{ width: `${Math.min((totalF / 70) * 100, 100)}%`, height: "100%", background: "#10b981", borderRadius: "3px" }}></div>
+              <div style={{ width: `${Math.min((fNum / 70) * 100, 100)}%`, height: "100%", background: "#10b981", borderRadius: "3px" }}></div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* 4. QUICK CAPTURE PILLS (Grid Action Launcher) */}
+      {/* 4. QUICK CAPTURE PILLS */}
       <div style={{ marginBottom: "16px" }}>
         <span style={{ fontSize: "10px", fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px", display: "block", marginBottom: "8px" }}>
           QUICK CAPTURE
@@ -187,18 +189,17 @@ export default function HomeTab({
           {/* Log Food */}
           <button 
             onClick={() => {
-              if (typeof setLogPanelCategory === "function") setLogPanelCategory("food");
               if (typeof setActiveTab === "function") setActiveTab("log");
             }}
             style={{ padding: "10px 4px", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: "14px", display: "flex", flexDirection: "column", alignItems: "center", gap: "4px", cursor: "pointer" }}
           >
-            <div style={{ width: "24px", height: "24px", borderRadius: "50%", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", color: "#16a34a", fontSize: "12px" }}>
+            <div style={{ width: "24px", height: "24px", borderRadius: "50%", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "12px" }}>
               🍎
             </div>
             <span style={{ fontSize: "10px", fontWeight: 800, color: "#14532d" }}>Log Food</span>
           </button>
 
-          {/* Workout Section Scroll */}
+          {/* Workout Scroll */}
           <button 
             onClick={() => {
               const element = document.getElementById("active-hud-section");
@@ -206,32 +207,33 @@ export default function HomeTab({
             }}
             style={{ padding: "10px 4px", background: "#eef2ff", border: "1px solid #c7d2fe", borderRadius: "14px", display: "flex", flexDirection: "column", alignItems: "center", gap: "4px", cursor: "pointer" }}
           >
-            <div style={{ width: "24px", height: "24px", borderRadius: "50%", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", color: "#4f46e5", fontSize: "12px" }}>
+            <div style={{ width: "24px", height: "24px", borderRadius: "50%", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "12px" }}>
               🏋️‍♂️
             </div>
             <span style={{ fontSize: "10px", fontWeight: 800, color: "#1e1b4b" }}>Workout</span>
           </button>
 
-          {/* Log Water */}
+          {/* Water */}
           <button 
             onClick={() => {
-              if (typeof setLogPanelCategory === "function") setLogPanelCategory("water");
               if (typeof setActiveTab === "function") setActiveTab("log");
             }}
             style={{ padding: "10px 4px", background: "#f0f9ff", border: "1px solid #bae6fd", borderRadius: "14px", display: "flex", flexDirection: "column", alignItems: "center", gap: "4px", cursor: "pointer" }}
           >
-            <div style={{ width: "24px", height: "24px", borderRadius: "50%", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", color: "#0ea5e9", fontSize: "12px" }}>
+            <div style={{ width: "24px", height: "24px", borderRadius: "50%", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "12px" }}>
               💧
             </div>
             <span style={{ fontSize: "10px", fontWeight: 800, color: "#0369a1" }}>Water</span>
           </button>
 
-          {/* Quick Note / Motivational shuffle */}
+          {/* Inspiration */}
           <button 
-            onClick={shuffleQuote}
+            onClick={() => {
+              if (typeof shuffleQuote === "function") shuffleQuote();
+            }}
             style={{ padding: "10px 4px", background: "#faf5ff", border: "1px solid #f3e8ff", borderRadius: "14px", display: "flex", flexDirection: "column", alignItems: "center", gap: "4px", cursor: "pointer" }}
           >
-            <div style={{ width: "24px", height: "24px", borderRadius: "50%", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", color: "#8b5cf6", fontSize: "12px" }}>
+            <div style={{ width: "24px", height: "24px", borderRadius: "50%", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "12px" }}>
               ✨
             </div>
             <span style={{ fontSize: "10px", fontWeight: 800, color: "#581c87" }}>Inspiration</span>
@@ -240,7 +242,7 @@ export default function HomeTab({
         </div>
       </div>
 
-      {/* 5. ACTIVE HUD (Flexible Timer & Maps Segment) */}
+      {/* 5. ACTIVE HUD */}
       <div id="active-hud-section" style={{ marginBottom: "16px" }}>
         <span style={{ fontSize: "10px", fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px", display: "block", marginBottom: "8px" }}>
           ACTIVE HUD
@@ -294,7 +296,7 @@ export default function HomeTab({
           </button>
         </div>
 
-        {/* VIEW A: WORKOUT TIMER VIEW (Lightweight & Safe) */}
+        {/* VIEW A: WORKOUT TIMER VIEW */}
         {activeHUD === "timer" && (
           <div style={{ background: "linear-gradient(135deg, #0f172a, #1e293b)", borderRadius: "20px", padding: "18px", color: "white", boxShadow: "0 6px 20px rgba(15, 23, 42, 0.2)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
@@ -302,7 +304,7 @@ export default function HomeTab({
                 Session Timer
               </span>
               <span style={{ fontSize: "11px", color: "#f59e0b", fontWeight: 800 }}>
-                Est: {estimatedWorkoutBurn} kcal
+                Est: {estimatedWorkoutBurn ?? 0} kcal
               </span>
             </div>
 
@@ -310,10 +312,10 @@ export default function HomeTab({
               <div style={{ flex: 2 }}>
                 <select 
                   value={selectedActivity} 
-                  onChange={e => setSelectedActivity(e.target.value)}
+                  onChange={e => setSelectedActivity && setSelectedActivity(e.target.value)}
                   style={{ width: "100%", background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)", color: "white", borderRadius: "12px", padding: "10px", fontSize: "11px", fontWeight: 700, outline: "none" }}
                 >
-                  {WORKOUT_ACTIVITIES.map(a => (
+                  {(WORKOUT_ACTIVITIES || []).map(a => (
                     <option key={a.name} value={a.name} style={{ color: "black" }}>{a.name}</option>
                   ))}
                 </select>
@@ -323,7 +325,7 @@ export default function HomeTab({
                   type="number" 
                   placeholder="Minutes"
                   value={workoutDuration} 
-                  onChange={e => handleSetWorkoutTarget(e.target.value)}
+                  onChange={e => handleSetWorkoutTarget && handleSetWorkoutTarget(e.target.value)}
                   style={{ width: "100%", background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)", color: "white", borderRadius: "12px", padding: "10px", fontSize: "12px", fontWeight: 800, outline: "none", textAlign: "center" }} 
                 />
               </div>
@@ -332,21 +334,21 @@ export default function HomeTab({
             {/* DIGITS */}
             <div style={{ background: "rgba(0,0,0,0.35)", padding: "16px", borderRadius: "14px", textAlign: "center", border: "1px solid rgba(255,255,255,0.06)", marginBottom: "14px" }}>
               <div style={{ fontSize: "36px", fontWeight: 900, letterSpacing: "2px", color: "#38bdf8", fontFamily: "monospace", lineHeight: 1 }}>
-                {timerMinDisplay}:{timerSecDisplay}
+                {timerMinDisplay || "00"}:{timerSecDisplay || "00"}
               </div>
             </div>
 
             <div style={{ display: "flex", gap: "10px" }}>
               {!isTimerRunning ? (
-                <button onClick={startTimer} style={{ flex: 1, background: "#10b981", color: "white", border: "none", padding: "12px", borderRadius: "12px", fontWeight: 800, fontSize: "12px", cursor: "pointer", display: "flex", alignItems: "center", justifyBox: "center", gap: "6px", justifyContent: "center" }}>
+                <button onClick={startTimer} style={{ flex: 1, background: "#10b981", color: "white", border: "none", padding: "12px", borderRadius: "12px", fontWeight: 800, fontSize: "12px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}>
                   <i className="fa-solid fa-play"></i> Start
                 </button>
               ) : (
-                <button onClick={pauseTimer} style={{ flex: 1, background: "#f59e0b", color: "white", border: "none", padding: "12px", borderRadius: "12px", fontWeight: 800, fontSize: "12px", cursor: "pointer", display: "flex", alignItems: "center", justifyBox: "center", gap: "6px", justifyContent: "center" }}>
+                <button onClick={pauseTimer} style={{ flex: 1, background: "#f59e0b", color: "white", border: "none", padding: "12px", borderRadius: "12px", fontWeight: 800, fontSize: "12px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}>
                   <i className="fa-solid fa-pause"></i> Pause
                 </button>
               )}
-              <button onClick={finishWorkoutSession} style={{ flex: 1, background: "rgba(255,255,255,0.1)", color: "white", border: "1px solid rgba(255,255,255,0.2)", padding: "12px", borderRadius: "12px", fontWeight: 800, fontSize: "12px", cursor: "pointer", display: "flex", alignItems: "center", justifyBox: "center", gap: "6px", justifyContent: "center" }}>
+              <button onClick={finishWorkoutSession} style={{ flex: 1, background: "rgba(255,255,255,0.1)", color: "white", border: "1px solid rgba(255,255,255,0.2)", padding: "12px", borderRadius: "12px", fontWeight: 800, fontSize: "12px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}>
                 <i className="fa-solid fa-check"></i> Finish
               </button>
             </div>

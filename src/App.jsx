@@ -1472,7 +1472,6 @@ export default function App() {
             startTimer={startTimer}
             pauseTimer={pauseTimer}
             finishWorkoutSession={finishWorkoutSession}
-            setLogPanelCategory={setLogPanelCategory}
           />
         )}
 
