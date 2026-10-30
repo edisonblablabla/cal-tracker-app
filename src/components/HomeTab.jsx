@@ -32,242 +32,250 @@ export default function HomeTab({
 }) {
   const [activeHUD, setActiveHUD] = useState("timer");
 
+  // Dynamic Daily Quests na nagbabago sa bawat tap
   const [questIndex, setQuestIndex] = useState(0);
   const quests = [
-    "🔥 Burn 300 kcal today to maintain your streak!",
-    "🥗 Eat enough Protein today to rebuild muscle!",
-    "💧 Drink 8 glasses of water to stay hydrated!",
-    "🧘 Record a 15-minute cool down session!"
+    "Workout 30m to maintain your streak!",
+    "Hit your protein goal to speed up recovery!",
+    "Drink at least 2.5L of water today!",
+    "Take 5,000 steps before sundown!"
   ];
+
+  const handleNextQuest = () => {
+    setQuestIndex((prev) => (prev + 1) % quests.length);
+    if (typeof shuffleQuote === "function") shuffleQuote();
+    if (typeof showToast === "function") showToast("✨ Bagong Daily Quest na-unlock!");
+  };
 
   const pNum = Number(totalP) || 0;
   const cNum = Number(totalC) || 0;
   const fNum = Number(totalF) || 0;
+  const goalCal = Number(activeGoal) || 2184;
+  const calNum = Number(totalCal) || 0;
 
   return (
-    <div className="screen active" style={{ maxWidth: "460px", margin: "0 auto", paddingBottom: "32px" }}>
+    <div className="screen active" style={{ maxWidth: "460px", margin: "0 auto", paddingBottom: "24px" }}>
       
       {/* 1. BRAND HEADER */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
         <div>
-          <span style={{ fontSize: "9px", fontWeight: 800, color: "#4f46e5", textTransform: "uppercase", letterSpacing: "0.8px" }}>
+          <span style={{ fontSize: "10px", fontWeight: 800, color: "#1e1b4b", textTransform: "uppercase", letterSpacing: "1px" }}>
             NUTRIPULSE
           </span>
-          <h2 style={{ fontSize: "18px", fontWeight: 900, color: "#0f172a", margin: "1px 0 0 0" }}>
-            Hello, {appData?.userName || "Athlete"}!
+          <h2 style={{ fontSize: "20px", fontWeight: 900, color: "#0f172a", margin: "2px 0 0 0", display: "flex", alignItems: "center", gap: "6px" }}>
+            <span>👋</span> Hello, {appData?.userName || "Athlete"}!
           </h2>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-          <div style={{ background: "#fff5eb", border: "1px solid #ffedd5", padding: "4px 10px", borderRadius: "12px", display: "flex", alignItems: "center", gap: "4px", fontSize: "11px", fontWeight: 800, color: "#ea580c" }}>
-            <span>🔥 {appData?.streakDays || 1}</span>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <div style={{ background: "#fff7ed", border: "1px solid #ffedd5", padding: "6px 12px", borderRadius: "14px", display: "flex", alignItems: "center", gap: "5px", fontSize: "12px", fontWeight: 800, color: "#ea580c", boxShadow: "0 2px 4px rgba(234,88,12,0.06)" }}>
+            <span>{appData?.streakDays || 7}</span>
+            <span>🔥</span>
           </div>
           <button 
             onClick={() => setShowAboutModal && setShowAboutModal(true)} 
-            style={{ width: "28px", height: "28px", borderRadius: "10px", background: "#f1f5f9", border: "none", color: "#64748b", fontWeight: 900, fontSize: "12px", cursor: "pointer" }}
-            title="Info"
+            style={{ width: "32px", height: "32px", borderRadius: "50%", background: "#f8fafc", border: "1px solid #e2e8f0", color: "#64748b", fontWeight: 900, fontSize: "13px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+            title="App Info"
           >
             ?
           </button>
         </div>
       </div>
 
-      {/* 2. DAILY QUEST (Soft Gradient Banner) */}
+      {/* 2. DAILY QUEST BANNER (Soft Violet/Magenta Gradient) */}
       <div 
-        onClick={() => setQuestIndex((prev) => (prev + 1) % quests.length)}
+        onClick={handleNextQuest}
         style={{ 
-          background: "linear-gradient(135deg, #4f46e5, #ec4899)", 
-          borderRadius: "16px", 
-          padding: "12px 14px", 
+          background: "linear-gradient(135deg, #6366f1 0%, #a855f7 50%, #ec4899 100%)", 
+          borderRadius: "20px", 
+          padding: "14px 18px", 
           color: "white", 
           marginBottom: "16px", 
-          boxShadow: "0 4px 12px rgba(79,70,229,0.15)",
+          boxShadow: "0 8px 20px rgba(99, 102, 241, 0.25)",
           cursor: "pointer",
           display: "flex",
           justifyContent: "space-between",
-          alignItems: "center"
+          alignItems: "center",
+          transition: "transform 0.15s ease"
         }}
-        title="Tap to switch daily quest"
+        title="Tap to view next quest"
       >
         <div>
-          <span style={{ fontSize: "9px", textTransform: "uppercase", fontWeight: 800, opacity: 0.85, letterSpacing: "0.5px" }}>
+          <span style={{ fontSize: "9px", textTransform: "uppercase", fontWeight: 800, opacity: 0.85, letterSpacing: "0.8px", display: "block" }}>
             DAILY QUEST
           </span>
-          <div style={{ fontSize: "12px", fontWeight: 700, marginTop: "2px" }}>
+          <div style={{ fontSize: "13px", fontWeight: 800, marginTop: "2px", letterSpacing: "-0.2px" }}>
             {quests[questIndex]}
           </div>
         </div>
-        <i className="fa-solid fa-chevron-right" style={{ fontSize: "10px", opacity: 0.8 }}></i>
+        <span style={{ fontSize: "14px", opacity: 0.8, fontWeight: 900 }}>›</span>
       </div>
 
-      {/* 3. ENERGY & NUTRITION OVERVIEW CARD */}
-      <div style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "24px", padding: "18px", marginBottom: "16px", boxShadow: "0 6px 18px rgba(15, 23, 42, 0.04)" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
+      {/* 3. ENERGY OVERVIEW CARD (Clean White with Soft Shadow) */}
+      <div style={{ background: "#ffffff", border: "1px solid #f1f5f9", borderRadius: "24px", padding: "20px", marginBottom: "16px", boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.04)" }}>
+        
+        {/* Top Part: Calories & Gradient Ring */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px" }}>
           <div>
-            <span style={{ fontSize: "10px", fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+            <span style={{ fontSize: "10px", fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.6px" }}>
               ENERGY OVERVIEW
             </span>
-            <div style={{ fontSize: "11px", color: "#475569", marginTop: "2px", fontWeight: 500 }}>
+            <div style={{ fontSize: "11px", color: "#94a3b8", marginTop: "2px", fontWeight: 600 }}>
               Calorie tracking with active burn calculations
             </div>
-            <div style={{ display: "flex", alignItems: "baseline", gap: "6px", marginTop: "6px" }}>
-              <span style={{ fontSize: "32px", fontWeight: 900, color: "#0f172a" }}>{totalCal ?? 0}</span>
-              <span style={{ fontSize: "13px", fontWeight: 600, color: "#64748b" }}>kcal of {activeGoal ?? 2000}</span>
+            <div style={{ display: "flex", alignItems: "baseline", gap: "6px", marginTop: "8px" }}>
+              <span style={{ fontSize: "36px", fontWeight: 900, color: "#0f172a", letterSpacing: "-1px", lineHeight: 1 }}>
+                {calNum.toLocaleString()}
+              </span>
+              <span style={{ fontSize: "13px", fontWeight: 700, color: "#64748b" }}>
+                kcal of {goalCal.toLocaleString()}
+              </span>
             </div>
           </div>
 
-          {/* CIRCULAR PROGRESS */}
-          <div style={{ position: "relative", width: "76px", height: "76px", flexShrink: 0 }}>
-            <svg width="76" height="76" viewBox="0 0 100 100" style={{ transform: "rotate(-90deg)" }}>
-              <circle cx="50" cy="50" r="42" stroke="#f1f5f9" strokeWidth="10" fill="transparent" />
+          {/* CIRCULAR PROGRESS RING */}
+          <div style={{ position: "relative", width: "80px", height: "80px", flexShrink: 0 }}>
+            <svg width="80" height="80" viewBox="0 0 100 100" style={{ transform: "rotate(-90deg)" }}>
+              <defs>
+                <linearGradient id="ringGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="#ec4899" />
+                  <stop offset="50%" stopColor="#8b5cf6" />
+                  <stop offset="100%" stopColor="#3b82f6" />
+                </linearGradient>
+              </defs>
+              <circle cx="50" cy="50" r="40" stroke="#f1f5f9" strokeWidth="10" fill="transparent" />
               <circle 
                 cx="50" 
                 cy="50" 
-                r="42" 
-                stroke="#6366f1" 
+                r="40" 
+                stroke="url(#ringGradient)" 
                 strokeWidth="10" 
-                strokeDasharray="264" 
+                strokeDasharray="251" 
                 strokeDashoffset={strokeOffset ?? 0} 
                 strokeLinecap="round" 
                 fill="transparent" 
                 style={{ transition: "stroke-dashoffset 0.8s ease" }}
               />
             </svg>
-            <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "13px", fontWeight: 900, color: "#4f46e5" }}>
+            <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "15px", fontWeight: 900, color: "#1e1b4b" }}>
               {pct ?? 0}%
             </div>
           </div>
         </div>
 
-        {/* HORIZONTAL MACRONUTRIENT BALANCE METERS */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "8px", paddingTop: "12px", borderTop: "1px solid #f1f5f9" }}>
-          <span style={{ fontSize: "9px", fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+        {/* Bottom Part: MACRONUTRIENT BALANCE (Pill Tracks) */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "10px", paddingTop: "14px", borderTop: "1px solid #f8fafc" }}>
+          <span style={{ fontSize: "9px", fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.6px" }}>
             MACRONUTRIENT BALANCE
           </span>
-          
-          {/* Protein */}
-          <div>
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", fontWeight: 700, color: "#475569", marginBottom: "2px" }}>
-              <span>Proteins</span>
-              <span>{pNum}g</span>
+
+          {/* Proteins */}
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <span style={{ width: "55px", fontSize: "12px", fontWeight: 700, color: "#475569" }}>Proteins</span>
+            <div style={{ flex: 1, height: "10px", background: "#f1f5f9", borderRadius: "999px", overflow: "hidden", position: "relative" }}>
+              <div style={{ width: `${Math.max(Math.min((pNum / 120) * 100, 100), pNum > 0 ? 5 : 2)}%`, height: "100%", background: "linear-gradient(90deg, #4ade80, #22c55e)", borderRadius: "999px", transition: "width 0.4s ease" }}></div>
             </div>
-            <div style={{ height: "6px", background: "#f1f5f9", borderRadius: "3px", overflow: "hidden" }}>
-              <div style={{ width: `${Math.min((pNum / 120) * 100, 100)}%`, height: "100%", background: "#f97316", borderRadius: "3px" }}></div>
-            </div>
+            <span style={{ width: "42px", textAlign: "right", fontSize: "12px", fontWeight: 800, color: "#0f172a" }}>{pNum}gm</span>
           </div>
 
           {/* Carbs */}
-          <div>
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", fontWeight: 700, color: "#475569", marginBottom: "2px" }}>
-              <span>Carbs</span>
-              <span>{cNum}g</span>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <span style={{ width: "55px", fontSize: "12px", fontWeight: 700, color: "#475569" }}>Carbs</span>
+            <div style={{ flex: 1, height: "10px", background: "#f1f5f9", borderRadius: "999px", overflow: "hidden", position: "relative" }}>
+              <div style={{ width: `${Math.max(Math.min((cNum / 260) * 100, 100), cNum > 0 ? 5 : 2)}%`, height: "100%", background: "linear-gradient(90deg, #fbbf24, #f97316)", borderRadius: "999px", transition: "width 0.4s ease" }}></div>
             </div>
-            <div style={{ height: "6px", background: "#f1f5f9", borderRadius: "3px", overflow: "hidden" }}>
-              <div style={{ width: `${Math.min((cNum / 260) * 100, 100)}%`, height: "100%", background: "#3b82f6", borderRadius: "3px" }}></div>
-            </div>
+            <span style={{ width: "42px", textAlign: "right", fontSize: "12px", fontWeight: 800, color: "#0f172a" }}>{cNum}gm</span>
           </div>
 
           {/* Fats */}
-          <div>
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", fontWeight: 700, color: "#475569", marginBottom: "2px" }}>
-              <span>Fats</span>
-              <span>{fNum}g</span>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <span style={{ width: "55px", fontSize: "12px", fontWeight: 700, color: "#475569" }}>Fats</span>
+            <div style={{ flex: 1, height: "10px", background: "#f1f5f9", borderRadius: "999px", overflow: "hidden", position: "relative" }}>
+              <div style={{ width: `${Math.max(Math.min((fNum / 70) * 100, 100), fNum > 0 ? 5 : 2)}%`, height: "100%", background: "linear-gradient(90deg, #60a5fa, #0ea5e9)", borderRadius: "999px", transition: "width 0.4s ease" }}></div>
             </div>
-            <div style={{ height: "6px", background: "#f1f5f9", borderRadius: "3px", overflow: "hidden" }}>
-              <div style={{ width: `${Math.min((fNum / 70) * 100, 100)}%`, height: "100%", background: "#10b981", borderRadius: "3px" }}></div>
-            </div>
+            <span style={{ width: "42px", textAlign: "right", fontSize: "12px", fontWeight: 800, color: "#0f172a" }}>{fNum}gm</span>
           </div>
         </div>
       </div>
 
-      {/* 4. QUICK CAPTURE PILLS */}
-      <div style={{ marginBottom: "16px" }}>
-        <span style={{ fontSize: "10px", fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px", display: "block", marginBottom: "8px" }}>
+      {/* 4. QUICK CAPTURE PILLS (Soft Pastel Cards with Real Actions) */}
+      <div style={{ marginBottom: "18px" }}>
+        <span style={{ fontSize: "10px", fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.6px", display: "block", marginBottom: "8px" }}>
           QUICK CAPTURE
         </span>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "8px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "10px" }}>
           
           {/* Log Food */}
           <button 
             onClick={() => {
               if (typeof setActiveTab === "function") setActiveTab("log");
             }}
-            style={{ padding: "10px 4px", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: "14px", display: "flex", flexDirection: "column", alignItems: "center", gap: "4px", cursor: "pointer" }}
+            style={{ padding: "14px 6px", background: "#ebfbf2", border: "1px solid #d1fae5", borderRadius: "18px", display: "flex", flexDirection: "column", alignItems: "center", gap: "6px", cursor: "pointer", boxShadow: "0 2px 6px rgba(16,185,129,0.06)" }}
           >
-            <div style={{ width: "24px", height: "24px", borderRadius: "50%", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "12px" }}>
-              🍎
-            </div>
-            <span style={{ fontSize: "10px", fontWeight: 800, color: "#14532d" }}>Log Food</span>
+            <span style={{ fontSize: "20px" }}>🥗</span>
+            <span style={{ fontSize: "11px", fontWeight: 800, color: "#065f46" }}>Log Food</span>
           </button>
 
-          {/* Workout Scroll */}
+          {/* Workout (Switches to Workout Timer HUD) */}
           <button 
             onClick={() => {
-              const element = document.getElementById("active-hud-section");
-              if (element) element.scrollIntoView({ behavior: "smooth" });
+              setActiveHUD("timer");
+              const timerCard = document.getElementById("active-hud-section");
+              if (timerCard) timerCard.scrollIntoView({ behavior: "smooth" });
             }}
-            style={{ padding: "10px 4px", background: "#eef2ff", border: "1px solid #c7d2fe", borderRadius: "14px", display: "flex", flexDirection: "column", alignItems: "center", gap: "4px", cursor: "pointer" }}
+            style={{ padding: "14px 6px", background: "#fff4eb", border: "1px solid #fed7aa", borderRadius: "18px", display: "flex", flexDirection: "column", alignItems: "center", gap: "6px", cursor: "pointer", boxShadow: "0 2px 6px rgba(249,115,22,0.06)" }}
           >
-            <div style={{ width: "24px", height: "24px", borderRadius: "50%", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "12px" }}>
-              🏋️‍♂️
-            </div>
-            <span style={{ fontSize: "10px", fontWeight: 800, color: "#1e1b4b" }}>Workout</span>
+            <span style={{ fontSize: "20px" }}>🏋️</span>
+            <span style={{ fontSize: "11px", fontWeight: 800, color: "#9a3412" }}>Workout</span>
           </button>
 
-          {/* Water */}
+          {/* Water Intake */}
           <button 
             onClick={() => {
               if (typeof setActiveTab === "function") setActiveTab("log");
             }}
-            style={{ padding: "10px 4px", background: "#f0f9ff", border: "1px solid #bae6fd", borderRadius: "14px", display: "flex", flexDirection: "column", alignItems: "center", gap: "4px", cursor: "pointer" }}
+            style={{ padding: "14px 6px", background: "#edf7ff", border: "1px solid #bae6fd", borderRadius: "18px", display: "flex", flexDirection: "column", alignItems: "center", gap: "6px", cursor: "pointer", boxShadow: "0 2px 6px rgba(14,165,233,0.06)" }}
           >
-            <div style={{ width: "24px", height: "24px", borderRadius: "50%", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "12px" }}>
-              💧
-            </div>
-            <span style={{ fontSize: "10px", fontWeight: 800, color: "#0369a1" }}>Water</span>
+            <span style={{ fontSize: "20px" }}>💧</span>
+            <span style={{ fontSize: "11px", fontWeight: 800, color: "#075985" }}>Water</span>
           </button>
 
-          {/* Inspiration */}
+          {/* Inspiration / Quick Quest */}
           <button 
-            onClick={() => {
-              if (typeof shuffleQuote === "function") shuffleQuote();
-            }}
-            style={{ padding: "10px 4px", background: "#faf5ff", border: "1px solid #f3e8ff", borderRadius: "14px", display: "flex", flexDirection: "column", alignItems: "center", gap: "4px", cursor: "pointer" }}
+            onClick={handleNextQuest}
+            style={{ padding: "14px 6px", background: "#f8f0ff", border: "1px solid #e9d5ff", borderRadius: "18px", display: "flex", flexDirection: "column", alignItems: "center", gap: "6px", cursor: "pointer", boxShadow: "0 2px 6px rgba(168,85,247,0.06)" }}
           >
-            <div style={{ width: "24px", height: "24px", borderRadius: "50%", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "12px" }}>
-              ✨
-            </div>
-            <span style={{ fontSize: "10px", fontWeight: 800, color: "#581c87" }}>Inspiration</span>
+            <span style={{ fontSize: "20px" }}>✨</span>
+            <span style={{ fontSize: "11px", fontWeight: 800, color: "#6b21a8" }}>Inspiration</span>
           </button>
 
         </div>
       </div>
 
-      {/* 5. ACTIVE HUD */}
+      {/* 5. ACTIVE HUD (Clean White Segmented Cards) */}
       <div id="active-hud-section" style={{ marginBottom: "16px" }}>
-        <span style={{ fontSize: "10px", fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px", display: "block", marginBottom: "8px" }}>
+        <span style={{ fontSize: "10px", fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.6px", display: "block", marginBottom: "8px" }}>
           ACTIVE HUD
         </span>
         
         {/* Toggle Switcher */}
-        <div style={{ display: "flex", background: "#f1f5f9", padding: "4px", borderRadius: "14px", marginBottom: "12px" }}>
+        <div style={{ display: "flex", background: "#f1f5f9", padding: "4px", borderRadius: "16px", marginBottom: "12px" }}>
           <button 
             onClick={() => setActiveHUD("timer")}
             style={{ 
               flex: 1, 
-              padding: "10px 14px", 
-              borderRadius: "10px", 
+              padding: "10px", 
+              borderRadius: "12px", 
               border: "none", 
               background: activeHUD === "timer" ? "#ffffff" : "transparent", 
               color: activeHUD === "timer" ? "#0f172a" : "#64748b", 
               fontWeight: 800, 
               fontSize: "12px", 
               cursor: "pointer",
-              boxShadow: activeHUD === "timer" ? "0 2px 6px rgba(0,0,0,0.06)" : "none",
+              boxShadow: activeHUD === "timer" ? "0 2px 8px rgba(0,0,0,0.06)" : "none",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              gap: "6px",
-              transition: "all 0.2s"
+              gap: "6px"
             }}
           >
             ⏱️ Workout Timer
@@ -276,86 +284,75 @@ export default function HomeTab({
             onClick={() => setActiveHUD("gps")}
             style={{ 
               flex: 1, 
-              padding: "10px 14px", 
-              borderRadius: "10px", 
+              padding: "10px", 
+              borderRadius: "12px", 
               border: "none", 
               background: activeHUD === "gps" ? "#ffffff" : "transparent", 
               color: activeHUD === "gps" ? "#0f172a" : "#64748b", 
               fontWeight: 800, 
               fontSize: "12px", 
               cursor: "pointer",
-              boxShadow: activeHUD === "gps" ? "0 2px 6px rgba(0,0,0,0.06)" : "none",
+              boxShadow: activeHUD === "gps" ? "0 2px 8px rgba(0,0,0,0.06)" : "none",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              gap: "6px",
-              transition: "all 0.2s"
+              gap: "6px"
             }}
           >
             📍 GPS Run & Steps
           </button>
         </div>
 
-        {/* VIEW A: WORKOUT TIMER VIEW */}
+        {/* VIEW A: CONCEPT C WORKOUT TIMER CARD */}
         {activeHUD === "timer" && (
-          <div style={{ background: "linear-gradient(135deg, #0f172a, #1e293b)", borderRadius: "20px", padding: "18px", color: "white", boxShadow: "0 6px 20px rgba(15, 23, 42, 0.2)" }}>
+          <div style={{ background: "#ffffff", border: "1px solid #f1f5f9", borderRadius: "24px", padding: "20px", boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.04)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-              <span style={{ fontSize: "11px", fontWeight: 800, color: "#38bdf8", textTransform: "uppercase" }}>
-                Session Timer
+              <span style={{ fontSize: "10px", fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.6px" }}>
+                WORKOUT TIMER
               </span>
-              <span style={{ fontSize: "11px", color: "#f59e0b", fontWeight: 800 }}>
-                Est: {estimatedWorkoutBurn ?? 0} kcal
-              </span>
-            </div>
-
-            <div style={{ display: "flex", gap: "8px", marginBottom: "14px" }}>
-              <div style={{ flex: 2 }}>
+              <div style={{ width: "160px" }}>
                 <select 
                   value={selectedActivity} 
                   onChange={e => setSelectedActivity && setSelectedActivity(e.target.value)}
-                  style={{ width: "100%", background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)", color: "white", borderRadius: "12px", padding: "10px", fontSize: "11px", fontWeight: 700, outline: "none" }}
+                  style={{ width: "100%", background: "#f8fafc", border: "1px solid #e2e8f0", color: "#0f172a", borderRadius: "10px", padding: "6px 10px", fontSize: "11px", fontWeight: 700, outline: "none" }}
                 >
                   {(WORKOUT_ACTIVITIES || []).map(a => (
-                    <option key={a.name} value={a.name} style={{ color: "black" }}>{a.name}</option>
+                    <option key={a.name} value={a.name}>{a.name}</option>
                   ))}
                 </select>
               </div>
-              <div style={{ flex: 1 }}>
-                <input 
-                  type="number" 
-                  placeholder="Minutes"
-                  value={workoutDuration} 
-                  onChange={e => handleSetWorkoutTarget && handleSetWorkoutTarget(e.target.value)}
-                  style={{ width: "100%", background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)", color: "white", borderRadius: "12px", padding: "10px", fontSize: "12px", fontWeight: 800, outline: "none", textAlign: "center" }} 
-                />
+            </div>
+
+            {/* Big Digital Clock Display */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", margin: "14px 0" }}>
+              <div style={{ fontSize: "40px", fontWeight: 900, color: "#0f172a", fontFamily: "monospace", letterSpacing: "-1px", lineHeight: 1 }}>
+                {timerMinDisplay || "30"}:{timerSecDisplay || "00"}
+              </div>
+              <div style={{ textAlign: "right" }}>
+                <span style={{ fontSize: "10px", fontWeight: 700, color: "#94a3b8", display: "block" }}>EST. BURN</span>
+                <span style={{ fontSize: "14px", fontWeight: 800, color: "#f97316" }}>{estimatedWorkoutBurn ?? 0} kcal</span>
               </div>
             </div>
 
-            {/* DIGITS */}
-            <div style={{ background: "rgba(0,0,0,0.35)", padding: "16px", borderRadius: "14px", textAlign: "center", border: "1px solid rgba(255,255,255,0.06)", marginBottom: "14px" }}>
-              <div style={{ fontSize: "36px", fontWeight: 900, letterSpacing: "2px", color: "#38bdf8", fontFamily: "monospace", lineHeight: 1 }}>
-                {timerMinDisplay || "00"}:{timerSecDisplay || "00"}
-              </div>
-            </div>
-
+            {/* Action Buttons: START & FINISH */}
             <div style={{ display: "flex", gap: "10px" }}>
               {!isTimerRunning ? (
-                <button onClick={startTimer} style={{ flex: 1, background: "#10b981", color: "white", border: "none", padding: "12px", borderRadius: "12px", fontWeight: 800, fontSize: "12px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}>
-                  <i className="fa-solid fa-play"></i> Start
+                <button onClick={startTimer} style={{ flex: 1, background: "#1e1b4b", color: "white", border: "none", padding: "12px", borderRadius: "14px", fontWeight: 800, fontSize: "13px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", boxShadow: "0 4px 12px rgba(30,27,75,0.2)" }}>
+                  START
                 </button>
               ) : (
-                <button onClick={pauseTimer} style={{ flex: 1, background: "#f59e0b", color: "white", border: "none", padding: "12px", borderRadius: "12px", fontWeight: 800, fontSize: "12px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}>
-                  <i className="fa-solid fa-pause"></i> Pause
+                <button onClick={pauseTimer} style={{ flex: 1, background: "#f59e0b", color: "white", border: "none", padding: "12px", borderRadius: "14px", fontWeight: 800, fontSize: "13px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}>
+                  PAUSE
                 </button>
               )}
-              <button onClick={finishWorkoutSession} style={{ flex: 1, background: "rgba(255,255,255,0.1)", color: "white", border: "1px solid rgba(255,255,255,0.2)", padding: "12px", borderRadius: "12px", fontWeight: 800, fontSize: "12px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}>
-                <i className="fa-solid fa-check"></i> Finish
+              <button onClick={finishWorkoutSession} style={{ flex: 1, background: "#fb7185", color: "white", border: "none", padding: "12px", borderRadius: "14px", fontWeight: 800, fontSize: "13px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", boxShadow: "0 4px 12px rgba(251,113,133,0.2)" }}>
+                FINISH
               </button>
             </div>
           </div>
         )}
 
-        {/* VIEW B: GPS RUN & STEPS VIEW */}
+        {/* VIEW B: GPS RUN & STEPS VIEW (Only active when toggled) */}
         <div style={{ display: activeHUD === "gps" ? "block" : "none" }}>
           <MapTracker
             activeTab={activeTab}

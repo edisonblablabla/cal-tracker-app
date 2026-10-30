@@ -100,7 +100,7 @@ export default function MapTracker({ activeTab, appData, saveToCloud, showToast 
   const gpsCalBurned = Math.round(gpsCalculatedSteps * 0.04);
 
   return (
-    <div className="card" style={{ padding: "16px", borderRadius: "20px", background: "linear-gradient(135deg, #0284c7, #0369a1)", color: "white", marginBottom: "16px" }}>
+    <div className="card" style={{ padding: "16px", borderRadius: "20px", background: "linear-gradient(135deg, #0284c7, #0369a1)", color: "#0f172a", marginBottom: "16px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
           <i className="fa-solid fa-location-dot" style={{ fontSize: "18px", color: "#38bdf8" }}></i>
@@ -111,10 +111,10 @@ export default function MapTracker({ activeTab, appData, saveToCloud, showToast 
         </span>
       </div>
 
-      <div style={{ borderRadius: "14px", overflow: "hidden", border: "1px solid rgba(255,255,255,0.2)", marginBottom: "12px", height: "150px", position: "relative", background: "#0f172a" }}>
+      <div style={{ borderRadius: "14px", overflow: "hidden", border: "1px solid rgba(255,255,255,0.2)", marginBottom: "12px", height: "150px", position: "relative", background: "#ffffff" }}>
         <div ref={mapContainerRef} style={{ width: "100%", height: "100%" }}></div>
         {waypoints.length === 0 && !isGpsTracking && (
-          <div style={{ position: "absolute", inset: 0, background: "rgba(15,23,42,0.65)", backdropFilter: "blur(2px)", display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontSize: "11px", fontWeight: 700, pointerEvents: "none" }}>
+          <div style={{ position: "absolute", inset: 0, background: "rgba(15,23,42,0.65)", backdropFilter: "blur(2px)", display: "flex", alignItems: "center", justifyContent: "center", color: "#0f172a", fontSize: "11px", fontWeight: 700, pointerEvents: "none" }}>
             <i className="fa-solid fa-map-location-dot" style={{ marginRight: "6px", color: "#38bdf8" }}></i> Click "Start GPS" to display live route
           </div>
         )}
@@ -140,14 +140,14 @@ export default function MapTracker({ activeTab, appData, saveToCloud, showToast 
         {!isGpsTracking ? (
           <button 
             onClick={() => setIsGpsTracking(true)} 
-            style={{ flex: 1, padding: "8px", background: "#10b981", color: "white", border: "none", borderRadius: "10px", fontWeight: 800, fontSize: "11px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "5px" }}
+            style={{ flex: 1, padding: "8px", background: "#10b981", color: "#0f172a", border: "1px solid #e2e8f0", borderRadius: "10px", fontWeight: 800, fontSize: "11px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "5px" }}
           >
             <i className="fa-solid fa-play"></i> Start GPS
           </button>
         ) : (
           <button 
             onClick={() => setIsGpsTracking(false)} 
-            style={{ flex: 1, padding: "8px", background: "#f59e0b", color: "white", border: "none", borderRadius: "10px", fontWeight: 800, fontSize: "11px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "5px" }}
+            style={{ flex: 1, padding: "8px", background: "#f59e0b", color: "#0f172a", border: "1px solid #e2e8f0", borderRadius: "10px", fontWeight: 800, fontSize: "11px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "5px" }}
           >
             <i className="fa-solid fa-pause"></i> Pause
           </button>
@@ -164,7 +164,7 @@ export default function MapTracker({ activeTab, appData, saveToCloud, showToast 
             setWaypoints([]);
             setIsGpsTracking(false);
           }} 
-          style={{ flex: 1, padding: "8px", background: "#ffffff", color: "#0f172a", border: "none", borderRadius: "10px", fontWeight: 800, fontSize: "11px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "5px" }}
+          style={{ flex: 1, padding: "8px", background: "#ffffff", color: "#0f172a", border: "1px solid #e2e8f0", borderRadius: "10px", fontWeight: 800, fontSize: "11px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "5px" }}
         >
           <i className="fa-solid fa-check"></i> Finish & Reset
         </button>
