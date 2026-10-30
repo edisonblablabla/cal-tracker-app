@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import MapTracker from "./MapTracker";
 import { WORKOUT_ACTIVITIES } from "../constants/data";
 
@@ -6,7 +6,6 @@ export default function HomeTab({
   appData,
   activeTab,
   setActiveTab,
-  setLogPanelCategory,
   setShowAboutModal,
   quote,
   shuffleQuote,
@@ -31,204 +30,233 @@ export default function HomeTab({
   pauseTimer,
   finishWorkoutSession
 }) {
+  const [activeActivityMode, setActiveActivityMode] = useState("timer");
+
   return (
-    <div className="screen active">
-      {/* HEADER GREETING */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", gap: "8px" }}>
-        <div style={{ minWidth: 0, flex: 1, display: "flex", alignItems: "center", gap: "8px" }}>
-          <div style={{ width: "28px", height: "28px", borderRadius: "50%", background: "linear-gradient(135deg, #4f46e5, #06b6d4)", display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontSize: "12px", boxShadow: "0 2px 6px rgba(79,70,229,0.3)", flexShrink: 0 }}>
-            <i className="fa-solid fa-heart-pulse"></i>
-          </div>
-          <div style={{ minWidth: 0, flex: 1 }}>
-            <span style={{ fontSize: "9px", fontWeight: 800, color: "var(--primary)", textTransform: "uppercase", letterSpacing: "0.5px", display: "block", lineHeight: 1 }}>NUTRIPULSE</span>
-            <h2 style={{ 
-              fontSize: "15px", 
-              fontWeight: 900, 
-              margin: 0, 
-              lineHeight: 1.2, 
-              color: "#0f172a",
-              whiteSpace: "nowrap", 
-              overflow: "hidden", 
-              textOverflow: "ellipsis" 
-            }}>
-              Hey, {appData?.userName || "Athlete"}! 
-            </h2>
-          </div>
+    <div className="screen active" style={{ maxWidth: "460px", margin: "0 auto" }}>
+      {/* 1. TOP HEADER */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+        <div>
+          <span style={{ fontSize: "10px", fontWeight: 800, color: "var(--primary)", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+            NutriPulse Dashboard
+          </span>
+          <h2 style={{ fontSize: "18px", fontWeight: 900, color: "#0f172a", margin: "2px 0 0 0" }}>
+            Hey, {appData?.userName || "Athlete"}! 👋
+          </h2>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
-          <div className="streak-badge" style={{ padding: "4px 8px", fontSize: "10px" }}><i className="fa-solid fa-fire"></i> <span>{appData?.streakDays || 1}</span>d</div>
-          <button onClick={() => setShowAboutModal(true)} style={{ background: "#e0e7ff", border: "none", color: "var(--primary)", borderRadius: "8px", width: "26px", height: "26px", fontWeight: 900, cursor: "pointer", fontSize: "11px" }}>?</button>
+        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+          <div style={{ background: "#ffffff", border: "1px solid #fed7aa", padding: "4px 10px", borderRadius: "12px", display: "flex", alignItems: "center", gap: "4px", fontSize: "11px", fontWeight: 800, color: "#ea580c", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+            <i className="fa-solid fa-fire"></i>
+            <span>{appData?.streakDays || 1}d</span>
+          </div>
+          <button 
+            onClick={() => setShowAboutModal(true)} 
+            style={{ width: "28px", height: "28px", borderRadius: "10px", background: "#f1f5f9", border: "none", color: "#64748b", fontWeight: 900, fontSize: "12px", cursor: "pointer" }}
+            title="App Info"
+          >
+            ?
+          </button>
         </div>
       </div>
 
-      {/* COMPACT DAILY MOTIVATION BANNER */}
+      {/* 2. SUBTLE MOTIVATION TICKER */}
       <div 
-        onClick={shuffleQuote} 
-        style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", background: "#f8fafc", borderRadius: "14px", marginBottom: "16px", border: "1px solid #e2e8f0" }}
-        title="Tap to shuffle daily motivation"
+        onClick={shuffleQuote}
+        style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: "8px", background: "#f8fafc", border: "1px solid #e2e8f0", padding: "6px 12px", borderRadius: "10px", marginBottom: "14px" }}
+        title="Tap to shuffle quote"
       >
-        <div style={{ width: "24px", height: "24px", borderRadius: "50%", background: "var(--primary)", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "10px", flexShrink: 0 }}>
-          <i className="fa-solid fa-quote-left"></i>
-        </div>
-        <div style={{ fontSize: "11px", fontWeight: 700, color: "#475569", lineHeight: 1.3, fontStyle: "italic", flex: 1 }}>
+        <i className="fa-solid fa-sparkles" style={{ fontSize: "11px", color: "var(--primary)" }}></i>
+        <span style={{ fontSize: "11px", color: "#475569", fontWeight: 600, flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", fontStyle: "italic" }}>
           "{quote}"
-        </div>
-        <i className="fa-solid fa-rotate" style={{ fontSize: "10px", color: "#94a3b8" }}></i>
+        </span>
+        <i className="fa-solid fa-rotate" style={{ fontSize: "9px", color: "#94a3b8" }}></i>
       </div>
 
-      {/* UNIFIED HERO CARD (INTAKE + PROGRESS RING + BURN) */}
-      <div className="card" style={{ padding: "20px", borderRadius: "24px", marginBottom: "16px", background: "#ffffff", boxShadow: "0 8px 24px rgba(0,0,0,0.06)", position: "relative", overflow: "hidden" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: (appData?.todayBurnedCal || 0) > 0 ? "14px" : "0px" }}>
+      {/* 3. HERO NUTRITION & ENERGY CARD */}
+      <div style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "20px", padding: "18px", marginBottom: "14px", boxShadow: "0 4px 16px -2px rgba(15, 23, 42, 0.05)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
           <div>
-            <span style={{ fontSize: "10px", fontWeight: 800, color: "var(--primary)", textTransform: "uppercase", letterSpacing: "0.5px" }}>Daily Intake</span>
-            <h3 style={{ fontSize: "26px", fontWeight: 900, color: "#0f172a", margin: "2px 0 6px 0" }}>
-              {totalCal} <span style={{ fontSize: "13px", color: "#64748b", fontWeight: 600 }}>/ {activeGoal} kcal</span>
-            </h3>
-            <div style={{ display: "flex", gap: "10px", fontSize: "11px", color: "#64748b", fontWeight: 700 }}>
-              <span>P: <strong style={{ color: "#0f172a" }}>{totalP}g</strong></span>
-              <span>C: <strong style={{ color: "#0f172a" }}>{totalC}g</strong></span>
-              <span>F: <strong style={{ color: "#0f172a" }}>{totalF}g</strong></span>
+            <span style={{ fontSize: "10px", fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+              Daily Calorie Target
+            </span>
+            <div style={{ display: "flex", alignItems: "baseline", gap: "6px", marginTop: "2px" }}>
+              <span style={{ fontSize: "28px", fontWeight: 900, color: "#0f172a", lineHeight: 1 }}>{totalCal}</span>
+              <span style={{ fontSize: "13px", fontWeight: 600, color: "#64748b" }}>/ {activeGoal} kcal</span>
             </div>
+            {(appData?.todayBurnedCal || 0) > 0 && (
+              <span style={{ fontSize: "11px", color: "#16a34a", fontWeight: 700, display: "inline-block", marginTop: "4px" }}>
+                🔥 {appData.todayBurnedCal} kcal burned today
+              </span>
+            )}
           </div>
-          
-          {/* CIRCULAR PROGRESS RING */}
-          <div style={{ position: "relative", width: "80px", height: "80px", flexShrink: 0 }}>
-            <svg width="80" height="80" viewBox="0 0 100 100" style={{ transform: "rotate(-90deg)" }}>
-              <circle cx="50" cy="50" r="45" stroke="#f1f5f9" strokeWidth="10" fill="transparent" />
+
+          {/* CIRCULAR PROGRESS */}
+          <div style={{ position: "relative", width: "70px", height: "70px", flexShrink: 0 }}>
+            <svg width="70" height="70" viewBox="0 0 100 100" style={{ transform: "rotate(-90deg)" }}>
+              <circle cx="50" cy="50" r="42" stroke="#f1f5f9" strokeWidth="10" fill="transparent" />
               <circle 
                 cx="50" 
                 cy="50" 
-                r="45" 
+                r="42" 
                 stroke="var(--primary)" 
                 strokeWidth="10" 
-                strokeDasharray="283" 
+                strokeDasharray="264" 
                 strokeDashoffset={strokeOffset} 
                 strokeLinecap="round" 
                 fill="transparent" 
                 style={{ transition: "stroke-dashoffset 0.8s ease" }}
               />
             </svg>
-            <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "14px", fontWeight: 900, color: "var(--primary)" }}>
+            <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "13px", fontWeight: 900, color: "var(--primary)" }}>
               {pct}%
             </div>
           </div>
         </div>
 
-        {/* ACTIVE WORKOUT BURN SUMMARY INSIDE HERO */}
-        {(appData?.todayBurnedCal || 0) > 0 && (
-          <div style={{ background: "#f0fdf4", padding: "10px 14px", borderRadius: "12px", display: "flex", alignItems: "center", gap: "8px", border: "1px solid #bbf7d0" }}>
-            <div style={{ color: "#16a34a", fontSize: "14px" }}><i className="fa-solid fa-fire-flame-curved"></i></div>
-            <div style={{ fontSize: "11px", fontWeight: 800, color: "#16a34a" }}>
-              Active Burn Today: {appData.todayBurnedCal} kcal
+        {/* MACROS PILLS */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px", paddingTop: "12px", borderTop: "1px solid #f1f5f9", marginBottom: "12px" }}>
+          <div style={{ background: "#f8fafc", padding: "8px", borderRadius: "10px", textAlign: "center" }}>
+            <span style={{ fontSize: "9px", fontWeight: 700, color: "#64748b", display: "block" }}>Protein</span>
+            <strong style={{ fontSize: "13px", color: "#0f172a" }}>{totalP}g</strong>
+          </div>
+          <div style={{ background: "#f8fafc", padding: "8px", borderRadius: "10px", textAlign: "center" }}>
+            <span style={{ fontSize: "9px", fontWeight: 700, color: "#64748b", display: "block" }}>Carbs</span>
+            <strong style={{ fontSize: "13px", color: "#0f172a" }}>{totalC}g</strong>
+          </div>
+          <div style={{ background: "#f8fafc", padding: "8px", borderRadius: "10px", textAlign: "center" }}>
+            <span style={{ fontSize: "9px", fontWeight: 700, color: "#64748b", display: "block" }}>Fats</span>
+            <strong style={{ fontSize: "13px", color: "#0f172a" }}>{totalF}g</strong>
+          </div>
+        </div>
+
+        {/* LOG FOOD ACTION BUTTON */}
+        <button 
+          onClick={() => {
+            if (typeof setActiveTab === "function") setActiveTab("log");
+          }}
+          style={{ width: "100%", padding: "10px", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "12px", color: "#334155", fontWeight: 800, fontSize: "12px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}
+        >
+          <i className="fa-solid fa-plus" style={{ color: "var(--primary)" }}></i>
+          <span>Log Food & Meals in Log Tab</span>
+        </button>
+      </div>
+
+      {/* 4. ACTIVITY & MOVEMENT HUB (SEGMENTED TABS) */}
+      <div style={{ marginBottom: "14px" }}>
+        <div style={{ display: "flex", background: "#e2e8f0", padding: "3px", borderRadius: "14px", marginBottom: "10px" }}>
+          <button 
+            onClick={() => setActiveActivityMode("timer")}
+            style={{ 
+              flex: 1, 
+              padding: "8px 12px", 
+              borderRadius: "11px", 
+              border: "none", 
+              background: activeActivityMode === "timer" ? "#ffffff" : "transparent", 
+              color: activeActivityMode === "timer" ? "#0f172a" : "#64748b", 
+              fontWeight: 800, 
+              fontSize: "12px", 
+              cursor: "pointer",
+              boxShadow: activeActivityMode === "timer" ? "0 2px 6px rgba(0,0,0,0.06)" : "none",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "6px"
+            }}
+          >
+            <i className="fa-solid fa-stopwatch" style={{ color: activeActivityMode === "timer" ? "#38bdf8" : "#94a3b8" }}></i>
+            Workout Timer
+          </button>
+          <button 
+            onClick={() => setActiveActivityMode("gps")}
+            style={{ 
+              flex: 1, 
+              padding: "8px 12px", 
+              borderRadius: "11px", 
+              border: "none", 
+              background: activeActivityMode === "gps" ? "#ffffff" : "transparent", 
+              color: activeActivityMode === "gps" ? "#0f172a" : "#64748b", 
+              fontWeight: 800, 
+              fontSize: "12px", 
+              cursor: "pointer",
+              boxShadow: activeActivityMode === "gps" ? "0 2px 6px rgba(0,0,0,0.06)" : "none",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "6px"
+            }}
+          >
+            <i className="fa-solid fa-location-dot" style={{ color: activeActivityMode === "gps" ? "#0ea5e9" : "#94a3b8" }}></i>
+            GPS Run & Steps
+          </button>
+        </div>
+
+        {/* WORKOUT TIMER VIEW (Lightweight & Instant) */}
+        {activeActivityMode === "timer" && (
+          <div style={{ background: "linear-gradient(135deg, #0f172a, #1e293b)", borderRadius: "20px", padding: "18px", color: "white", boxShadow: "0 6px 20px rgba(15, 23, 42, 0.2)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+              <span style={{ fontSize: "11px", fontWeight: 800, color: "#38bdf8", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                Session Timer
+              </span>
+              <span style={{ fontSize: "10px", color: "#94a3b8" }}>
+                Est: <strong style={{ color: "#f59e0b" }}>{estimatedWorkoutBurn} kcal</strong>
+              </span>
+            </div>
+
+            <div style={{ display: "flex", gap: "8px", marginBottom: "14px" }}>
+              <div style={{ flex: 2 }}>
+                <select 
+                  value={selectedActivity} 
+                  onChange={e => setSelectedActivity(e.target.value)}
+                  style={{ width: "100%", background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)", color: "white", borderRadius: "10px", padding: "8px 10px", fontSize: "11px", fontWeight: 700, outline: "none" }}
+                >
+                  {WORKOUT_ACTIVITIES.map(a => (
+                    <option key={a.name} value={a.name} style={{ color: "black" }}>{a.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div style={{ flex: 1 }}>
+                <input 
+                  type="number" 
+                  placeholder="Mins"
+                  value={workoutDuration} 
+                  onChange={e => handleSetWorkoutTarget(e.target.value)}
+                  style={{ width: "100%", background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)", color: "white", borderRadius: "10px", padding: "8px", fontSize: "11px", fontWeight: 800, outline: "none", textAlign: "center" }} 
+                />
+              </div>
+            </div>
+
+            {/* DIGITS DISPLAY */}
+            <div style={{ background: "rgba(0,0,0,0.35)", padding: "16px", borderRadius: "14px", textAlign: "center", border: "1px solid rgba(255,255,255,0.06)", marginBottom: "12px" }}>
+              <div style={{ fontSize: "36px", fontWeight: 900, letterSpacing: "2px", color: "#38bdf8", fontFamily: "monospace", lineHeight: 1 }}>
+                {timerMinDisplay}:{timerSecDisplay}
+              </div>
+            </div>
+
+            <div style={{ display: "flex", gap: "8px" }}>
+              {!isTimerRunning ? (
+                <button onClick={startTimer} style={{ flex: 1, background: "#10b981", color: "white", border: "none", padding: "10px", borderRadius: "10px", fontWeight: 800, fontSize: "12px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}>
+                  <i className="fa-solid fa-play"></i> Start
+                </button>
+              ) : (
+                <button onClick={pauseTimer} style={{ flex: 1, background: "#f59e0b", color: "white", border: "none", padding: "10px", borderRadius: "10px", fontWeight: 800, fontSize: "12px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}>
+                  <i className="fa-solid fa-pause"></i> Pause
+                </button>
+              )}
+              <button onClick={finishWorkoutSession} style={{ flex: 1, background: "rgba(255,255,255,0.1)", color: "white", border: "1px solid rgba(255,255,255,0.2)", padding: "10px", borderRadius: "10px", fontWeight: 800, fontSize: "12px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}>
+                <i className="fa-solid fa-check"></i> Finish
+              </button>
             </div>
           </div>
         )}
-      </div>
 
-      {/* QUICK ACTION PILLS (Glance & Go) */}
-      <div style={{ display: "flex", gap: "10px", marginBottom: "16px" }}>
-        <button 
-          onClick={() => {
-            if (typeof setLogPanelCategory === "function") setLogPanelCategory("food");
-            if (typeof setActiveTab === "function") setActiveTab("log");
-          }}
-          style={{ flex: 1, padding: "12px 8px", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "16px", display: "flex", flexDirection: "column", alignItems: "center", gap: "6px", cursor: "pointer", color: "#334155", fontWeight: 800, fontSize: "11px" }}
-        >
-          <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: "#ffffff", display: "flex", alignItems: "center", justifyContent: "center", color: "#f59e0b", fontSize: "14px", boxShadow: "0 2px 6px rgba(0,0,0,0.06)" }}>
-            <i className="fa-solid fa-apple-whole"></i>
-          </div>
-          Log Meal
-        </button>
-        <button 
-          onClick={() => {
-            const timerElem = document.getElementById("workout-timer-section");
-            if (timerElem) {
-              timerElem.scrollIntoView({ behavior: "smooth" });
-            }
-          }}
-          style={{ flex: 1, padding: "12px 8px", background: "var(--primary)", border: "none", borderRadius: "16px", display: "flex", flexDirection: "column", alignItems: "center", gap: "6px", cursor: "pointer", color: "white", fontWeight: 800, fontSize: "11px", boxShadow: "0 4px 12px rgba(79,70,229,0.3)" }}
-        >
-          <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: "rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontSize: "14px" }}>
-            <i className="fa-solid fa-dumbbell"></i>
-          </div>
-          Workout
-        </button>
-        <button 
-          onClick={() => {
-            if (typeof setLogPanelCategory === "function") setLogPanelCategory("water");
-            if (typeof setActiveTab === "function") setActiveTab("log");
-          }}
-          style={{ flex: 1, padding: "12px 8px", background: "#f0f9ff", border: "1px solid #bae6fd", borderRadius: "16px", display: "flex", flexDirection: "column", alignItems: "center", gap: "6px", cursor: "pointer", color: "#0284c7", fontWeight: 800, fontSize: "11px" }}
-        >
-          <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: "#ffffff", display: "flex", alignItems: "center", justifyContent: "center", color: "#0284c7", fontSize: "14px", boxShadow: "0 2px 6px rgba(0,0,0,0.06)" }}>
-            <i className="fa-solid fa-droplet"></i>
-          </div>
-          Water
-        </button>
-      </div>
-
-      {/* GPS MAP TRACKER */}
-      <MapTracker
-        activeTab={activeTab}
-        appData={appData}
-        saveToCloud={saveToCloud}
-        showToast={showToast}
-      />
-
-      {/* COMPACT WORKOUT COUNTDOWN TIMER */}
-      <div id="workout-timer-section" className="card" style={{ padding: "20px", borderRadius: "24px", background: "linear-gradient(135deg, #0f172a, #1e293b)", color: "white", marginBottom: "16px", boxShadow: "0 8px 24px rgba(15,23,42,0.4)" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "16px" }}>
-          <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: "rgba(56, 189, 248, 0.15)", display: "flex", alignItems: "center", justifyContent: "center", color: "#38bdf8" }}>
-            <i className="fa-solid fa-stopwatch"></i>
-          </div>
-          <h4 style={{ fontSize: "15px", fontWeight: 800, margin: 0 }}>Workout Timer</h4>
-        </div>
-
-        <div style={{ display: "flex", gap: "10px", marginBottom: "16px" }}>
-          <div style={{ flex: 2 }}>
-            <select 
-              value={selectedActivity} 
-              onChange={e => setSelectedActivity(e.target.value)}
-              style={{ width: "100%", background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)", color: "white", borderRadius: "12px", padding: "10px", fontSize: "11px", fontWeight: 700, outline: "none" }}
-            >
-              {WORKOUT_ACTIVITIES.map(a => (
-                <option key={a.name} value={a.name} style={{ color: "black" }}>{a.name}</option>
-              ))}
-            </select>
-          </div>
-          <div style={{ flex: 1 }}>
-            <input 
-              type="number" 
-              placeholder="Mins"
-              value={workoutDuration} 
-              onChange={e => handleSetWorkoutTarget(e.target.value)}
-              style={{ width: "100%", background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)", color: "white", borderRadius: "12px", padding: "10px", fontSize: "12px", fontWeight: 800, outline: "none", textAlign: "center" }} 
-            />
-          </div>
-        </div>
-
-        <div style={{ background: "rgba(0,0,0,0.3)", padding: "18px", borderRadius: "16px", textAlign: "center", border: "1px solid rgba(255,255,255,0.05)", marginBottom: "14px" }}>
-          <div style={{ fontSize: "36px", fontWeight: 900, letterSpacing: "3px", color: "#38bdf8", fontFamily: "monospace", lineHeight: 1 }}>
-            {timerMinDisplay}:{timerSecDisplay}
-          </div>
-          <div style={{ fontSize: "11px", color: "#94a3b8", fontWeight: 700, marginTop: "8px" }}>
-            Est. Burn: <strong style={{ color: "#f59e0b" }}>{estimatedWorkoutBurn} kcal</strong>
-          </div>
-        </div>
-
-        <div style={{ display: "flex", gap: "10px" }}>
-          {!isTimerRunning ? (
-            <button onClick={startTimer} style={{ flex: 1, background: "#10b981", color: "white", border: "none", padding: "12px", borderRadius: "12px", fontWeight: 800, fontSize: "12px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}>
-              <i className="fa-solid fa-play"></i> Start
-            </button>
-          ) : (
-            <button onClick={pauseTimer} style={{ flex: 1, background: "#f59e0b", color: "white", border: "none", padding: "12px", borderRadius: "12px", fontWeight: 800, fontSize: "12px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}>
-              <i className="fa-solid fa-pause"></i> Pause
-            </button>
-          )}
-          <button onClick={finishWorkoutSession} style={{ flex: 1, background: "rgba(255,255,255,0.12)", color: "white", border: "1px solid rgba(255,255,255,0.2)", padding: "12px", borderRadius: "12px", fontWeight: 800, fontSize: "12px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}>
-            <i className="fa-solid fa-check"></i> Finish
-          </button>
+        {/* GPS VIEW (Tinatago habang nasa Timer para hindi mag-lag ang mobile) */}
+        <div style={{ display: activeActivityMode === "gps" ? "block" : "none" }}>
+          <MapTracker
+            activeTab={activeTab}
+            appData={appData}
+            saveToCloud={saveToCloud}
+            showToast={showToast}
+          />
         </div>
       </div>
     </div>
