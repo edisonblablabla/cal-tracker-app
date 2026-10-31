@@ -461,6 +461,10 @@ export default function App() {
   const handleSetWorkoutTarget = (mins) => {
     const parsedMins = parseInt(mins) || 0;
     setWorkoutDuration(mins);
+    const numMins = Number(arguments[0]) || 0;
+    const actObj = (typeof WORKOUT_ACTIVITIES !== 'undefined' ? WORKOUT_ACTIVITIES : []).find(a => a.name === selectedActivity);
+    const rate = actObj?.calPerMin || actObj?.caloriesPerMinute || actObj?.burnRate || 8;
+    if (typeof setEstimatedWorkoutBurn === 'function') setEstimatedWorkoutBurn(Math.round(numMins * rate));
     setTimerSeconds(parsedMins * 60);
     setIsTimerRunning(false);
   };

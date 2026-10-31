@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import MapTracker from "./MapTracker";
 import { WORKOUT_ACTIVITIES } from "../constants/data";
 
@@ -33,7 +33,7 @@ export default function HomeTab({
   const [activeHUD, setActiveHUD] = useState("timer");
   const [activeSheet, setActiveSheet] = useState(null); // 'food' | 'workout' | 'water' | 'weight' | null
 
-  // Sheet States
+  // Sheet Form States
   const [quickFoodName, setQuickFoodName] = useState("");
   const [quickCal, setQuickCal] = useState("");
   const [quickP, setQuickP] = useState("");
@@ -44,7 +44,7 @@ export default function HomeTab({
   const [customWorkoutMins, setCustomWorkoutMins] = useState(30);
   const [customWorkoutKcal, setCustomWorkoutKcal] = useState(180);
 
-  const [quickWeightKg, setQuickWeightKg] = useState(appData?.currentWeight || "");
+  const [quickWeightKg, setQuickWeightKg] = useState(appData?.currentWeight || appData?.weight || "");
 
   // Daily Quests
   const [questIndex, setQuestIndex] = useState(0);
@@ -60,7 +60,7 @@ export default function HomeTab({
     if (typeof shuffleQuote === "function") shuffleQuote();
   };
 
-  // I-LOCK ANG BODY SCROLL HABANG BUKAS ANG SHEET PARA HINDI UMANGAT ANG BACKGROUND
+  // Lock body scroll kapag bukas ang sheet para hindi maalog ang screen
   useEffect(() => {
     if (activeSheet) {
       document.body.style.overflow = "hidden";
@@ -72,7 +72,50 @@ export default function HomeTab({
     };
   }, [activeSheet]);
 
-  // 1. DUAL-SYNC SAVE FOOD (Lilitaw sa Calorie Ring at sa LogTab)
+  // LIVE MACROS AT CALORIES (May dynamic fallback mula sa meals kung sakaling 0 ang props)
+  const { liveCal, liveP, liveC, liveF } = useMemo(() => {
+    const todayISO = new Date().toISOString().slice(0, 10);
+    const todayLocale = new Date().toLocaleDateString();
+
+    const allMeals = appData?.meals || appData?.foodLogs || appData?.logs || [];
+    const todayMeals = allMeals.filter((m) => {
+      if (!m) return false;
+      const mDate = m.date || m.dateStr || m.dateLocale;
+      return mDate === todayISO || mDate === todayLocale;
+    });
+
+    const sumP = todayMeals.reduce((acc, m) => acc + (Number(m.protein) || Number(m.p) || 0), 0);
+    const sumC = todayMeals.reduce((acc, m) => acc + (Number(m.carbs) || Number(m.c) || 0), 0);
+    const sumF = todayMeals.reduce((acc, m) => acc + (Number(m.fats) || Number(m.fat) || Number(m.f) || 0), 0);
+    const sumCal = todayMeals.reduce((acc, m) => acc + (Number(m.calories) || Number(m.cal) || 0), 0);
+
+    return {
+      liveCal: (Number(totalCal) > 0 ? Number(totalCal) : 0) || sumCal || Number(appData?.totalCal) || 0,
+      liveP: (Number(totalP) > 0 ? Number(totalP) : 0) || sumP || Number(appData?.totalP) || 0,
+      liveC: (Number(totalC) > 0 ? Number(totalC) : 0) || sumC || Number(appData?.totalC) || 0,
+      liveF: (Number(totalF) > 0 ? Number(totalF) : 0) || sumF || Number(appData?.totalF) || 0
+    };
+  }, [totalCal, totalP, totalC, totalF, appData]);
+
+  const goalCal = Number(activeGoal) || Number(appData?.dailyCalorieTarget) || 2184;
+
+  // 100% MATHEMATICALLY ACCURATE RING PERCENT AT STROKE OFFSET
+  const accuratePct = goalCal > 0 ? Math.round((liveCal / goalCal) * 100) : 0;
+  const ringRadius = 40;
+  const ringCircumference = 2 * Math.PI * ringRadius; // 251.327
+  const cappedFillPercent = Math.min(Math.max(accuratePct, 0), 100);
+  const accurateStrokeOffset = ringCircumference - (ringCircumference * cappedFillPercent) / 100;
+
+  // LIVE ESTIMATED CALORIE BURN SA WORKOUT
+  const liveBurnRate = useMemo(() => {
+    const act = (WORKOUT_ACTIVITIES || []).find((a) => a.name === selectedActivity);
+    return act?.calPerMinute || act?.calPerMin || act?.caloriesPerMinute || act?.burnRate || act?.rate || 8;
+  }, [selectedActivity]);
+
+  const activeDurationMins = Number(workoutDuration) || 30;
+  const dynamicEstimatedBurn = Math.round(activeDurationMins * liveBurnRate);
+
+  // 1. SAVE FOOD WITH COMPLETE COMPATIBILITY
   const handleSaveFoodSheet = (e) => {
     e.preventDefault();
     const cVal = Number(quickCal) || 0;
@@ -84,6 +127,8 @@ export default function HomeTab({
     const cCarbVal = Number(quickC) || 0;
     const fVal = Number(quickF) || 0;
     const mealTitle = quickFoodName.trim() || "Quick Meal";
+    const todayISO = new Date().toISOString().slice(0, 10);
+    const todayLocale = new Date().toLocaleDateString();
 
     const newEntry = {
       id: Date.now(),
@@ -91,11 +136,18 @@ export default function HomeTab({
       title: mealTitle,
       calories: cVal,
       cal: cVal,
+      kcal: cVal,
       protein: pVal,
+      p: pVal,
       carbs: cCarbVal,
+      c: cCarbVal,
       fats: fVal,
+      fat: fVal,
+      f: fVal,
+      date: todayISO,
+      dateStr: todayISO,
+      dateLocale: todayLocale,
       time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-      date: new Date().toISOString().slice(0, 10),
       category: "meal"
     };
 
@@ -106,7 +158,6 @@ export default function HomeTab({
         totalP: (appData?.totalP || 0) + pVal,
         totalC: (appData?.totalC || 0) + cCarbVal,
         totalF: (appData?.totalF || 0) + fVal,
-        // Dual-sync sa meals, foodLogs, at logs para compatible sa buong app
         meals: [newEntry, ...(appData?.meals || [])],
         foodLogs: [newEntry, ...(appData?.foodLogs || [])],
         logs: [newEntry, ...(appData?.logs || [])]
@@ -123,14 +174,18 @@ export default function HomeTab({
     setActiveSheet(null);
   };
 
-  // 2. DUAL-SYNC SAVE WATER
+  // 2. SAVE WATER WITH DUAL-SYNC
   const handleSaveWaterSheet = (amount) => {
+    const todayISO = new Date().toISOString().slice(0, 10);
+    const todayLocale = new Date().toLocaleDateString();
+
     const newEntry = {
       id: Date.now(),
       amountMl: amount,
       amount: amount,
-      time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-      date: new Date().toISOString().slice(0, 10)
+      date: todayISO,
+      dateLocale: todayLocale,
+      time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
     };
 
     if (saveToCloud) {
@@ -147,10 +202,12 @@ export default function HomeTab({
     setActiveSheet(null);
   };
 
-  // 3. DUAL-SYNC SAVE WORKOUT
+  // 3. SAVE WORKOUT
   const handleSaveWorkout = (name, mins, kcal) => {
     const kVal = Number(kcal) || 0;
     const mVal = Number(mins) || 0;
+    const todayISO = new Date().toISOString().slice(0, 10);
+    const todayLocale = new Date().toLocaleDateString();
 
     const newEntry = {
       id: Date.now(),
@@ -160,8 +217,9 @@ export default function HomeTab({
       durationMins: mVal,
       calories: kVal,
       burnedKcal: kVal,
-      time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-      date: new Date().toISOString().slice(0, 10)
+      date: todayISO,
+      dateLocale: todayLocale,
+      time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
     };
 
     if (saveToCloud) {
@@ -179,7 +237,7 @@ export default function HomeTab({
     setActiveSheet(null);
   };
 
-  // 4. DUAL-SYNC SAVE WEIGHT
+  // 4. SAVE WEIGHT WITH FULL PROGRESS TAB COMPATIBILITY
   const handleSaveWeightSheet = (e) => {
     e.preventDefault();
     const w = parseFloat(quickWeightKg);
@@ -188,10 +246,18 @@ export default function HomeTab({
       return;
     }
 
+    const todayLocale = new Date().toLocaleDateString();
+    const todayISO = new Date().toISOString().slice(0, 10);
+
     const newRecord = {
       id: Date.now(),
       weight: w,
-      date: new Date().toLocaleDateString(),
+      val: w,
+      value: w,
+      currentWeight: w,
+      date: todayLocale,
+      dateFormatted: todayLocale,
+      dateStr: todayISO,
       timestamp: Date.now()
     };
 
@@ -201,7 +267,9 @@ export default function HomeTab({
         currentWeight: w,
         weight: w,
         weightHistory: [newRecord, ...(appData?.weightHistory || [])],
-        weights: [newRecord, ...(appData?.weights || [])]
+        weights: [newRecord, ...(appData?.weights || [])],
+        weightLogs: [newRecord, ...(appData?.weightLogs || [])],
+        weightEntries: [newRecord, ...(appData?.weightEntries || [])]
       };
       saveToCloud(updated);
     }
@@ -209,12 +277,6 @@ export default function HomeTab({
     if (showToast) showToast(`⚖️ Na-record ang timbang: ${w} kg!`);
     setActiveSheet(null);
   };
-
-  const pNum = Number(totalP) || 0;
-  const cNum = Number(totalC) || 0;
-  const fNum = Number(totalF) || 0;
-  const goalCal = Number(activeGoal) || 2184;
-  const calNum = Number(totalCal) || 0;
 
   const currentWater = Number(appData?.todayWaterMl || appData?.waterIntake || 0);
   const waterTarget = Number(appData?.dailyWaterTarget || 2500);
@@ -288,6 +350,7 @@ export default function HomeTab({
       {/* 3. ENERGY & HYDRATION OVERVIEW CARD */}
       <div style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "18px", padding: "14px", marginBottom: "12px", boxShadow: "0 2px 8px rgba(15, 23, 42, 0.04)" }}>
         
+        {/* Calories and Accurate Progress Ring */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
           <div>
             <span style={{ fontSize: "9px", fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.6px" }}>
@@ -295,7 +358,7 @@ export default function HomeTab({
             </span>
             <div style={{ display: "flex", alignItems: "baseline", gap: "5px", marginTop: "4px" }}>
               <span style={{ fontSize: "24px", fontWeight: 900, color: "#0f172a", lineHeight: 1 }}>
-                {calNum.toLocaleString()}
+                {liveCal.toLocaleString()}
               </span>
               <span style={{ fontSize: "11px", fontWeight: 700, color: "#64748b" }}>
                 / {goalCal.toLocaleString()} kcal
@@ -309,7 +372,7 @@ export default function HomeTab({
             )}
           </div>
 
-          {/* Progress Ring */}
+          {/* 100% ACCURATE PROGRESS RING */}
           <div style={{ position: "relative", width: "62px", height: "62px", flexShrink: 0 }}>
             <svg width="62" height="62" viewBox="0 0 100 100" style={{ transform: "rotate(-90deg)" }}>
               <defs>
@@ -319,54 +382,58 @@ export default function HomeTab({
                   <stop offset="100%" stopColor="#2563eb" />
                 </linearGradient>
               </defs>
-              <circle cx="50" cy="50" r="40" stroke="#f1f5f9" strokeWidth="10" fill="transparent" />
+              <circle cx="50" cy="50" r={ringRadius} stroke="#f1f5f9" strokeWidth="10" fill="transparent" />
               <circle 
                 cx="50" 
                 cy="50" 
-                r="40" 
+                r={ringRadius} 
                 stroke="url(#ringGrad)" 
                 strokeWidth="10" 
-                strokeDasharray="251" 
-                strokeDashoffset={strokeOffset ?? 0} 
+                strokeDasharray={ringCircumference} 
+                strokeDashoffset={accurateStrokeOffset} 
                 strokeLinecap="round" 
                 fill="transparent" 
                 style={{ transition: "stroke-dashoffset 0.6s ease" }}
               />
             </svg>
             <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "12px", fontWeight: 900, color: "#0f172a" }}>
-              {pct ?? 0}%
+              {accuratePct}%
             </div>
           </div>
         </div>
 
-        {/* Macronutrient Bars */}
+        {/* Macronutrient Bars (Real-time Updated) */}
         <div style={{ display: "flex", flexDirection: "column", gap: "6px", paddingTop: "10px", borderTop: "1px solid #f1f5f9", marginBottom: "12px" }}>
+          
+          {/* Protein */}
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <span style={{ width: "48px", fontSize: "10.5px", fontWeight: 700, color: "#475569" }}>Protein</span>
             <div style={{ flex: 1, height: "6px", background: "#f1f5f9", borderRadius: "999px", overflow: "hidden" }}>
-              <div style={{ width: `${Math.max(Math.min((pNum / 120) * 100, 100), pNum > 0 ? 5 : 2)}%`, height: "100%", background: "#10b981", borderRadius: "999px" }}></div>
+              <div style={{ width: `${Math.max(Math.min((liveP / 120) * 100, 100), liveP > 0 ? 5 : 2)}%`, height: "100%", background: "#10b981", borderRadius: "999px", transition: "width 0.4s ease" }}></div>
             </div>
-            <span style={{ width: "38px", textAlign: "right", fontSize: "10.5px", fontWeight: 800, color: "#0f172a" }}>{pNum}g</span>
+            <span style={{ width: "38px", textAlign: "right", fontSize: "10.5px", fontWeight: 800, color: "#0f172a" }}>{liveP}g</span>
           </div>
 
+          {/* Carbs */}
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <span style={{ width: "48px", fontSize: "10.5px", fontWeight: 700, color: "#475569" }}>Carbs</span>
             <div style={{ flex: 1, height: "6px", background: "#f1f5f9", borderRadius: "999px", overflow: "hidden" }}>
-              <div style={{ width: `${Math.max(Math.min((cNum / 260) * 100, 100), cNum > 0 ? 5 : 2)}%`, height: "100%", background: "#f59e0b", borderRadius: "999px" }}></div>
+              <div style={{ width: `${Math.max(Math.min((liveC / 260) * 100, 100), liveC > 0 ? 5 : 2)}%`, height: "100%", background: "#f59e0b", borderRadius: "999px", transition: "width 0.4s ease" }}></div>
             </div>
-            <span style={{ width: "38px", textAlign: "right", fontSize: "10.5px", fontWeight: 800, color: "#0f172a" }}>{cNum}g</span>
+            <span style={{ width: "38px", textAlign: "right", fontSize: "10.5px", fontWeight: 800, color: "#0f172a" }}>{liveC}g</span>
           </div>
 
+          {/* Fats */}
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <span style={{ width: "48px", fontSize: "10.5px", fontWeight: 700, color: "#475569" }}>Fats</span>
             <div style={{ flex: 1, height: "6px", background: "#f1f5f9", borderRadius: "999px", overflow: "hidden" }}>
-              <div style={{ width: `${Math.max(Math.min((fNum / 70) * 100, 100), fNum > 0 ? 5 : 2)}%`, height: "100%", background: "#0ea5e9", borderRadius: "999px" }}></div>
+              <div style={{ width: `${Math.max(Math.min((liveF / 70) * 100, 100), liveF > 0 ? 5 : 2)}%`, height: "100%", background: "#0ea5e9", borderRadius: "999px", transition: "width 0.4s ease" }}></div>
             </div>
-            <span style={{ width: "38px", textAlign: "right", fontSize: "10.5px", fontWeight: 800, color: "#0f172a" }}>{fNum}g</span>
+            <span style={{ width: "38px", textAlign: "right", fontSize: "10.5px", fontWeight: 800, color: "#0f172a" }}>{liveF}g</span>
           </div>
         </div>
 
-        {/* Hydration / Water Tracker */}
+        {/* Hydration / Water Tracker Row */}
         <div style={{ paddingTop: "10px", borderTop: "1px dashed #e2e8f0" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "5px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
@@ -393,7 +460,7 @@ export default function HomeTab({
 
       </div>
 
-      {/* 4. QUICK ACTIONS GRID (WALANG SCROLLING - DRAWER LAMANG) */}
+      {/* 4. QUICK ACTIONS GRID */}
       <div style={{ marginBottom: "14px" }}>
         <span style={{ fontSize: "9px", fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.6px", display: "block", marginBottom: "6px" }}>
           Quick Actions
@@ -411,7 +478,7 @@ export default function HomeTab({
             <span style={{ fontSize: "10px", fontWeight: 700, color: "#1e293b" }}>Log Food</span>
           </button>
 
-          {/* Workout (Bubuksan ang Workout Drawer nang HINDI nag-i-scroll) */}
+          {/* Workout Drawer */}
           <button 
             onClick={() => setActiveSheet("workout")}
             style={{ padding: "10px 4px", background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "12px", display: "flex", flexDirection: "column", alignItems: "center", gap: "5px", cursor: "pointer", boxShadow: "0 1px 3px rgba(0,0,0,0.02)" }}
@@ -435,7 +502,10 @@ export default function HomeTab({
 
           {/* Log Weight */}
           <button 
-            onClick={() => setActiveSheet("weight")}
+            onClick={() => {
+              setQuickWeightKg(appData?.currentWeight || appData?.weight || "");
+              setActiveSheet("weight");
+            }}
             style={{ padding: "10px 4px", background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "12px", display: "flex", flexDirection: "column", alignItems: "center", gap: "5px", cursor: "pointer", boxShadow: "0 1px 3px rgba(0,0,0,0.02)" }}
           >
             <div style={{ width: "26px", height: "26px", borderRadius: "7px", background: "#f5f3ff", color: "#8b5cf6", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "12px" }}>
@@ -500,7 +570,7 @@ export default function HomeTab({
           </button>
         </div>
 
-        {/* WORKOUT TIMER CARD (IBINALIK ANG DURATION INPUT AT FUNCTIONS) */}
+        {/* WORKOUT TIMER CARD (REAL-TIME ESTIMATED BURN RECALCULATION) */}
         {activeHUD === "timer" && (
           <div style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "18px", padding: "14px", boxShadow: "0 2px 8px rgba(15, 23, 42, 0.04)" }}>
             <div style={{ display: "flex", gap: "8px", marginBottom: "10px" }}>
@@ -508,10 +578,12 @@ export default function HomeTab({
                 <label style={{ fontSize: "8.5px", fontWeight: 700, color: "#64748b", textTransform: "uppercase", display: "block", marginBottom: "3px" }}>Activity</label>
                 <select 
                   value={selectedActivity} 
-                  onChange={e => setSelectedActivity && setSelectedActivity(e.target.value)}
+                  onChange={(e) => {
+                    if (setSelectedActivity) setSelectedActivity(e.target.value);
+                  }}
                   style={{ width: "100%", background: "#f8fafc", border: "1px solid #cbd5e1", color: "#0f172a", borderRadius: "8px", padding: "6px 8px", fontSize: "11px", fontWeight: 700, outline: "none" }}
                 >
-                  {(WORKOUT_ACTIVITIES || []).map(a => (
+                  {(WORKOUT_ACTIVITIES || []).map((a) => (
                     <option key={a.name} value={a.name}>{a.name}</option>
                   ))}
                 </select>
@@ -521,7 +593,10 @@ export default function HomeTab({
                 <input 
                   type="number" 
                   value={workoutDuration} 
-                  onChange={e => handleSetWorkoutTarget && handleSetWorkoutTarget(e.target.value)}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (handleSetWorkoutTarget) handleSetWorkoutTarget(val);
+                  }}
                   style={{ width: "100%", background: "#f8fafc", border: "1px solid #cbd5e1", color: "#0f172a", borderRadius: "8px", padding: "6px 8px", fontSize: "11px", fontWeight: 800, outline: "none", textAlign: "center" }} 
                 />
               </div>
@@ -533,7 +608,9 @@ export default function HomeTab({
               </div>
               <div style={{ textAlign: "right" }}>
                 <span style={{ fontSize: "8.5px", fontWeight: 700, color: "#94a3b8", display: "block", textTransform: "uppercase" }}>Est. Burn</span>
-                <span style={{ fontSize: "13px", fontWeight: 800, color: "#ea580c" }}>{estimatedWorkoutBurn ?? 0} kcal</span>
+                <span style={{ fontSize: "13px", fontWeight: 800, color: "#ea580c" }}>
+                  {dynamicEstimatedBurn} kcal
+                </span>
               </div>
             </div>
 
@@ -568,7 +645,7 @@ export default function HomeTab({
         </div>
       </div>
 
-      {/* 6. SLIDE-OVER PANELS (BODY SCROLL-LOCKED, ZERO LAYOUT SHIFT) */}
+      {/* 6. SLIDE-OVER PANELS */}
       {activeSheet && (
         <div 
           onClick={() => setActiveSheet(null)}
@@ -672,7 +749,6 @@ export default function HomeTab({
                   <button onClick={() => setActiveSheet(null)} style={{ background: "none", border: "none", color: "#94a3b8", fontSize: "18px", cursor: "pointer" }}>✕</button>
                 </div>
 
-                {/* 1-Tap Quick Presets */}
                 <div style={{ marginBottom: "14px" }}>
                   <span style={{ fontSize: "10px", fontWeight: 700, color: "#64748b", display: "block", marginBottom: "6px" }}>QUICK 1-TAP PRESETS</span>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
@@ -710,7 +786,6 @@ export default function HomeTab({
                   </div>
                 </div>
 
-                {/* Custom Workout Input */}
                 <div style={{ background: "#f8fafc", padding: "12px", borderRadius: "14px", border: "1px solid #e2e8f0", marginBottom: "12px" }}>
                   <span style={{ fontSize: "10px", fontWeight: 800, color: "#475569", display: "block", marginBottom: "8px" }}>CUSTOM WORKOUT LOG</span>
                   
@@ -730,7 +805,11 @@ export default function HomeTab({
                       <input 
                         type="number" 
                         value={customWorkoutMins} 
-                        onChange={(e) => setCustomWorkoutMins(e.target.value)} 
+                        onChange={(e) => {
+                          const m = Number(e.target.value) || 0;
+                          setCustomWorkoutMins(m);
+                          setCustomWorkoutKcal(Math.round(m * 6));
+                        }} 
                         style={{ width: "100%", padding: "8px 10px", borderRadius: "8px", border: "1px solid #cbd5e1", fontSize: "12px", fontWeight: 800, outline: "none" }} 
                       />
                     </div>
@@ -753,7 +832,6 @@ export default function HomeTab({
                   </button>
                 </div>
 
-                {/* Switch to Stopwatch (WALANG scrollIntoView) */}
                 <button 
                   onClick={() => {
                     setActiveSheet(null);
