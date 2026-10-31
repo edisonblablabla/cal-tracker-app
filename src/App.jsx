@@ -119,6 +119,165 @@ export default function App() {
   // SLIDE-OVER PANEL CENTRAL CONTROLLER
   const [activePanel, setActivePanel] = useState(null);
   const [activeChatPartner, setActiveChatPartner] = useState(null);
+
+  // ─── MASTER HIERARCHICAL NATIVE BACK BUTTON CONTROLLER ───
+  const isPoppingRef = useRef(false);
+
+  const activeTabRef = useRef(activeTab);
+  const activePanelRef = useRef(activePanel);
+  const activeChatPartnerRef = useRef(activeChatPartner);
+  const showNotifModalRef = useRef(showNotifModal);
+  const showSearchModalRef = useRef(showSearchModal);
+
+  useEffect(() => { activeTabRef.current = activeTab; }, [activeTab]);
+  useEffect(() => { activePanelRef.current = activePanel; }, [activePanel]);
+  useEffect(() => { activeChatPartnerRef.current = activeChatPartner; }, [activeChatPartner]);
+  useEffect(() => { showNotifModalRef.current = showNotifModal; }, [showNotifModal]);
+  useEffect(() => { showSearchModalRef.current = showSearchModal; }, [showSearchModal]);
+
+  useEffect(() => {
+    if (!window.history.state || !window.history.state.tab) {
+      window.history.replaceState({ tab: "home" }, "");
+    }
+
+    const handlePopState = (e) => {
+      isPoppingRef.current = true;
+
+      // LAYER 4: Nasa loob ng conversation ng isang user -> Babalik sa Messages List / Inbox
+      if (activeChatPartnerRef.current) {
+        setActiveChatPartner(null);
+        setActivePanel("messages");
+        setTimeout(() => { isPoppingRef.current = false; }, 60);
+        return;
+      }
+
+      // LAYER 3: Nasa Messages List, Post Detail, o Sub-panel -> Babalik sa Social Feed
+      if (activePanelRef.current) {
+        setActivePanel(null);
+        setTimeout(() => { isPoppingRef.current = false; }, 60);
+        return;
+      }
+
+      // LAYER 3b: Bukas ang Notifications Modal -> Isasara ang modal, mananatili sa Feed
+      if (showNotifModalRef.current) {
+        setShowNotifModal(false);
+        setTimeout(() => { isPoppingRef.current = false; }, 60);
+        return;
+      }
+
+      // LAYER 3c: Bukas ang Search Modal -> Isasara ang modal, mananatili sa Feed
+      if (showSearchModalRef.current) {
+        setShowSearchModal(false);
+        setTimeout(() => { isPoppingRef.current = false; }, 60);
+        return;
+      }
+
+      // Child Sheet o Progress Modal (hinahayaan ang sarili nilang listener)
+      if (e.state?.sheetOpen || e.state?.weightModalOpen) {
+        setTimeout(() => { isPoppingRef.current = false; }, 60);
+        return;
+      }
+
+      // LAYER 2: Nasa Social Feed (o ibang tab) nang walang anumang bukas -> Babalik sa Home Tab
+      if (activeTabRef.current !== "home") {
+        setActiveTab("home");
+        setTimeout(() => { isPoppingRef.current = false; }, 60);
+        return;
+      }
+
+      // LAYER 1: Nasa Home Tab na -> Default browser behavior (exit)
+      setTimeout(() => { isPoppingRef.current = false; }, 60);
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
+  // I-record ang bawat pagpasok sa overlays sa history stack
+  useEffect(() => {
+    if (isPoppingRef.current) return;
+    if (activeChatPartner) {
+      if (window.history.state?.overlay !== "chat") {
+        window.history.pushState({ overlay: "chat" }, "");
+      }
+    }
+  }, [activeChatPartner]);
+
+  useEffect(() => {
+    if (isPoppingRef.current) return;
+    if (activePanel && activePanel !== "chat") {
+      if (window.history.state?.overlay !== activePanel) {
+        window.history.pushState({ overlay: activePanel }, "");
+      }
+    }
+  }, [activePanel]);
+
+  useEffect(() => {
+    if (isPoppingRef.current) return;
+    if (showNotifModal && window.history.state?.overlay !== "notif") {
+      window.history.pushState({ overlay: "notif" }, "");
+    }
+  }, [showNotifModal]);
+
+  useEffect(() => {
+    if (isPoppingRef.current) return;
+    if (showSearchModal && window.history.state?.overlay !== "search") {
+      window.history.pushState({ overlay: "search" }, "");
+    }
+  }, [showSearchModal]);
+
+  // Tab navigation history tracker (Home -> Community/Social)
+  useEffect(() => {
+    if (isPoppingRef.current) return;
+    if (showNotifModal || showSearchModal || activePanel || activeChatPartner) return;
+    if (window.history.state?.sheetOpen || window.history.state?.weightModalOpen) return;
+
+    if (window.history.state?.tab !== activeTab) {
+      window.history.pushState({ tab: activeTab }, "");
+    }
+  }, [activeTab]);
+
+  // Kapag pinindot ang UI button (X o Back sa screen), i-pop din ang history
+  const prevChatRef = useRef(activeChatPartner);
+  useEffect(() => {
+    if (prevChatRef.current && !activeChatPartner) {
+      if (!isPoppingRef.current && window.history.state?.overlay === "chat") {
+        window.history.back();
+      }
+    }
+    prevChatRef.current = activeChatPartner;
+  }, [activeChatPartner]);
+
+  const prevPanelRef = useRef(activePanel);
+  useEffect(() => {
+    if (prevPanelRef.current && !activePanel) {
+      if (!isPoppingRef.current && window.history.state?.overlay === prevPanelRef.current) {
+        window.history.back();
+      }
+    }
+    prevPanelRef.current = activePanel;
+  }, [activePanel]);
+
+  const prevNotifRef = useRef(showNotifModal);
+  useEffect(() => {
+    if (prevNotifRef.current && !showNotifModal) {
+      if (!isPoppingRef.current && window.history.state?.overlay === "notif") {
+        window.history.back();
+      }
+    }
+    prevNotifRef.current = showNotifModal;
+  }, [showNotifModal]);
+
+  const prevSearchRef = useRef(showSearchModal);
+  useEffect(() => {
+    if (prevSearchRef.current && !showSearchModal) {
+      if (!isPoppingRef.current && window.history.state?.overlay === "search") {
+        window.history.back();
+      }
+    }
+    prevSearchRef.current = showSearchModal;
+  }, [showSearchModal]);
+
   const [chatMessages, setChatMessages] = useState([]);
   const [inboxChats, setInboxChats] = useState([]);
   const [newChatMessage, setNewChatMessage] = useState("");
