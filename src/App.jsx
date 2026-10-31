@@ -60,170 +60,39 @@ export default function App() {
     window.scrollTo(0, 0);
   }, [activeTab]);
 
-  // ─── MASTER COMPREHENSIVE NATIVE DEVICE BACK BUTTON CONTROLLER ───
+  // ─── NATIVE DEVICE BACK BUTTON / GESTURE INTERCEPTOR ───
   const isPoppingRef = React.useRef(false);
 
-  // References upang maiwasan ang stale closures sa window popstate listener
-  const activeTabRef = React.useRef(activeTab);
-  const activePanelRef = React.useRef(activePanel);
-  const activeChatPartnerRef = React.useRef(activeChatPartner);
-  const showNotifModalRef = React.useRef(showNotifModal);
-  const showSearchModalRef = React.useRef(showSearchModal);
-  const showAboutModalRef = React.useRef(typeof showAboutModal !== "undefined" ? showAboutModal : false);
-
-  React.useEffect(() => { activeTabRef.current = activeTab; }, [activeTab]);
-  React.useEffect(() => { activePanelRef.current = activePanel; }, [activePanel]);
-  React.useEffect(() => { activeChatPartnerRef.current = activeChatPartner; }, [activeChatPartner]);
-  React.useEffect(() => { showNotifModalRef.current = showNotifModal; }, [showNotifModal]);
-  React.useEffect(() => { showSearchModalRef.current = showSearchModal; }, [showSearchModal]);
-  React.useEffect(() => { 
-    if (typeof showAboutModal !== "undefined") showAboutModalRef.current = showAboutModal; 
-  }, [typeof showAboutModal !== "undefined" ? showAboutModal : null]);
-
-  // Master popstate listener para sa buong application
   React.useEffect(() => {
+    // 1. Siguraduhing may baseline state sa history stack
     if (!window.history.state || !window.history.state.tab) {
       window.history.replaceState({ tab: "home" }, "");
     }
 
     const handlePopState = (e) => {
       isPoppingRef.current = true;
-
-      // 1. PRIORITY 1: Bukas ang Chat / Message conversation sa Social
-      if (activeChatPartnerRef.current || activePanelRef.current === "chat") {
-        setActiveChatPartner(null);
-        setActivePanel(null);
-        setTimeout(() => { isPoppingRef.current = false; }, 60);
-        return;
-      }
-
-      // 2. PRIORITY 2: Bukas ang Post Detail (Comments / View Post) sa Social
-      if (activePanelRef.current === "post_detail") {
-        setActivePanel(null);
-        if (typeof setSelectedPost === "function") setSelectedPost(null);
-        setTimeout(() => { isPoppingRef.current = false; }, 60);
-        return;
-      }
-
-      // 3. PRIORITY 3: Anumang sub-panel sa Social (Inbox, Messages list)
-      if (activePanelRef.current) {
-        setActivePanel(null);
-        setTimeout(() => { isPoppingRef.current = false; }, 60);
-        return;
-      }
-
-      // 4. PRIORITY 4: Bukas ang Notifications Modal
-      if (showNotifModalRef.current) {
-        setShowNotifModal(false);
-        setTimeout(() => { isPoppingRef.current = false; }, 60);
-        return;
-      }
-
-      // 5. PRIORITY 5: Bukas ang Search Modal
-      if (showSearchModalRef.current) {
-        setShowSearchModal(false);
-        setTimeout(() => { isPoppingRef.current = false; }, 60);
-        return;
-      }
-
-      // 6. PRIORITY 6: Bukas ang About Modal
-      if (showAboutModalRef.current && typeof setShowAboutModal === "function") {
-        setShowAboutModal(false);
-        setTimeout(() => { isPoppingRef.current = false; }, 60);
-        return;
-      }
-
-      // 7. Kung ang pop ay mula sa HomeTab sheet o Progress weight modal
-      if (e.state?.sheetOpen || e.state?.weightModalOpen) {
-        setTimeout(() => { isPoppingRef.current = false; }, 60);
-        return;
-      }
-
-      // 8. PRIORITY 7: Walang anumang modal na bukas — Navigates back to Home Tab
       const targetTab = e.state?.tab || "home";
       setActiveTab(targetTab);
-      setTimeout(() => { isPoppingRef.current = false; }, 60);
+      setTimeout(() => {
+        isPoppingRef.current = false;
+      }, 60);
     };
 
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
   }, []);
 
-  // Sync active overlays sa History stack (Push history entry pagkabukas)
+  // 2. I-record ang bawat paglipat ng tab sa history stack
   React.useEffect(() => {
     if (isPoppingRef.current) return;
-    if (activeChatPartner || activePanel === "chat") {
-      if (window.history.state?.overlay !== "chat") {
-        window.history.pushState({ overlay: "chat" }, "");
-      }
-    } else if (activePanel === "post_detail") {
-      if (window.history.state?.overlay !== "post_detail") {
-        window.history.pushState({ overlay: "post_detail" }, "");
-      }
-    } else if (activePanel) {
-      if (window.history.state?.overlay !== activePanel) {
-        window.history.pushState({ overlay: activePanel }, "");
-      }
-    }
-  }, [activeChatPartner, activePanel]);
-
-  React.useEffect(() => {
-    if (isPoppingRef.current) return;
-    if (showNotifModal && window.history.state?.overlay !== "notif") {
-      window.history.pushState({ overlay: "notif" }, "");
-    }
-  }, [showNotifModal]);
-
-  React.useEffect(() => {
-    if (isPoppingRef.current) return;
-    if (showSearchModal && window.history.state?.overlay !== "search") {
-      window.history.pushState({ overlay: "search" }, "");
-    }
-  }, [showSearchModal]);
-
-  // Tab history tracker (Hindi magpu-push kung may bukas na modal)
-  React.useEffect(() => {
-    if (isPoppingRef.current) return;
-    if (showNotifModal || showSearchModal || activePanel || activeChatPartner) return;
-    if (window.history.state?.sheetOpen || window.history.state?.weightModalOpen) return;
-
-    if (window.history.state?.tab !== activeTab) {
+    if (
+      window.history.state?.tab !== activeTab &&
+      !window.history.state?.sheetOpen &&
+      !window.history.state?.weightModalOpen
+    ) {
       window.history.pushState({ tab: activeTab }, "");
     }
   }, [activeTab]);
-
-  // UI button close sync upang mapanatiling balanse ang history stack
-  const prevNotifRef = React.useRef(showNotifModal);
-  React.useEffect(() => {
-    if (prevNotifRef.current && !showNotifModal) {
-      if (!isPoppingRef.current && window.history.state?.overlay === "notif") {
-        window.history.back();
-      }
-    }
-    prevNotifRef.current = showNotifModal;
-  }, [showNotifModal]);
-
-  const prevChatRef = React.useRef(activeChatPartner || activePanel);
-  React.useEffect(() => {
-    const wasOpen = prevChatRef.current;
-    const isNowOpen = activeChatPartner || activePanel;
-    if (wasOpen && !isNowOpen) {
-      if (!isPoppingRef.current && window.history.state?.overlay) {
-        window.history.back();
-      }
-    }
-    prevChatRef.current = isNowOpen;
-  }, [activeChatPartner, activePanel]);
-
-  const prevSearchRef = React.useRef(showSearchModal);
-  React.useEffect(() => {
-    if (prevSearchRef.current && !showSearchModal) {
-      if (!isPoppingRef.current && window.history.state?.overlay === "search") {
-        window.history.back();
-      }
-    }
-    prevSearchRef.current = showSearchModal;
-  }, [showSearchModal]);
 
 
   const [onboardStep, setOnboardStep] = useState(0);
