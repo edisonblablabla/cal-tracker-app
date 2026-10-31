@@ -55,6 +55,11 @@ export default function App() {
   const [appData, setAppData] = useState(null);
   const [activeTab, setActiveTab] = useState("home");
 
+  // AUTO-SCROLL TO TOP ON TAB SWITCH
+  React.useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [activeTab]);
+
   const [onboardStep, setOnboardStep] = useState(0);
   const [setupName, setSetupName] = useState("");
   const [setupHeight, setSetupHeight] = useState("165");
