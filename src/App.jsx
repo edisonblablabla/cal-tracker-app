@@ -178,12 +178,12 @@ export default function App() {
         return;
       }
 
-      // LAYER 2: Nasa Social Feed (o ibang tab) nang walang anumang bukas -> Babalik sa Home Tab
-      if (activeTabRef.current !== "home") {
-        setActiveTab("home");
-        setTimeout(() => { isPoppingRef.current = false; }, 60);
-        return;
+      // LAYER 2: Tab Navigation (Igalang ang tab ng kasalukuyang state sa halip na piliting mag-home)
+      const targetTab = e.state?.tab || "home";
+      if (activeTabRef.current !== targetTab) {
+        setActiveTab(targetTab);
       }
+      setTimeout(() => { isPoppingRef.current = false; }, 60);
 
       // LAYER 1: Nasa Home Tab na -> Default browser behavior (exit)
       setTimeout(() => { isPoppingRef.current = false; }, 60);

@@ -8,6 +8,7 @@ export default function ProgressTab({
 }) {
   const [showWeightModal, setShowWeightModal] = useState(false);
   const [newWeightVal, setNewWeightVal] = useState("");
+  const [selectedPointIdx, setSelectedPointIdx] = useState(null);
 
   // ─── NATIVE DEVICE BACK-BUTTON TRAP PARA SA PROGRESS MODAL ───
   const isWeightPoppingRef = useRef(false);
@@ -15,7 +16,8 @@ export default function ProgressTab({
   useEffect(() => {
     if (!showWeightModal) return;
 
-    window.history.pushState({ weightModalOpen: true }, "");
+    // Isama ang tab: "progress" upang hindi piliting ilipat sa home
+    window.history.pushState({ weightModalOpen: true, tab: "progress" }, "");
 
     const handlePopState = () => {
       isWeightPoppingRef.current = true;
@@ -72,7 +74,31 @@ export default function ProgressTab({
     });
   }, [appData]);
 
-  // 2. WEIGHT TRACKER DYNAMIC DATES & WAVE SPLINE
+  // 2. COMPACT DATE FORMATTER (Maiiwasan ang mahahabang strings)
+  const formatCompactDate = (raw) => {
+    if (!raw) return "Today";
+    const str = String(raw).trim();
+    if (/^[A-Za-z]{3}\s+\d{1,2}$/.test(str)) return str;
+
+    const parsed = new Date(str);
+    if (!isNaN(parsed.getTime())) {
+      return parsed.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    }
+
+    const matchMonthDay = str.match(/([A-Za-z]{3,9})\s+(\d{1,2})/);
+    if (matchMonthDay) {
+      return `${matchMonthDay[1].slice(0, 3)} ${matchMonthDay[2]}`;
+    }
+
+    const matchSlash = str.match(/(\d{1,2})[\/\-](\d{1,2})/);
+    if (matchSlash) {
+      return `${matchSlash[1]}/${matchSlash[2]}`;
+    }
+
+    return str.slice(0, 6);
+  };
+
+  // 3. WEIGHT TRACKER DYNAMIC DATES & WAVE SPLINE
   const currentWeight = Number(appData?.currentWeight || appData?.weight || 68.2);
   const targetWeight = Number(appData?.targetWeight || 62.0);
 
@@ -81,22 +107,11 @@ export default function ProgressTab({
       ? appData.weightHistory
       : [{ val: currentWeight, weight: currentWeight, date: "Today" }];
 
-    // Kunin ang huling 5 hanggang 7 actual entries upang kumasya nang malinis sa screen
-    const entries = rawLogs.slice(-6).map((item) => {
-      const val = Number(item.val || item.weight || currentWeight);
-      let dateStr = item.date || "Today";
-      
-      // I-format ang petsa kung ito ay ISO format (YYYY-MM-DD)
-      if (/^\d{4}-\d{2}-\d{2}/.test(dateStr)) {
-        const d = new Date(dateStr);
-        if (!isNaN(d.getTime())) {
-          dateStr = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-        }
-      }
-      return { val, date: dateStr };
-    });
+    const entries = rawLogs.slice(-7).map((item) => ({
+      val: Number(item.val || item.weight || currentWeight),
+      date: formatCompactDate(item.date)
+    }));
 
-    // Kalkulahin ang pagbabago sa timbang mula sa unang log sa listahan
     const firstVal = entries[0].val;
     const lastVal = entries[entries.length - 1].val;
     const diff = Number((lastVal - firstVal).toFixed(1));
@@ -107,7 +122,6 @@ export default function ProgressTab({
     const maxV = Math.max(...vals) + 0.6;
     const rng = maxV - minV || 1;
 
-    // Kapag iisa pa lamang ang entry
     if (entries.length === 1) {
       const singlePt = { x: 50, y: 50, val: entries[0].val, date: entries[0].date };
       return {
@@ -118,14 +132,12 @@ export default function ProgressTab({
       };
     }
 
-    // Normalization para sa SVG (x: 0 hanggang 100, y: 20 hanggang 75)
     const pts = entries.map((e, i) => {
       const x = (i / (entries.length - 1)) * 100;
       const y = 75 - (((e.val - minV) / rng) * 55);
       return { x, y, val: e.val, date: e.date };
     });
 
-    // Makinis na Cubic Spline Wave
     let lineD = `M ${pts[0].x.toFixed(1)},${pts[0].y.toFixed(1)}`;
     for (let i = 0; i < pts.length - 1; i++) {
       const p0 = i > 0 ? pts[i - 1] : pts[i];
@@ -146,7 +158,19 @@ export default function ProgressTab({
     return { chartPoints: pts, linePath: lineD, areaPath: areaD, weightDiffStr: diffStr };
   }, [appData, currentWeight]);
 
-  // 3. ADHERENCE LOGIC
+  // SMART DECIMATION: Pumili lamang ng Start, Middle, at Latest dates upang maiwasan ang banggaan
+  const visibleLabelIndices = useMemo(() => {
+    const total = chartPoints.length;
+    if (total <= 3) return chartPoints.map((_, i) => i);
+    const mid = Math.floor(total / 2);
+    return [0, mid, total - 1];
+  }, [chartPoints]);
+
+  const activeInspectPoint = selectedPointIdx !== null && chartPoints[selectedPointIdx]
+    ? chartPoints[selectedPointIdx]
+    : null;
+
+  // 4. ADHERENCE LOGIC
   const calAdherence = useMemo(() => {
     const totalCal = Number(appData?.totalCal) || 0;
     const goalCal = Number(appData?.baseGoal || appData?.dailyCalorieTarget || 2200);
@@ -265,12 +289,19 @@ export default function ProgressTab({
         </div>
       </div>
 
-      {/* 3. WEIGHT TRACKER CARD (MAY AKTWAL NA PETSA SA ILALIM NG BAWAT TULDOK) */}
+      {/* 3. WEIGHT TRACKER CARD */}
       <div style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "24px", padding: "20px", marginBottom: "16px", boxShadow: "0 8px 25px rgba(15, 23, 42, 0.04)" }}>
         
-        <span style={{ fontSize: "9.5px", fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.6px", display: "block" }}>
-          WEIGHT TRACKER
-        </span>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span style={{ fontSize: "9.5px", fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.6px" }}>
+            WEIGHT TRACKER
+          </span>
+          {activeInspectPoint && (
+            <span style={{ fontSize: "10px", fontWeight: 800, color: "#6366f1", background: "#eef2ff", padding: "2px 8px", borderRadius: "6px" }}>
+              {activeInspectPoint.date}: {activeInspectPoint.val} kg
+            </span>
+          )}
+        </div>
 
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginTop: "4px", marginBottom: "14px" }}>
           <div>
@@ -313,49 +344,41 @@ export default function ProgressTab({
             <path d={linePath} fill="none" stroke="#6366f1" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" />
 
             {chartPoints.map((pt, idx) => (
-              <circle key={`pt-${idx}`} cx={pt.x} cy={pt.y} r="3.5" fill="#ffffff" stroke="#6366f1" strokeWidth="2.2" />
+              <circle 
+                key={`pt-${idx}`} 
+                cx={pt.x} 
+                cy={pt.y} 
+                r={selectedPointIdx === idx ? 5 : 3.5} 
+                fill={selectedPointIdx === idx ? "#6366f1" : "#ffffff"} 
+                stroke="#6366f1" 
+                strokeWidth={selectedPointIdx === idx ? 3 : 2.2}
+                onClick={() => setSelectedPointIdx(selectedPointIdx === idx ? null : idx)}
+                style={{ cursor: "pointer" }}
+              />
             ))}
           </svg>
         </div>
 
-        {/* MGA AKTWAL NA PETSA SA ILALIM NG BAWAT LOG ENTRY */}
-        <div style={{ position: "relative", width: "100%", height: "18px", marginBottom: "16px" }}>
-          {chartPoints.map((pt, idx) => {
-            let leftStyle = `${pt.x}%`;
-            let transformStyle = "translateX(-50%)";
-
-            if (idx === 0) {
-              leftStyle = "0%";
-              transformStyle = "none";
-            } else if (idx === chartPoints.length - 1 && chartPoints.length > 1) {
-              return (
-                <span
-                  key={idx}
-                  style={{
-                    position: "absolute",
-                    right: "0%",
-                    fontSize: "9.5px",
-                    fontWeight: 800,
-                    color: "#64748b",
-                    whiteSpace: "nowrap"
-                  }}
-                >
-                  {pt.date}
-                </span>
-              );
-            }
+        {/* 100% NON-OVERLAPPING DATES BAR (Start Date, Middle Date, Latest Date) */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 4px", marginBottom: "16px" }}>
+          {visibleLabelIndices.map((ptIdx, loopIdx) => {
+            const pt = chartPoints[ptIdx];
+            if (!pt) return null;
+            let textAlign = "center";
+            if (loopIdx === 0) textAlign = "left";
+            if (loopIdx === visibleLabelIndices.length - 1) textAlign = "right";
 
             return (
               <span
-                key={idx}
+                key={ptIdx}
+                onClick={() => setSelectedPointIdx(ptIdx)}
                 style={{
-                  position: "absolute",
-                  left: leftStyle,
-                  transform: transformStyle,
-                  fontSize: "9.5px",
+                  fontSize: "10px",
                   fontWeight: 800,
-                  color: "#64748b",
-                  whiteSpace: "nowrap"
+                  color: selectedPointIdx === ptIdx ? "#6366f1" : "#64748b",
+                  textAlign,
+                  cursor: "pointer",
+                  letterSpacing: "-0.2px"
                 }}
               >
                 {pt.date}
@@ -393,7 +416,6 @@ export default function ProgressTab({
 
       {/* 4. ADHERENCE & PROGRESS TRACKS */}
       <div style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "24px", padding: "20px", boxShadow: "0 8px 25px rgba(15, 23, 42, 0.04)" }}>
-        
         <span style={{ fontSize: "9.5px", fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.6px", display: "block", marginBottom: "16px" }}>
           ADHERENCE & PROGRESS TRACKS
         </span>
@@ -432,7 +454,6 @@ export default function ProgressTab({
             </div>
           </div>
         </div>
-
       </div>
 
       {/* 5. SLIDE-OVER BOTTOM SHEET */}
