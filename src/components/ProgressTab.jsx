@@ -16,7 +16,6 @@ export default function ProgressTab({
   useEffect(() => {
     if (!showWeightModal) return;
 
-    // Isama ang tab: "progress" upang hindi piliting ilipat sa home
     window.history.pushState({ weightModalOpen: true, tab: "progress" }, "");
 
     const handlePopState = () => {
@@ -74,7 +73,7 @@ export default function ProgressTab({
     });
   }, [appData]);
 
-  // 2. COMPACT DATE FORMATTER (Maiiwasan ang mahahabang strings)
+  // 2. ULTRA-COMPACT DATE FORMATTER (Max 6 characters)
   const formatCompactDate = (raw) => {
     if (!raw) return "Today";
     const str = String(raw).trim();
@@ -158,12 +157,26 @@ export default function ProgressTab({
     return { chartPoints: pts, linePath: lineD, areaPath: areaD, weightDiffStr: diffStr };
   }, [appData, currentWeight]);
 
-  // SMART DECIMATION: Pumili lamang ng Start, Middle, at Latest dates upang maiwasan ang banggaan
-  const visibleLabelIndices = useMemo(() => {
-    const total = chartPoints.length;
-    if (total <= 3) return chartPoints.map((_, i) => i);
-    const mid = Math.floor(total / 2);
-    return [0, mid, total - 1];
+  // SMART 3-ANCHOR DATES (START, MID, LATEST)
+  const visibleDates = useMemo(() => {
+    if (chartPoints.length === 0) return [];
+    if (chartPoints.length <= 3) {
+      return chartPoints.map((pt, i) => ({
+        date: pt.date,
+        align: i === 0 ? "flex-start" : i === chartPoints.length - 1 ? "flex-end" : "center",
+        idx: i
+      }));
+    }
+    const first = chartPoints[0];
+    const midIdx = Math.floor(chartPoints.length / 2);
+    const mid = chartPoints[midIdx];
+    const last = chartPoints[chartPoints.length - 1];
+
+    return [
+      { date: first.date, align: "flex-start", idx: 0 },
+      { date: mid.date, align: "center", idx: midIdx },
+      { date: last.date, align: "flex-end", idx: chartPoints.length - 1 }
+    ];
   }, [chartPoints]);
 
   const activeInspectPoint = selectedPointIdx !== null && chartPoints[selectedPointIdx]
@@ -289,7 +302,7 @@ export default function ProgressTab({
         </div>
       </div>
 
-      {/* 3. WEIGHT TRACKER CARD */}
+      {/* 3. WEIGHT TRACKER CARD (SMART 3-ANCHOR DATES AT INTERACTIVE INSPECTION) */}
       <div style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "24px", padding: "20px", marginBottom: "16px", boxShadow: "0 8px 25px rgba(15, 23, 42, 0.04)" }}>
         
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -297,8 +310,8 @@ export default function ProgressTab({
             WEIGHT TRACKER
           </span>
           {activeInspectPoint && (
-            <span style={{ fontSize: "10px", fontWeight: 800, color: "#6366f1", background: "#eef2ff", padding: "2px 8px", borderRadius: "6px" }}>
-              {activeInspectPoint.date}: {activeInspectPoint.val} kg
+            <span style={{ fontSize: "10.5px", fontWeight: 800, color: "#6366f1", background: "#eef2ff", padding: "3px 8px", borderRadius: "6px" }}>
+              ● {activeInspectPoint.date}: {activeInspectPoint.val} kg
             </span>
           )}
         </div>
@@ -359,32 +372,23 @@ export default function ProgressTab({
           </svg>
         </div>
 
-        {/* 100% NON-OVERLAPPING DATES BAR (Start Date, Middle Date, Latest Date) */}
+        {/* 100% NON-OVERLAPPING FLEXBOX DATES (START, MID, LATEST) */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 4px", marginBottom: "16px" }}>
-          {visibleLabelIndices.map((ptIdx, loopIdx) => {
-            const pt = chartPoints[ptIdx];
-            if (!pt) return null;
-            let textAlign = "center";
-            if (loopIdx === 0) textAlign = "left";
-            if (loopIdx === visibleLabelIndices.length - 1) textAlign = "right";
-
-            return (
-              <span
-                key={ptIdx}
-                onClick={() => setSelectedPointIdx(ptIdx)}
-                style={{
-                  fontSize: "10px",
-                  fontWeight: 800,
-                  color: selectedPointIdx === ptIdx ? "#6366f1" : "#64748b",
-                  textAlign,
-                  cursor: "pointer",
-                  letterSpacing: "-0.2px"
-                }}
-              >
-                {pt.date}
-              </span>
-            );
-          })}
+          {visibleDates.map((item, idx) => (
+            <span
+              key={idx}
+              onClick={() => setSelectedPointIdx(item.idx)}
+              style={{
+                fontSize: "10.5px",
+                fontWeight: selectedPointIdx === item.idx ? 900 : 700,
+                color: selectedPointIdx === item.idx ? "#6366f1" : "#64748b",
+                cursor: "pointer",
+                textAlign: item.align === "flex-start" ? "left" : item.align === "flex-end" ? "right" : "center"
+              }}
+            >
+              {item.date}
+            </span>
+          ))}
         </div>
 
         {/* Centered Button: + Log Today's Weight */}
