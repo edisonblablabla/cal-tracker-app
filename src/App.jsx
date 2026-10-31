@@ -128,12 +128,16 @@ export default function App() {
   const activeChatPartnerRef = useRef(activeChatPartner);
   const showNotifModalRef = useRef(showNotifModal);
   const showSearchModalRef = useRef(showSearchModal);
+  const showAboutModalRef = useRef(typeof showAboutModal !== "undefined" ? showAboutModal : false);
 
   useEffect(() => { activeTabRef.current = activeTab; }, [activeTab]);
   useEffect(() => { activePanelRef.current = activePanel; }, [activePanel]);
   useEffect(() => { activeChatPartnerRef.current = activeChatPartner; }, [activeChatPartner]);
   useEffect(() => { showNotifModalRef.current = showNotifModal; }, [showNotifModal]);
   useEffect(() => { showSearchModalRef.current = showSearchModal; }, [showSearchModal]);
+  useEffect(() => {
+    if (typeof showAboutModal !== "undefined") showAboutModalRef.current = showAboutModal;
+  }, [typeof showAboutModal !== "undefined" ? showAboutModal : null]);
 
   useEffect(() => {
     if (!window.history.state || !window.history.state.tab) {
@@ -143,7 +147,7 @@ export default function App() {
     const handlePopState = (e) => {
       isPoppingRef.current = true;
 
-      // LAYER 4: Nasa loob ng conversation ng isang user -> Babalik sa Messages List / Inbox
+      // 1. LAYER 4: Active Chat Conversation -> Babalik sa Inbox
       if (activePanelRef.current === "chat" || activeChatPartnerRef.current) {
         setActiveChatPartner(null);
         setActivePanel("inbox");
@@ -151,41 +155,47 @@ export default function App() {
         return;
       }
 
-      // LAYER 3: Nasa Messages List, Post Detail, o Sub-panel -> Babalik sa Social Feed
+      // 2. LAYER 3: Anumang bukas na Slide-over Panel (Settings, Boosters, Boosting, Post Detail, Inbox)
+      // Isasara lamang ang panel at MANANATILI sa kasalukuyang tab (Profile, Progress, o Social)
       if (activePanelRef.current) {
         setActivePanel(null);
         setTimeout(() => { isPoppingRef.current = false; }, 60);
         return;
       }
 
-      // LAYER 3b: Bukas ang Notifications Modal -> Isasara ang modal, mananatili sa Feed
+      // 3. LAYER 3b: Notifications Modal
       if (showNotifModalRef.current) {
         setShowNotifModal(false);
         setTimeout(() => { isPoppingRef.current = false; }, 60);
         return;
       }
 
-      // LAYER 3c: Bukas ang Search Modal -> Isasara ang modal, mananatili sa Feed
+      // 4. LAYER 3c: Search Modal
       if (showSearchModalRef.current) {
         setShowSearchModal(false);
         setTimeout(() => { isPoppingRef.current = false; }, 60);
         return;
       }
 
-      // Child Sheet o Progress Modal (hinahayaan ang sarili nilang listener)
+      // 5. LAYER 3d: About Modal (?)
+      if (showAboutModalRef.current && typeof setShowAboutModal === "function") {
+        setShowAboutModal(false);
+        setTimeout(() => { isPoppingRef.current = false; }, 60);
+        return;
+      }
+
+      // 6. Child sheets (HomeTab quick log sheets, ProgressTab weight modal)
       if (e.state?.sheetOpen || e.state?.weightModalOpen) {
         setTimeout(() => { isPoppingRef.current = false; }, 60);
         return;
       }
 
-      // LAYER 2: Tab Navigation (Igalang ang tab ng kasalukuyang state sa halip na piliting mag-home)
-      const targetTab = e.state?.tab || "home";
-      if (activeTabRef.current !== targetTab) {
+      // 7. LAYER 2: Tab Navigation
+      // Tanging kapag WALANG bukas na panel at may malinaw na ibang tab ang state saka magpapalit ng tab
+      const targetTab = e.state?.tab;
+      if (targetTab && activeTabRef.current !== targetTab) {
         setActiveTab(targetTab);
       }
-      setTimeout(() => { isPoppingRef.current = false; }, 60);
-
-      // LAYER 1: Nasa Home Tab na -> Default browser behavior (exit)
       setTimeout(() => { isPoppingRef.current = false; }, 60);
     };
 
@@ -193,40 +203,40 @@ export default function App() {
     return () => window.removeEventListener("popstate", handlePopState);
   }, []);
 
-  // I-record ang bawat pagpasok sa overlays sa history stack
+  // I-record ang bawat pagbukas ng overlay kasama ang kasalukuyang tab
   useEffect(() => {
     if (isPoppingRef.current) return;
     if (activeChatPartner) {
       if (window.history.state?.overlay !== "chat") {
-        window.history.pushState({ overlay: "chat" }, "");
+        window.history.pushState({ overlay: "chat", tab: activeTab }, "");
       }
     }
-  }, [activeChatPartner]);
+  }, [activeChatPartner, activeTab]);
 
   useEffect(() => {
     if (isPoppingRef.current) return;
     if (activePanel && activePanel !== "chat") {
       if (window.history.state?.overlay !== activePanel) {
-        window.history.pushState({ overlay: activePanel }, "");
+        window.history.pushState({ overlay: activePanel, tab: activeTab }, "");
       }
     }
-  }, [activePanel]);
+  }, [activePanel, activeTab]);
 
   useEffect(() => {
     if (isPoppingRef.current) return;
     if (showNotifModal && window.history.state?.overlay !== "notif") {
-      window.history.pushState({ overlay: "notif" }, "");
+      window.history.pushState({ overlay: "notif", tab: activeTab }, "");
     }
-  }, [showNotifModal]);
+  }, [showNotifModal, activeTab]);
 
   useEffect(() => {
     if (isPoppingRef.current) return;
     if (showSearchModal && window.history.state?.overlay !== "search") {
-      window.history.pushState({ overlay: "search" }, "");
+      window.history.pushState({ overlay: "search", tab: activeTab }, "");
     }
-  }, [showSearchModal]);
+  }, [showSearchModal, activeTab]);
 
-  // Tab navigation history tracker (Home -> Community/Social)
+  // Tab navigation history tracker
   useEffect(() => {
     if (isPoppingRef.current) return;
     if (showNotifModal || showSearchModal || activePanel || activeChatPartner) return;
@@ -237,7 +247,7 @@ export default function App() {
     }
   }, [activeTab]);
 
-  // Kapag pinindot ang UI button (X o Back sa screen), i-pop din ang history
+  // Kapag UI button ang pinindot para isara ang panel, i-sync din ang history
   const prevChatRef = useRef(activeChatPartner);
   useEffect(() => {
     if (prevChatRef.current && !activeChatPartner) {
