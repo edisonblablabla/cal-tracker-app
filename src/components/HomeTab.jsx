@@ -31,18 +31,22 @@ export default function HomeTab({
   finishWorkoutSession
 }) {
   const [activeHUD, setActiveHUD] = useState("timer");
-  const [activeSheet, setActiveSheet] = useState(null); // 'food' | 'water' | 'weight' | null
+  const [activeSheet, setActiveSheet] = useState(null); // 'food' | 'workout' | 'water' | 'weight' | null
 
-  // Sheet States
+  // Sheet Form States
   const [quickFoodName, setQuickFoodName] = useState("");
   const [quickCal, setQuickCal] = useState("");
   const [quickP, setQuickP] = useState("");
   const [quickC, setQuickC] = useState("");
   const [quickF, setQuickF] = useState("");
-  const [quickWaterMl, setQuickWaterMl] = useState(250);
+
+  const [customWorkoutName, setCustomWorkoutName] = useState("Strength Training");
+  const [customWorkoutMins, setCustomWorkoutMins] = useState(30);
+  const [customWorkoutKcal, setCustomWorkoutKcal] = useState(180);
+
   const [quickWeightKg, setQuickWeightKg] = useState(appData?.currentWeight || "");
 
-  // Quests
+  // Daily Quests
   const [questIndex, setQuestIndex] = useState(0);
   const quests = [
     "Complete 30 mins workout to keep your streak active",
@@ -56,7 +60,7 @@ export default function HomeTab({
     if (typeof shuffleQuote === "function") shuffleQuote();
   };
 
-  // Quick Food Save
+  // 1. SAVE FOOD & RECORD ENTRY
   const handleSaveFoodSheet = (e) => {
     e.preventDefault();
     const cVal = Number(quickCal) || 0;
@@ -64,17 +68,30 @@ export default function HomeTab({
       if (showToast) showToast("Maglagay ng valid na calories!");
       return;
     }
+    const newEntry = {
+      id: Date.now(),
+      name: quickFoodName.trim() || "Quick Meal",
+      calories: cVal,
+      protein: Number(quickP) || 0,
+      carbs: Number(quickC) || 0,
+      fats: Number(quickF) || 0,
+      time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      date: new Date().toISOString().slice(0, 10)
+    };
+
     if (saveToCloud) {
       const updated = {
         ...appData,
         totalCal: (appData?.totalCal || 0) + cVal,
-        totalP: (appData?.totalP || 0) + (Number(quickP) || 0),
-        totalC: (appData?.totalC || 0) + (Number(quickC) || 0),
-        totalF: (appData?.totalF || 0) + (Number(quickF) || 0)
+        totalP: (appData?.totalP || 0) + newEntry.protein,
+        totalC: (appData?.totalC || 0) + newEntry.carbs,
+        totalF: (appData?.totalF || 0) + newEntry.fats,
+        foodLogs: [newEntry, ...(appData?.foodLogs || [])]
       };
       saveToCloud(updated);
     }
-    if (showToast) showToast(`✅ Na-log ang ${quickFoodName || "Pagkain"} (${cVal} kcal)!`);
+
+    if (showToast) showToast(`✅ Na-record: ${newEntry.name} (${cVal} kcal)!`);
     setQuickFoodName("");
     setQuickCal("");
     setQuickP("");
@@ -83,35 +100,80 @@ export default function HomeTab({
     setActiveSheet(null);
   };
 
-  // Quick Water Save
+  // 2. SAVE WATER & RECORD ENTRY
   const handleSaveWaterSheet = (amount) => {
+    const newEntry = {
+      id: Date.now(),
+      amountMl: amount,
+      time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      date: new Date().toISOString().slice(0, 10)
+    };
+
     if (saveToCloud) {
       const updated = {
         ...appData,
-        todayWaterMl: (appData?.todayWaterMl || 0) + amount
+        todayWaterMl: (appData?.todayWaterMl || 0) + amount,
+        waterLogs: [newEntry, ...(appData?.waterLogs || [])]
       };
       saveToCloud(updated);
     }
-    if (showToast) showToast(`💧 +${amount} ml na tubig na-save!`);
+
+    if (showToast) showToast(`💧 +${amount} ml na-record sa daily intake!`);
     setActiveSheet(null);
   };
 
-  // Quick Weight Save
+  // 3. SAVE WORKOUT & RECORD ENTRY
+  const handleSaveWorkout = (name, mins, kcal) => {
+    const kVal = Number(kcal) || 0;
+    const mVal = Number(mins) || 0;
+
+    const newEntry = {
+      id: Date.now(),
+      activity: name,
+      durationMins: mVal,
+      burnedKcal: kVal,
+      time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      date: new Date().toISOString().slice(0, 10)
+    };
+
+    if (saveToCloud) {
+      const updated = {
+        ...appData,
+        todayBurnedCal: (appData?.todayBurnedCal || 0) + kVal,
+        workoutLogs: [newEntry, ...(appData?.workoutLogs || [])]
+      };
+      saveToCloud(updated);
+    }
+
+    if (showToast) showToast(`🔥 Na-record: ${name} (${mVal}m • ${kVal} kcal)!`);
+    setActiveSheet(null);
+  };
+
+  // 4. SAVE WEIGHT & RECORD HISTORY
   const handleSaveWeightSheet = (e) => {
     e.preventDefault();
-    const w = Number(quickWeightKg);
+    const w = parseFloat(quickWeightKg);
     if (!w || w <= 0) {
       if (showToast) showToast("Maglagay ng wastong timbang (kg)!");
       return;
     }
+
+    const newRecord = {
+      id: Date.now(),
+      weight: w,
+      date: new Date().toLocaleDateString()
+    };
+
     if (saveToCloud) {
       const updated = {
         ...appData,
-        currentWeight: w
+        currentWeight: w,
+        weightHistory: [newRecord, ...(appData?.weightHistory || [])]
       };
       saveToCloud(updated);
     }
-    if (showToast) showToast(`⚖️ Timbang na-update sa ${w} kg!`);
+
+    if (showToast) showToast(`⚖️ Na-record ang timbang: ${w} kg!`);
     setActiveSheet(null);
   };
 
@@ -121,10 +183,14 @@ export default function HomeTab({
   const goalCal = Number(activeGoal) || 2184;
   const calNum = Number(totalCal) || 0;
 
+  const currentWater = Number(appData?.todayWaterMl) || 0;
+  const waterTarget = Number(appData?.dailyWaterTarget) || 2500;
+  const waterPct = Math.min(Math.round((currentWater / waterTarget) * 100), 100);
+
   return (
-    <div className="screen active" style={{ maxWidth: "440px", margin: "0 auto", paddingBottom: "20px", position: "relative" }}>
+    <div className="screen active" style={{ maxWidth: "440px", margin: "0 auto", paddingBottom: "24px", position: "relative" }}>
       
-      {/* 1. PROFESSIONAL BRAND HEADER */}
+      {/* 1. BRAND HEADER */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
           <div style={{ width: "30px", height: "30px", borderRadius: "8px", background: "linear-gradient(135deg, #4f46e5, #06b6d4)", display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontSize: "13px", boxShadow: "0 2px 8px rgba(79,70,229,0.2)", flexShrink: 0 }}>
@@ -155,7 +221,7 @@ export default function HomeTab({
         </div>
       </div>
 
-      {/* 2. SLEEK DAILY QUEST BANNER */}
+      {/* 2. DAILY QUEST BANNER */}
       <div 
         onClick={handleNextQuest}
         style={{ 
@@ -186,9 +252,10 @@ export default function HomeTab({
         <i className="fa-solid fa-chevron-right" style={{ fontSize: "10px", opacity: 0.75 }}></i>
       </div>
 
-      {/* 3. ENERGY OVERVIEW */}
+      {/* 3. ENERGY & HYDRATION OVERVIEW CARD */}
       <div style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "18px", padding: "14px", marginBottom: "12px", boxShadow: "0 2px 8px rgba(15, 23, 42, 0.04)" }}>
         
+        {/* Calories and Progress Ring */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
           <div>
             <span style={{ fontSize: "9px", fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.6px" }}>
@@ -210,7 +277,6 @@ export default function HomeTab({
             )}
           </div>
 
-          {/* PROGRESS RING */}
           <div style={{ position: "relative", width: "62px", height: "62px", flexShrink: 0 }}>
             <svg width="62" height="62" viewBox="0 0 100 100" style={{ transform: "rotate(-90deg)" }}>
               <defs>
@@ -240,9 +306,8 @@ export default function HomeTab({
           </div>
         </div>
 
-        {/* MACRONUTRIENT BARS */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "6px", paddingTop: "10px", borderTop: "1px solid #f1f5f9" }}>
-          
+        {/* Macronutrient Bars */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "6px", paddingTop: "10px", borderTop: "1px solid #f1f5f9", marginBottom: "12px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <span style={{ width: "48px", fontSize: "10.5px", fontWeight: 700, color: "#475569" }}>Protein</span>
             <div style={{ flex: 1, height: "6px", background: "#f1f5f9", borderRadius: "999px", overflow: "hidden" }}>
@@ -267,16 +332,42 @@ export default function HomeTab({
             <span style={{ width: "38px", textAlign: "right", fontSize: "10.5px", fontWeight: 800, color: "#0f172a" }}>{fNum}g</span>
           </div>
         </div>
+
+        {/* BAGONG HYDRATION / WATER TRACKER ROW */}
+        <div style={{ paddingTop: "10px", borderTop: "1px dashed #e2e8f0" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "5px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+              <i className="fa-solid fa-droplet" style={{ color: "#0284c7", fontSize: "11px" }}></i>
+              <span style={{ fontSize: "10.5px", fontWeight: 800, color: "#0f172a" }}>Hydration</span>
+            </div>
+            <span style={{ fontSize: "11px", fontWeight: 800, color: "#0284c7" }}>
+              {currentWater} <span style={{ fontSize: "9.5px", color: "#64748b", fontWeight: 600 }}>/ {waterTarget} ml ({waterPct}%)</span>
+            </span>
+          </div>
+          
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <div style={{ flex: 1, height: "8px", background: "#e0f2fe", borderRadius: "999px", overflow: "hidden" }}>
+              <div style={{ width: `${waterPct}%`, height: "100%", background: "linear-gradient(90deg, #38bdf8, #0284c7)", borderRadius: "999px", transition: "width 0.4s ease" }}></div>
+            </div>
+            <button 
+              onClick={() => handleSaveWaterSheet(250)}
+              style={{ background: "#f0f9ff", border: "1px solid #bae6fd", color: "#0284c7", fontSize: "9.5px", fontWeight: 800, padding: "2px 8px", borderRadius: "6px", cursor: "pointer", whiteSpace: "nowrap" }}
+            >
+              +250ml
+            </button>
+          </div>
+        </div>
+
       </div>
 
-      {/* 4. QUICK ACTIONS NA BUKAS AGAD SA BOTTOM SHEET */}
+      {/* 4. QUICK ACTIONS GRID */}
       <div style={{ marginBottom: "14px" }}>
         <span style={{ fontSize: "9px", fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.6px", display: "block", marginBottom: "6px" }}>
           Quick Actions
         </span>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "8px" }}>
           
-          {/* 1. Log Food (Bottom Sheet) */}
+          {/* Log Food */}
           <button 
             onClick={() => setActiveSheet("food")}
             style={{ padding: "10px 4px", background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "12px", display: "flex", flexDirection: "column", alignItems: "center", gap: "5px", cursor: "pointer", boxShadow: "0 1px 3px rgba(0,0,0,0.02)" }}
@@ -287,13 +378,9 @@ export default function HomeTab({
             <span style={{ fontSize: "10px", fontWeight: 700, color: "#1e293b" }}>Log Food</span>
           </button>
 
-          {/* 2. Workout Scroll */}
+          {/* Workout (Opens Workout Sheet) */}
           <button 
-            onClick={() => {
-              setActiveHUD("timer");
-              const el = document.getElementById("active-hud-section");
-              if (el) el.scrollIntoView({ behavior: "smooth" });
-            }}
+            onClick={() => setActiveSheet("workout")}
             style={{ padding: "10px 4px", background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "12px", display: "flex", flexDirection: "column", alignItems: "center", gap: "5px", cursor: "pointer", boxShadow: "0 1px 3px rgba(0,0,0,0.02)" }}
           >
             <div style={{ width: "26px", height: "26px", borderRadius: "7px", background: "#eef2ff", color: "#6366f1", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "12px" }}>
@@ -302,7 +389,7 @@ export default function HomeTab({
             <span style={{ fontSize: "10px", fontWeight: 700, color: "#1e293b" }}>Workout</span>
           </button>
 
-          {/* 3. Water Intake (Bottom Sheet) */}
+          {/* Water Intake */}
           <button 
             onClick={() => setActiveSheet("water")}
             style={{ padding: "10px 4px", background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "12px", display: "flex", flexDirection: "column", alignItems: "center", gap: "5px", cursor: "pointer", boxShadow: "0 1px 3px rgba(0,0,0,0.02)" }}
@@ -313,7 +400,7 @@ export default function HomeTab({
             <span style={{ fontSize: "10px", fontWeight: 700, color: "#1e293b" }}>Water</span>
           </button>
 
-          {/* 4. Log Weight (Bottom Sheet) */}
+          {/* Log Weight */}
           <button 
             onClick={() => setActiveSheet("weight")}
             style={{ padding: "10px 4px", background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "12px", display: "flex", flexDirection: "column", alignItems: "center", gap: "5px", cursor: "pointer", boxShadow: "0 1px 3px rgba(0,0,0,0.02)" }}
@@ -333,7 +420,6 @@ export default function HomeTab({
           Active Session
         </span>
         
-        {/* Toggle Switcher */}
         <div style={{ display: "flex", background: "#f1f5f9", padding: "3px", borderRadius: "10px", marginBottom: "10px" }}>
           <button 
             onClick={() => setActiveHUD("timer")}
@@ -450,9 +536,8 @@ export default function HomeTab({
         >
           <div 
             onClick={(e) => e.stopPropagation()}
-            style={{ width: "100%", maxWidth: "460px", background: "#ffffff", borderTopLeftRadius: "24px", borderTopRightRadius: "24px", padding: "20px", boxShadow: "0 -10px 30px rgba(0,0,0,0.15)", animation: "slideUp 0.25s ease-out" }}
+            style={{ width: "100%", maxWidth: "460px", background: "#ffffff", borderTopLeftRadius: "24px", borderTopRightRadius: "24px", padding: "20px", maxHeight: "88vh", overflowY: "auto", boxShadow: "0 -10px 30px rgba(0,0,0,0.15)", animation: "slideUp 0.25s ease-out" }}
           >
-            {/* Sheet Handle */}
             <div style={{ width: "40px", height: "4px", background: "#cbd5e1", borderRadius: "2px", margin: "0 auto 16px auto" }}></div>
 
             {/* A. QUICK FOOD SHEET */}
@@ -473,7 +558,7 @@ export default function HomeTab({
                     <label style={{ fontSize: "10px", fontWeight: 700, color: "#64748b", display: "block", marginBottom: "3px" }}>Food / Meal Name</label>
                     <input 
                       type="text" 
-                      placeholder="e.g. Oatmeal & Banana" 
+                      placeholder="Hal. Chicken Adobo & Rice" 
                       value={quickFoodName} 
                       onChange={(e) => setQuickFoodName(e.target.value)} 
                       style={{ width: "100%", padding: "10px", borderRadius: "10px", border: "1px solid #cbd5e1", fontSize: "12px", outline: "none" }} 
@@ -528,13 +613,123 @@ export default function HomeTab({
                   </div>
 
                   <button type="submit" style={{ width: "100%", background: "#10b981", color: "white", border: "none", padding: "12px", borderRadius: "12px", fontWeight: 800, fontSize: "12px", cursor: "pointer" }}>
-                    Save & Add to Daily Intake
+                    Save & Record Entry
                   </button>
                 </form>
               </div>
             )}
 
-            {/* B. QUICK WATER SHEET */}
+            {/* B. WORKOUT SLIDE-OVER SHEET (BAGONG TAMPOC) */}
+            {activeSheet === "workout" && (
+              <div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <div style={{ width: "28px", height: "28px", borderRadius: "8px", background: "#eef2ff", color: "#6366f1", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <i className="fa-solid fa-dumbbell"></i>
+                    </div>
+                    <h3 style={{ fontSize: "15px", fontWeight: 800, margin: 0, color: "#0f172a" }}>Log Workout Session</h3>
+                  </div>
+                  <button onClick={() => setActiveSheet(null)} style={{ background: "none", border: "none", color: "#94a3b8", fontSize: "18px", cursor: "pointer" }}>✕</button>
+                </div>
+
+                {/* 1-Tap Quick Presets */}
+                <div style={{ marginBottom: "14px" }}>
+                  <span style={{ fontSize: "10px", fontWeight: 700, color: "#64748b", display: "block", marginBottom: "6px" }}>1-TAP QUICK PRESETS</span>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+                    <button 
+                      onClick={() => handleSaveWorkout("Strength Training", 45, 240)}
+                      style={{ background: "#f8fafc", border: "1px solid #e2e8f0", padding: "10px", borderRadius: "12px", textAlign: "left", cursor: "pointer" }}
+                    >
+                      <div style={{ fontSize: "11px", fontWeight: 800, color: "#0f172a" }}>Strength Training</div>
+                      <div style={{ fontSize: "9.5px", color: "#64748b" }}>45 mins • <span style={{ color: "#ea580c", fontWeight: 700 }}>240 kcal</span></div>
+                    </button>
+
+                    <button 
+                      onClick={() => handleSaveWorkout("HIIT Circuit", 25, 260)}
+                      style={{ background: "#f8fafc", border: "1px solid #e2e8f0", padding: "10px", borderRadius: "12px", textAlign: "left", cursor: "pointer" }}
+                    >
+                      <div style={{ fontSize: "11px", fontWeight: 800, color: "#0f172a" }}>HIIT Circuit</div>
+                      <div style={{ fontSize: "9.5px", color: "#64748b" }}>25 mins • <span style={{ color: "#ea580c", fontWeight: 700 }}>260 kcal</span></div>
+                    </button>
+
+                    <button 
+                      onClick={() => handleSaveWorkout("Outdoor Cycling", 30, 210)}
+                      style={{ background: "#f8fafc", border: "1px solid #e2e8f0", padding: "10px", borderRadius: "12px", textAlign: "left", cursor: "pointer" }}
+                    >
+                      <div style={{ fontSize: "11px", fontWeight: 800, color: "#0f172a" }}>Cycling / Bike</div>
+                      <div style={{ fontSize: "9.5px", color: "#64748b" }}>30 mins • <span style={{ color: "#ea580c", fontWeight: 700 }}>210 kcal</span></div>
+                    </button>
+
+                    <button 
+                      onClick={() => handleSaveWorkout("Yoga & Stretch", 30, 95)}
+                      style={{ background: "#f8fafc", border: "1px solid #e2e8f0", padding: "10px", borderRadius: "12px", textAlign: "left", cursor: "pointer" }}
+                    >
+                      <div style={{ fontSize: "11px", fontWeight: 800, color: "#0f172a" }}>Yoga & Mobility</div>
+                      <div style={{ fontSize: "9.5px", color: "#64748b" }}>30 mins • <span style={{ color: "#ea580c", fontWeight: 700 }}>95 kcal</span></div>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Custom Workout Input */}
+                <div style={{ background: "#f8fafc", padding: "12px", borderRadius: "14px", border: "1px solid #e2e8f0", marginBottom: "12px" }}>
+                  <span style={{ fontSize: "10px", fontWeight: 800, color: "#475569", display: "block", marginBottom: "8px" }}>CUSTOM WORKOUT LOG</span>
+                  
+                  <div style={{ marginBottom: "8px" }}>
+                    <input 
+                      type="text" 
+                      placeholder="Workout Name" 
+                      value={customWorkoutName} 
+                      onChange={(e) => setCustomWorkoutName(e.target.value)} 
+                      style={{ width: "100%", padding: "8px 10px", borderRadius: "8px", border: "1px solid #cbd5e1", fontSize: "11px", outline: "none" }} 
+                    />
+                  </div>
+
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "10px" }}>
+                    <div>
+                      <label style={{ fontSize: "9px", fontWeight: 700, color: "#64748b", display: "block", marginBottom: "2px" }}>Duration (Mins)</label>
+                      <input 
+                        type="number" 
+                        value={customWorkoutMins} 
+                        onChange={(e) => setCustomWorkoutMins(e.target.value)} 
+                        style={{ width: "100%", padding: "8px 10px", borderRadius: "8px", border: "1px solid #cbd5e1", fontSize: "12px", fontWeight: 800, outline: "none" }} 
+                      />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: "9px", fontWeight: 700, color: "#64748b", display: "block", marginBottom: "2px" }}>Calories Burned</label>
+                      <input 
+                        type="number" 
+                        value={customWorkoutKcal} 
+                        onChange={(e) => setCustomWorkoutKcal(e.target.value)} 
+                        style={{ width: "100%", padding: "8px 10px", borderRadius: "8px", border: "1px solid #cbd5e1", fontSize: "12px", fontWeight: 800, outline: "none" }} 
+                      />
+                    </div>
+                  </div>
+
+                  <button 
+                    onClick={() => handleSaveWorkout(customWorkoutName, customWorkoutMins, customWorkoutKcal)}
+                    style={{ width: "100%", background: "#6366f1", color: "white", border: "none", padding: "10px", borderRadius: "10px", fontWeight: 800, fontSize: "11px", cursor: "pointer" }}
+                  >
+                    Log Custom Session
+                  </button>
+                </div>
+
+                {/* Launch Live Stopwatch Button */}
+                <button 
+                  onClick={() => {
+                    setActiveSheet(null);
+                    setActiveHUD("timer");
+                    const el = document.getElementById("active-hud-section");
+                    if (el) el.scrollIntoView({ behavior: "smooth" });
+                  }}
+                  style={{ width: "100%", background: "#f1f5f9", border: "1px dashed #94a3b8", color: "#334155", padding: "10px", borderRadius: "10px", fontWeight: 700, fontSize: "11px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}
+                >
+                  <i className="fa-solid fa-stopwatch" style={{ color: "#6366f1" }}></i>
+                  <span>Gamitin ang Live Stopwatch Timer sa Ibaba</span>
+                </button>
+              </div>
+            )}
+
+            {/* C. QUICK WATER SHEET */}
             {activeSheet === "water" && (
               <div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
@@ -547,33 +742,34 @@ export default function HomeTab({
                   <button onClick={() => setActiveSheet(null)} style={{ background: "none", border: "none", color: "#94a3b8", fontSize: "18px", cursor: "pointer" }}>✕</button>
                 </div>
 
-                <p style={{ fontSize: "12px", color: "#64748b", margin: "0 0 14px 0" }}>
-                  Pumili ng sukat para agad maitala ang iyong nainom na tubig:
-                </p>
+                <div style={{ background: "#f0f9ff", padding: "10px", borderRadius: "12px", border: "1px solid #bae6fd", marginBottom: "14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontSize: "11px", color: "#0369a1", fontWeight: 700 }}>Kasalukuyang Naiinom:</span>
+                  <span style={{ fontSize: "13px", fontWeight: 900, color: "#0284c7" }}>{currentWater} ml</span>
+                </div>
 
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px", marginBottom: "16px" }}>
-                  <button onClick={() => handleSaveWaterSheet(250)} style={{ background: "#f0f9ff", border: "1px solid #bae6fd", padding: "14px 8px", borderRadius: "12px", cursor: "pointer", textAlign: "center" }}>
-                    <div style={{ fontSize: "18px", color: "#0ea5e9" }}>🥤</div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px", marginBottom: "12px" }}>
+                  <button onClick={() => handleSaveWaterSheet(250)} style={{ background: "#ffffff", border: "1px solid #bae6fd", padding: "12px 6px", borderRadius: "12px", cursor: "pointer", textAlign: "center" }}>
+                    <div style={{ fontSize: "16px", color: "#0ea5e9" }}><i className="fa-solid fa-glass-water"></i></div>
                     <div style={{ fontSize: "12px", fontWeight: 800, color: "#0369a1", marginTop: "4px" }}>+250 ml</div>
                     <span style={{ fontSize: "9px", color: "#64748b" }}>1 Baso</span>
                   </button>
 
-                  <button onClick={() => handleSaveWaterSheet(500)} style={{ background: "#f0f9ff", border: "1px solid #bae6fd", padding: "14px 8px", borderRadius: "12px", cursor: "pointer", textAlign: "center" }}>
-                    <div style={{ fontSize: "18px", color: "#0ea5e9" }}>🍶</div>
+                  <button onClick={() => handleSaveWaterSheet(500)} style={{ background: "#ffffff", border: "1px solid #bae6fd", padding: "12px 6px", borderRadius: "12px", cursor: "pointer", textAlign: "center" }}>
+                    <div style={{ fontSize: "16px", color: "#0ea5e9" }}><i className="fa-solid fa-bottle-water"></i></div>
                     <div style={{ fontSize: "12px", fontWeight: 800, color: "#0369a1", marginTop: "4px" }}>+500 ml</div>
                     <span style={{ fontSize: "9px", color: "#64748b" }}>1 Botelya</span>
                   </button>
 
-                  <button onClick={() => handleSaveWaterSheet(1000)} style={{ background: "#f0f9ff", border: "1px solid #bae6fd", padding: "14px 8px", borderRadius: "12px", cursor: "pointer", textAlign: "center" }}>
-                    <div style={{ fontSize: "18px", color: "#0ea5e9" }}>🧊</div>
+                  <button onClick={() => handleSaveWaterSheet(1000)} style={{ background: "#ffffff", border: "1px solid #bae6fd", padding: "12px 6px", borderRadius: "12px", cursor: "pointer", textAlign: "center" }}>
+                    <div style={{ fontSize: "16px", color: "#0ea5e9" }}><i className="fa-solid fa-flask"></i></div>
                     <div style={{ fontSize: "12px", fontWeight: 800, color: "#0369a1", marginTop: "4px" }}>+1,000 ml</div>
-                    <span style={{ fontSize: "9px", color: "#64748b" }}>Malaking Flask</span>
+                    <span style={{ fontSize: "9px", color: "#64748b" }}>Jug / Flask</span>
                   </button>
                 </div>
               </div>
             )}
 
-            {/* C. QUICK WEIGHT SHEET */}
+            {/* D. QUICK WEIGHT SHEET */}
             {activeSheet === "weight" && (
               <div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
@@ -581,7 +777,7 @@ export default function HomeTab({
                     <div style={{ width: "28px", height: "28px", borderRadius: "8px", background: "#f5f3ff", color: "#8b5cf6", display: "flex", alignItems: "center", justifyContent: "center" }}>
                       <i className="fa-solid fa-weight-scale"></i>
                     </div>
-                    <h3 style={{ fontSize: "15px", fontWeight: 800, margin: 0, color: "#0f172a" }}>Update Body Weight</h3>
+                    <h3 style={{ fontSize: "15px", fontWeight: 800, margin: 0, color: "#0f172a" }}>Update & Log Weight</h3>
                   </div>
                   <button onClick={() => setActiveSheet(null)} style={{ background: "none", border: "none", color: "#94a3b8", fontSize: "18px", cursor: "pointer" }}>✕</button>
                 </div>
@@ -601,7 +797,7 @@ export default function HomeTab({
                   </div>
 
                   <button type="submit" style={{ width: "100%", background: "#8b5cf6", color: "white", border: "none", padding: "12px", borderRadius: "12px", fontWeight: 800, fontSize: "12px", cursor: "pointer" }}>
-                    Update Timbang
+                    Save & Record to History
                   </button>
                 </form>
               </div>
