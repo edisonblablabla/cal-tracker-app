@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 
 export default function ProgressTab({
   appData,
@@ -8,6 +8,48 @@ export default function ProgressTab({
 }) {
   const [showWeightModal, setShowWeightModal] = useState(false);
   const [newWeightVal, setNewWeightVal] = useState("");
+
+  // ─── NATIVE DEVICE BACK-BUTTON TRAP PARA SA PROGRESS MODAL ───
+  const isWeightPoppingRef = useRef(false);
+
+  useEffect(() => {
+    if (!showWeightModal) return;
+
+    window.history.pushState({ weightModalOpen: true }, "");
+
+    const handlePopState = () => {
+      isWeightPoppingRef.current = true;
+      setShowWeightModal(false);
+      setTimeout(() => {
+        isWeightPoppingRef.current = false;
+      }, 50);
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+    };
+  }, [showWeightModal]);
+
+  const closeWeightModal = () => {
+    if (window.history.state?.weightModalOpen) {
+      window.history.back();
+    } else {
+      setShowWeightModal(false);
+    }
+  };
+
+  // Lock body scroll kapag bukas ang modal
+  useEffect(() => {
+    if (showWeightModal) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [showWeightModal]);
 
   // 1. DATE LOGIC PARA SA 7-DAY WEEKLY CALENDAR STRIP
   const today = new Date();
@@ -35,7 +77,6 @@ export default function ProgressTab({
   const currentWeight = Number(appData?.currentWeight || appData?.weight || 68.2);
   const targetWeight = Number(appData?.targetWeight || 62.0);
 
-  // Generate 7-point smooth wave for M T W T F S S
   const { chartPoints, linePath, areaPath, weightDiffStr, dayLabels } = useMemo(() => {
     const rawLogs = (Array.isArray(appData?.weightHistory) && appData.weightHistory.length > 0)
       ? appData.weightHistory
@@ -62,14 +103,12 @@ export default function ProgressTab({
     const maxV = Math.max(...vals) + 0.6;
     const rng = maxV - minV || 1;
 
-    // Build normalized (x, y) coordinates
     const pts = vals.map((v, i) => {
       const x = (i / 6) * 100;
       const y = 75 - (((v - minV) / rng) * 55);
       return { x, y, val: v };
     });
 
-    // Smooth Cubic Spline
     let lineD = `M ${pts[0].x.toFixed(1)},${pts[0].y.toFixed(1)}`;
     for (let i = 0; i < pts.length - 1; i++) {
       const p0 = i > 0 ? pts[i - 1] : pts[i];
@@ -143,13 +182,13 @@ export default function ProgressTab({
 
     if (showToast) showToast(`⚖️ Na-update ang timbang: ${w} kg!`);
     setNewWeightVal("");
-    setShowWeightModal(false);
+    closeWeightModal();
   };
 
   return (
     <div className="screen active" style={{ maxWidth: "440px", margin: "0 auto", paddingBottom: "24px" }}>
       
-      {/* 1. BRAND HEADER (Eksaktong Gitnang Logo at Malinis na Alignment) */}
+      {/* 1. BRAND HEADER */}
       <div style={{ textAlign: "center", marginBottom: "6px" }}>
         <span style={{ fontSize: "11px", fontWeight: 800, color: "#0f172a", textTransform: "uppercase", letterSpacing: "2px" }}>
           NUTRIPULSE
@@ -162,7 +201,6 @@ export default function ProgressTab({
         </h2>
 
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          {/* Peach Streak Badge */}
           <div style={{ background: "#fff7ed", border: "1px solid #ffedd5", padding: "5px 12px", borderRadius: "14px", display: "flex", alignItems: "center", gap: "5px" }}>
             <i className="fa-solid fa-fire" style={{ color: "#ea580c", fontSize: "12px" }}></i>
             <span style={{ fontSize: "13px", fontWeight: 800, color: "#ea580c" }}>
@@ -170,7 +208,6 @@ export default function ProgressTab({
             </span>
           </div>
 
-          {/* Help Question Circle Button */}
           <button 
             onClick={() => setShowAboutModal && setShowAboutModal(true)}
             style={{ width: "32px", height: "32px", borderRadius: "50%", background: "#f8fafc", border: "1px solid #e2e8f0", color: "#64748b", fontWeight: 800, fontSize: "13px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
@@ -212,7 +249,7 @@ export default function ProgressTab({
         </div>
       </div>
 
-      {/* 3. WEIGHT TRACKER CARD (Eksaktong Wave Chart na may Grid at Centered Button) */}
+      {/* 3. WEIGHT TRACKER CARD */}
       <div style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "24px", padding: "20px", marginBottom: "16px", boxShadow: "0 8px 25px rgba(15, 23, 42, 0.04)" }}>
         
         <span style={{ fontSize: "9.5px", fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.6px", display: "block" }}>
@@ -237,7 +274,7 @@ export default function ProgressTab({
           </div>
         </div>
 
-        {/* WAVE CHART MAY GRID LINES */}
+        {/* Wave Chart Grid */}
         <div style={{ position: "relative", width: "100%", height: "130px", marginBottom: "8px" }}>
           <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ width: "100%", height: "100%", overflow: "visible" }}>
             <defs>
@@ -248,30 +285,23 @@ export default function ProgressTab({
               </linearGradient>
             </defs>
 
-            {/* Faint Horizontal Grid Lines */}
             <line x1="0" y1="20" x2="100" y2="20" stroke="#f1f5f9" strokeWidth="0.8" />
             <line x1="0" y1="45" x2="100" y2="45" stroke="#f1f5f9" strokeWidth="0.8" />
             <line x1="0" y1="70" x2="100" y2="70" stroke="#f1f5f9" strokeWidth="0.8" />
 
-            {/* Faint Vertical Grid Lines */}
             {chartPoints.map((pt, idx) => (
               <line key={`v-${idx}`} x1={pt.x} y1="10" x2={pt.x} y2="85" stroke="#f8fafc" strokeWidth="0.8" />
             ))}
 
-            {/* Area Gradient Fill */}
             <path d={areaPath} fill="url(#waveFillGrad)" />
-
-            {/* Smooth Curved Line */}
             <path d={linePath} fill="none" stroke="#6366f1" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" />
 
-            {/* Circular Nodes */}
             {chartPoints.map((pt, idx) => (
               <circle key={`pt-${idx}`} cx={pt.x} cy={pt.y} r="3.5" fill="#ffffff" stroke="#6366f1" strokeWidth="2.2" />
             ))}
           </svg>
         </div>
 
-        {/* Day Labels M T W T F S S */}
         <div style={{ display: "flex", justifyContent: "space-between", padding: "0 2px", marginBottom: "16px" }}>
           {dayLabels.map((lbl, idx) => (
             <span key={idx} style={{ fontSize: "10px", fontWeight: 700, color: "#94a3b8", width: "16px", textAlign: "center" }}>
@@ -280,7 +310,6 @@ export default function ProgressTab({
           ))}
         </div>
 
-        {/* NAKAGITNANG PILL BUTTON (+ Log Today's Weight) */}
         <div style={{ display: "flex", justifyContent: "center" }}>
           <button
             onClick={() => setShowWeightModal(true)}
@@ -307,7 +336,7 @@ export default function ProgressTab({
 
       </div>
 
-      {/* 4. ADHERENCE & PROGRESS TRACKS (Eksaktong Gradient Capsule Bars) */}
+      {/* 4. ADHERENCE & PROGRESS TRACKS */}
       <div style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "24px", padding: "20px", boxShadow: "0 8px 25px rgba(15, 23, 42, 0.04)" }}>
         
         <span style={{ fontSize: "9.5px", fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.6px", display: "block", marginBottom: "16px" }}>
@@ -351,10 +380,10 @@ export default function ProgressTab({
 
       </div>
 
-      {/* 5. SLIDE-OVER BOTTOM SHEET PARA SA PAG-LOG NG TIMBANG */}
+      {/* 5. SLIDE-OVER BOTTOM SHEET (MAY BACK-BUTTON INTERCEPTOR) */}
       {showWeightModal && (
         <div 
-          onClick={() => setShowWeightModal(false)}
+          onClick={closeWeightModal}
           style={{ position: "fixed", inset: 0, background: "rgba(15, 23, 42, 0.45)", backdropFilter: "blur(3px)", zIndex: 9999, display: "flex", alignItems: "flex-end", justifyContent: "center" }}
         >
           <div 
@@ -370,7 +399,7 @@ export default function ProgressTab({
                 </div>
                 <h3 style={{ fontSize: "15px", fontWeight: 800, margin: 0, color: "#0f172a" }}>Log Today's Weight</h3>
               </div>
-              <button onClick={() => setShowWeightModal(false)} style={{ background: "none", border: "none", color: "#94a3b8", fontSize: "18px", cursor: "pointer" }}>✕</button>
+              <button onClick={closeWeightModal} style={{ background: "none", border: "none", color: "#94a3b8", fontSize: "18px", cursor: "pointer" }}>✕</button>
             </div>
 
             <form onSubmit={handleSaveWeight}>

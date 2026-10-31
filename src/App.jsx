@@ -60,6 +60,41 @@ export default function App() {
     window.scrollTo(0, 0);
   }, [activeTab]);
 
+  // ─── NATIVE DEVICE BACK BUTTON / GESTURE INTERCEPTOR ───
+  const isPoppingRef = React.useRef(false);
+
+  React.useEffect(() => {
+    // 1. Siguraduhing may baseline state sa history stack
+    if (!window.history.state || !window.history.state.tab) {
+      window.history.replaceState({ tab: "home" }, "");
+    }
+
+    const handlePopState = (e) => {
+      isPoppingRef.current = true;
+      const targetTab = e.state?.tab || "home";
+      setActiveTab(targetTab);
+      setTimeout(() => {
+        isPoppingRef.current = false;
+      }, 60);
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
+  // 2. I-record ang bawat paglipat ng tab sa history stack
+  React.useEffect(() => {
+    if (isPoppingRef.current) return;
+    if (
+      window.history.state?.tab !== activeTab &&
+      !window.history.state?.sheetOpen &&
+      !window.history.state?.weightModalOpen
+    ) {
+      window.history.pushState({ tab: activeTab }, "");
+    }
+  }, [activeTab]);
+
+
   const [onboardStep, setOnboardStep] = useState(0);
   const [setupName, setSetupName] = useState("");
   const [setupHeight, setSetupHeight] = useState("165");

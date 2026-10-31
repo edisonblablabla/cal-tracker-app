@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import MapTracker from "./MapTracker";
 import { WORKOUT_ACTIVITIES } from "../constants/data";
 
@@ -46,6 +46,50 @@ export default function HomeTab({
 
   const [quickWeightKg, setQuickWeightKg] = useState(appData?.currentWeight || "");
 
+  // ─── NATIVE DEVICE BACK-BUTTON TRAP PARA SA SLIDE-OVER SHEET ───
+  const isSheetPoppingRef = useRef(false);
+
+  useEffect(() => {
+    if (!activeSheet) return;
+
+    // Mag-push ng history state pagka-angat ng drawer
+    window.history.pushState({ sheetOpen: true, sheet: activeSheet }, "");
+
+    const handlePopState = () => {
+      isSheetPoppingRef.current = true;
+      setActiveSheet(null);
+      setTimeout(() => {
+        isSheetPoppingRef.current = false;
+      }, 50);
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+    };
+  }, [activeSheet]);
+
+  // Malinis na pagsasara: I-pop ang history kung UI button ang ginamit
+  const closeSheet = () => {
+    if (window.history.state?.sheetOpen) {
+      window.history.back();
+    } else {
+      setActiveSheet(null);
+    }
+  };
+
+  // Lock body scroll kapag bukas ang sheet
+  useEffect(() => {
+    if (activeSheet) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [activeSheet]);
+
   // Quests
   const [questIndex, setQuestIndex] = useState(0);
   const quests = [
@@ -60,19 +104,7 @@ export default function HomeTab({
     if (typeof shuffleQuote === "function") shuffleQuote();
   };
 
-  // Lock body scroll kapag bukas ang sheet para hindi maalog ang layout
-  useEffect(() => {
-    if (activeSheet) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "";
-    }
-    return () => {
-      document.body.style.overflow = "";
-    };
-  }, [activeSheet]);
-
-  // LIVE WORKOUT BURN CALCULATION (Real-time update habang nagta-type ng minutes)
+  // LIVE WORKOUT BURN CALCULATION
   const liveBurnRate = useMemo(() => {
     const act = (WORKOUT_ACTIVITIES || []).find((a) => a.name === selectedActivity);
     return act?.calPerMinute || act?.calPerMin || act?.caloriesPerMinute || act?.burnRate || act?.rate || 8;
@@ -81,7 +113,7 @@ export default function HomeTab({
   const activeDurationMins = Number(workoutDuration) || 30;
   const dynamicEstimatedBurn = Math.round(activeDurationMins * liveBurnRate);
 
-  // 1. SAVE FOOD (Eksaktong cal, p, c, f para sa App.jsx at DiaryTab.jsx)
+  // 1. SAVE FOOD
   const handleSaveFoodSheet = (e) => {
     e.preventDefault();
     const cVal = Number(quickCal) || 0;
@@ -95,7 +127,6 @@ export default function HomeTab({
     const mealTitle = quickFoodName.trim() || "Quick Meal";
     const todayISO = new Date().toISOString().slice(0, 10);
 
-    // Schema na eksaktong tumutugma sa: totalCal += m.cal; totalP += m.p; totalC += m.c; totalF += m.f;
     const newEntry = {
       id: Date.now(),
       name: mealTitle,
@@ -104,7 +135,6 @@ export default function HomeTab({
       c: cCarbVal,
       f: fVal,
       dateLogged: todayISO,
-      // Compatibility keys
       calories: cVal,
       protein: pVal,
       carbs: cCarbVal,
@@ -128,7 +158,7 @@ export default function HomeTab({
     setQuickP("");
     setQuickC("");
     setQuickF("");
-    setActiveSheet(null);
+    closeSheet();
   };
 
   // 2. SAVE WATER
@@ -153,7 +183,7 @@ export default function HomeTab({
     }
 
     if (showToast) showToast(`💧 +${amount} ml na-record sa daily intake!`);
-    setActiveSheet(null);
+    closeSheet();
   };
 
   // 3. SAVE WORKOUT
@@ -186,10 +216,10 @@ export default function HomeTab({
     }
 
     if (showToast) showToast(`🔥 Na-record: ${name} (${mVal}m • ${kVal} kcal)!`);
-    setActiveSheet(null);
+    closeSheet();
   };
 
-  // 4. SAVE WEIGHT (Eksaktong val at date para sa ProgressTab.jsx)
+  // 4. SAVE WEIGHT
   const handleSaveWeightSheet = (e) => {
     e.preventDefault();
     const w = parseFloat(quickWeightKg);
@@ -218,7 +248,7 @@ export default function HomeTab({
     }
 
     if (showToast) showToast(`⚖️ Na-record ang timbang: ${w} kg!`);
-    setActiveSheet(null);
+    closeSheet();
   };
 
   const calNum = Number(totalCal) || 0;
@@ -227,7 +257,6 @@ export default function HomeTab({
   const cNum = Number(totalC) || 0;
   const fNum = Number(totalF) || 0;
 
-  // 100% MATHEMATICAL ACCURACY: r = 45 -> Circumference = 282.743 ~ 283
   const accuratePct = Math.min(Math.round((calNum / goalCal) * 100), 100);
   const accurateOffset = 283 - (283 * (accuratePct / 100));
 
@@ -267,7 +296,7 @@ export default function HomeTab({
         </div>
       </div>
 
-      {/* 2. DAILY QUEST BANNER (Concept C Soft Gradient) */}
+      {/* 2. DAILY QUEST BANNER */}
       <div 
         onClick={handleNextQuest}
         style={{ 
@@ -298,10 +327,8 @@ export default function HomeTab({
         <i className="fa-solid fa-chevron-right" style={{ fontSize: "10px", opacity: 0.75 }}></i>
       </div>
 
-      {/* 3. ENERGY OVERVIEW (Concept C Clean White Card) */}
+      {/* 3. ENERGY OVERVIEW */}
       <div style={{ background: "#ffffff", border: "1px solid #f1f5f9", borderRadius: "20px", padding: "18px 20px", marginBottom: "12px", boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.04)" }}>
-        
-        {/* Top: Calories on Left, Ring on Right */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
           <div>
             <span style={{ fontSize: "9.5px", fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.6px" }}>
@@ -326,7 +353,6 @@ export default function HomeTab({
             )}
           </div>
 
-          {/* 100% ACCURATE PROGRESS RING (r=45, Circumference=283) */}
           <div style={{ position: "relative", width: "70px", height: "70px", flexShrink: 0 }}>
             <svg width="70" height="70" viewBox="0 0 100 100" style={{ transform: "rotate(-90deg)" }}>
               <defs>
@@ -356,13 +382,12 @@ export default function HomeTab({
           </div>
         </div>
 
-        {/* Bottom: Concept C Macronutrient Balance Horizontal Bars */}
+        {/* Macronutrient Bars */}
         <div style={{ display: "flex", flexDirection: "column", gap: "8px", paddingTop: "12px", borderTop: "1px solid #f8fafc" }}>
           <span style={{ fontSize: "9px", fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.6px" }}>
             MACRONUTRIENT BALANCE
           </span>
 
-          {/* Proteins */}
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <span style={{ width: "50px", fontSize: "11px", fontWeight: 700, color: "#475569" }}>Proteins</span>
             <div style={{ flex: 1, height: "7px", background: "#f1f5f9", borderRadius: "999px", overflow: "hidden" }}>
@@ -371,7 +396,6 @@ export default function HomeTab({
             <span style={{ width: "40px", textAlign: "right", fontSize: "11px", fontWeight: 800, color: "#0f172a" }}>{pNum}gm</span>
           </div>
 
-          {/* Carbs */}
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <span style={{ width: "50px", fontSize: "11px", fontWeight: 700, color: "#475569" }}>Carbs</span>
             <div style={{ flex: 1, height: "7px", background: "#f1f5f9", borderRadius: "999px", overflow: "hidden" }}>
@@ -380,7 +404,6 @@ export default function HomeTab({
             <span style={{ width: "40px", textAlign: "right", fontSize: "11px", fontWeight: 800, color: "#0f172a" }}>{cNum}gm</span>
           </div>
 
-          {/* Fats */}
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <span style={{ width: "50px", fontSize: "11px", fontWeight: 700, color: "#475569" }}>Fats</span>
             <div style={{ flex: 1, height: "7px", background: "#f1f5f9", borderRadius: "999px", overflow: "hidden" }}>
@@ -389,7 +412,6 @@ export default function HomeTab({
             <span style={{ width: "40px", textAlign: "right", fontSize: "11px", fontWeight: 800, color: "#0f172a" }}>{fNum}gm</span>
           </div>
         </div>
-
       </div>
 
       {/* 4. QUICK CAPTURE ACTIONS */}
@@ -399,7 +421,6 @@ export default function HomeTab({
         </span>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "8px" }}>
           
-          {/* Log Food */}
           <button 
             onClick={() => setActiveSheet("food")}
             style={{ padding: "10px 4px", background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "12px", display: "flex", flexDirection: "column", alignItems: "center", gap: "5px", cursor: "pointer", boxShadow: "0 1px 3px rgba(0,0,0,0.02)" }}
@@ -410,7 +431,6 @@ export default function HomeTab({
             <span style={{ fontSize: "10px", fontWeight: 700, color: "#1e293b" }}>Log Food</span>
           </button>
 
-          {/* Workout */}
           <button 
             onClick={() => setActiveSheet("workout")}
             style={{ padding: "10px 4px", background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "12px", display: "flex", flexDirection: "column", alignItems: "center", gap: "5px", cursor: "pointer", boxShadow: "0 1px 3px rgba(0,0,0,0.02)" }}
@@ -421,7 +441,6 @@ export default function HomeTab({
             <span style={{ fontSize: "10px", fontWeight: 700, color: "#1e293b" }}>Workout</span>
           </button>
 
-          {/* Water Intake (May live ml badge) */}
           <button 
             onClick={() => setActiveSheet("water")}
             style={{ padding: "10px 4px", background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "12px", display: "flex", flexDirection: "column", alignItems: "center", gap: "5px", cursor: "pointer", boxShadow: "0 1px 3px rgba(0,0,0,0.02)" }}
@@ -434,7 +453,6 @@ export default function HomeTab({
             </span>
           </button>
 
-          {/* Log Weight */}
           <button 
             onClick={() => {
               setQuickWeightKg(appData?.currentWeight || appData?.weight || "");
@@ -504,7 +522,7 @@ export default function HomeTab({
           </button>
         </div>
 
-        {/* WORKOUT TIMER CARD (MAY LIVE ESTIMATED BURN RECALCULATION) */}
+        {/* WORKOUT TIMER CARD */}
         {activeHUD === "timer" && (
           <div style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "18px", padding: "14px", boxShadow: "0 2px 8px rgba(15, 23, 42, 0.04)" }}>
             <div style={{ display: "flex", gap: "8px", marginBottom: "10px" }}>
@@ -578,10 +596,10 @@ export default function HomeTab({
         </div>
       </div>
 
-      {/* 6. SLIDE-OVER PANELS */}
+      {/* 6. SLIDE-OVER PANELS (MAY NATIVE BACK BUTTON INTEGRATION) */}
       {activeSheet && (
         <div 
-          onClick={() => setActiveSheet(null)}
+          onClick={closeSheet}
           style={{ position: "fixed", inset: 0, background: "rgba(15, 23, 42, 0.45)", backdropFilter: "blur(3px)", zIndex: 9999, display: "flex", alignItems: "flex-end", justifyContent: "center" }}
         >
           <div 
@@ -600,7 +618,7 @@ export default function HomeTab({
                     </div>
                     <h3 style={{ fontSize: "15px", fontWeight: 800, margin: 0, color: "#0f172a" }}>Quick Log Meal</h3>
                   </div>
-                  <button onClick={() => setActiveSheet(null)} style={{ background: "none", border: "none", color: "#94a3b8", fontSize: "18px", cursor: "pointer" }}>✕</button>
+                  <button onClick={closeSheet} style={{ background: "none", border: "none", color: "#94a3b8", fontSize: "18px", cursor: "pointer" }}>✕</button>
                 </div>
 
                 <form onSubmit={handleSaveFoodSheet}>
@@ -679,7 +697,7 @@ export default function HomeTab({
                     </div>
                     <h3 style={{ fontSize: "15px", fontWeight: 800, margin: 0, color: "#0f172a" }}>Log Workout Session</h3>
                   </div>
-                  <button onClick={() => setActiveSheet(null)} style={{ background: "none", border: "none", color: "#94a3b8", fontSize: "18px", cursor: "pointer" }}>✕</button>
+                  <button onClick={closeSheet} style={{ background: "none", border: "none", color: "#94a3b8", fontSize: "18px", cursor: "pointer" }}>✕</button>
                 </div>
 
                 <div style={{ marginBottom: "14px" }}>
@@ -767,7 +785,7 @@ export default function HomeTab({
 
                 <button 
                   onClick={() => {
-                    setActiveSheet(null);
+                    closeSheet();
                     setActiveHUD("timer");
                   }}
                   style={{ width: "100%", background: "#f1f5f9", border: "1px dashed #94a3b8", color: "#334155", padding: "10px", borderRadius: "10px", fontWeight: 700, fontSize: "11px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}
@@ -788,7 +806,7 @@ export default function HomeTab({
                     </div>
                     <h3 style={{ fontSize: "15px", fontWeight: 800, margin: 0, color: "#0f172a" }}>Quick Log Water</h3>
                   </div>
-                  <button onClick={() => setActiveSheet(null)} style={{ background: "none", border: "none", color: "#94a3b8", fontSize: "18px", cursor: "pointer" }}>✕</button>
+                  <button onClick={closeSheet} style={{ background: "none", border: "none", color: "#94a3b8", fontSize: "18px", cursor: "pointer" }}>✕</button>
                 </div>
 
                 <div style={{ background: "#f0f9ff", padding: "10px", borderRadius: "12px", border: "1px solid #bae6fd", marginBottom: "14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -828,7 +846,7 @@ export default function HomeTab({
                     </div>
                     <h3 style={{ fontSize: "15px", fontWeight: 800, margin: 0, color: "#0f172a" }}>Update & Log Weight</h3>
                   </div>
-                  <button onClick={() => setActiveSheet(null)} style={{ background: "none", border: "none", color: "#94a3b8", fontSize: "18px", cursor: "pointer" }}>✕</button>
+                  <button onClick={closeSheet} style={{ background: "none", border: "none", color: "#94a3b8", fontSize: "18px", cursor: "pointer" }}>✕</button>
                 </div>
 
                 <form onSubmit={handleSaveWeightSheet}>
