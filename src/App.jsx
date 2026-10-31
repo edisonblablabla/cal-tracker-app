@@ -144,9 +144,9 @@ export default function App() {
       isPoppingRef.current = true;
 
       // LAYER 4: Nasa loob ng conversation ng isang user -> Babalik sa Messages List / Inbox
-      if (activeChatPartnerRef.current) {
+      if (activePanelRef.current === "chat" || activeChatPartnerRef.current) {
         setActiveChatPartner(null);
-        setActivePanel("messages");
+        setActivePanel("inbox");
         setTimeout(() => { isPoppingRef.current = false; }, 60);
         return;
       }

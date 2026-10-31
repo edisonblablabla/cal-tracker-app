@@ -311,7 +311,7 @@ export default function ModalsLayer({
               {/* BACK BUTTON (<) */}
               <button 
                 onClick={() => {
-                  if (activePanel === "chat") setActivePanel("inbox");
+                  if (activePanel === "chat") { if (typeof setActiveChatPartner === "function") setActiveChatPartner(null); setActivePanel("inbox"); }
                   else setActivePanel(null);
                 }} 
                 style={{ 
