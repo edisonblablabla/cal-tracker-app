@@ -60,6 +60,58 @@ export default function App() {
     window.scrollTo(0, 0);
   }, [activeTab]);
 
+  const [onboardStep, setOnboardStep] = useState(0);
+  const [setupName, setSetupName] = useState("");
+  const [setupHeight, setSetupHeight] = useState("165");
+  const [setupWeight, setSetupWeight] = useState("60");
+  const [setupActivity, setSetupActivity] = useState("1.55");
+  const [setupGoalType, setSetupGoalType] = useState("jogger");
+
+  const [quote, setQuote] = useState(() => FITNESS_QUOTES[Math.floor(Math.random() * FITNESS_QUOTES.length)]);
+
+  const [selectedActivity, setSelectedActivity] = useState(WORKOUT_ACTIVITIES[0].name);
+  const [workoutDuration, setWorkoutDuration] = useState("30");
+  const [timerSeconds, setTimerSeconds] = useState(1800);
+  const [isTimerRunning, setIsTimerRunning] = useState(false);
+  const timerRef = useRef(null);
+
+  const [userList, setUserList] = useState([]);
+  const [adminSubTab, setAdminSubTab] = useState("posts");
+
+  const [customName, setCustomName] = useState("");
+  const [customPortion, setCustomPortion] = useState("1 serving");
+  const [customCal, setCustomCal] = useState("");
+  const [customP, setCustomP] = useState("");
+  const [customC, setCustomC] = useState("");
+  const [customF, setCustomF] = useState("");
+
+  const [profName, setProfName] = useState("");
+  const [profTitle, setProfTitle] = useState("");
+  const [profHeight, setProfHeight] = useState(160);
+  const [profWeight, setProfWeight] = useState(60);
+  const [profActivity, setProfActivity] = useState(1.55);
+  const [profIsPrivate, setProfIsBlocked] = useState(false);
+
+  const [newLogWeight, setNewLogWeight] = useState("");
+  
+  const [posts, setPosts] = useState([]);
+  const [postText, setPostText] = useState("");
+  const [imagePreview, setImagePreview] = useState(null);
+  const [postVisibility, setPostVisibility] = useState("public");
+
+  const [profPostText, setProfPostText] = useState("");
+  const [profImagePreview, setProfImagePreview] = useState(null);
+  const [profPostVisibility, setProfPostVisibility] = useState("public");
+
+  const [profileViewMode, setProfileViewMode] = useState("list");
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showAboutModal, setShowAboutModal] = useState(false);
+  const [isPublishing, setIsPublishing] = useState(false);
+
+  const [viewingAthlete, setViewingAthlete] = useState(null);
+  const [boosterListModalType, setBoosterListModalType] = useState(null);
+  const [resonatePost, setResonatePost] = useState(null);
+
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [showNotifModal, setShowNotifModal] = useState(false);
@@ -67,125 +119,6 @@ export default function App() {
   // SLIDE-OVER PANEL CENTRAL CONTROLLER
   const [activePanel, setActivePanel] = useState(null);
   const [activeChatPartner, setActiveChatPartner] = useState(null);
-
-  // ─── MASTER NATIVE BACK BUTTON CONTROLLER (SAFELY POSITIONED) ───
-  const isPoppingRef = useRef(false);
-
-  const activeTabRef = useRef(activeTab);
-  const activePanelRef = useRef(activePanel);
-  const activeChatPartnerRef = useRef(activeChatPartner);
-  const showNotifModalRef = useRef(showNotifModal);
-  const showSearchModalRef = useRef(showSearchModal);
-
-  useEffect(() => { activeTabRef.current = activeTab; }, [activeTab]);
-  useEffect(() => { activePanelRef.current = activePanel; }, [activePanel]);
-  useEffect(() => { activeChatPartnerRef.current = activeChatPartner; }, [activeChatPartner]);
-  useEffect(() => { showNotifModalRef.current = showNotifModal; }, [showNotifModal]);
-  useEffect(() => { showSearchModalRef.current = showSearchModal; }, [showSearchModal]);
-
-  useEffect(() => {
-    if (!window.history.state || !window.history.state.tab) {
-      window.history.replaceState({ tab: "home" }, "");
-    }
-
-    const handlePopState = (e) => {
-      isPoppingRef.current = true;
-
-      // Priority 1: Bukas ang Chat Conversation
-      if (activeChatPartnerRef.current || activePanelRef.current === "chat") {
-        setActiveChatPartner(null);
-        setActivePanel(null);
-        setTimeout(() => { isPoppingRef.current = false; }, 60);
-        return;
-      }
-
-      // Priority 2: Bukas ang Post Detail (comments/views)
-      if (activePanelRef.current === "post_detail") {
-        setActivePanel(null);
-        setTimeout(() => { isPoppingRef.current = false; }, 60);
-        return;
-      }
-
-      // Priority 3: Anumang sub-panel sa Social
-      if (activePanelRef.current) {
-        setActivePanel(null);
-        setTimeout(() => { isPoppingRef.current = false; }, 60);
-        return;
-      }
-
-      // Priority 4: Notifications Modal
-      if (showNotifModalRef.current) {
-        setShowNotifModal(false);
-        setTimeout(() => { isPoppingRef.current = false; }, 60);
-        return;
-      }
-
-      // Priority 5: Search Modal
-      if (showSearchModalRef.current) {
-        setShowSearchModal(false);
-        setTimeout(() => { isPoppingRef.current = false; }, 60);
-        return;
-      }
-
-      // Child Sheet o Progress Modal (hinahayaan ang child component)
-      if (e.state?.sheetOpen || e.state?.weightModalOpen) {
-        setTimeout(() => { isPoppingRef.current = false; }, 60);
-        return;
-      }
-
-      // Priority 6: Walang anumang modal na bukas — Babalik sa Home Tab
-      const targetTab = e.state?.tab || "home";
-      setActiveTab(targetTab);
-      setTimeout(() => { isPoppingRef.current = false; }, 60);
-    };
-
-    window.addEventListener("popstate", handlePopState);
-    return () => window.removeEventListener("popstate", handlePopState);
-  }, []);
-
-  // I-sync ang mga overlays sa browser history stack
-  useEffect(() => {
-    if (isPoppingRef.current) return;
-    if (activeChatPartner || activePanel === "chat") {
-      if (window.history.state?.overlay !== "chat") {
-        window.history.pushState({ overlay: "chat" }, "");
-      }
-    } else if (activePanel === "post_detail") {
-      if (window.history.state?.overlay !== "post_detail") {
-        window.history.pushState({ overlay: "post_detail" }, "");
-      }
-    } else if (activePanel) {
-      if (window.history.state?.overlay !== activePanel) {
-        window.history.pushState({ overlay: activePanel }, "");
-      }
-    }
-  }, [activeChatPartner, activePanel]);
-
-  useEffect(() => {
-    if (isPoppingRef.current) return;
-    if (showNotifModal && window.history.state?.overlay !== "notif") {
-      window.history.pushState({ overlay: "notif" }, "");
-    }
-  }, [showNotifModal]);
-
-  useEffect(() => {
-    if (isPoppingRef.current) return;
-    if (showSearchModal && window.history.state?.overlay !== "search") {
-      window.history.pushState({ overlay: "search" }, "");
-    }
-  }, [showSearchModal]);
-
-  // Tab navigation history tracker
-  useEffect(() => {
-    if (isPoppingRef.current) return;
-    if (showNotifModal || showSearchModal || activePanel || activeChatPartner) return;
-    if (window.history.state?.sheetOpen || window.history.state?.weightModalOpen) return;
-
-    if (window.history.state?.tab !== activeTab) {
-      window.history.pushState({ tab: activeTab }, "");
-    }
-  }, [activeTab]);
-
   const [chatMessages, setChatMessages] = useState([]);
   const [inboxChats, setInboxChats] = useState([]);
   const [newChatMessage, setNewChatMessage] = useState("");
