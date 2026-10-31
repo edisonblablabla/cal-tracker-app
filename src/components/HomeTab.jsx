@@ -32,7 +32,6 @@ export default function HomeTab({
 }) {
   const [activeHUD, setActiveHUD] = useState("timer");
 
-  // Dynamic Daily Quests na nagbabago sa bawat tap
   const [questIndex, setQuestIndex] = useState(0);
   const quests = [
     "Workout 30m to maintain your streak!",
@@ -44,7 +43,6 @@ export default function HomeTab({
   const handleNextQuest = () => {
     setQuestIndex((prev) => (prev + 1) % quests.length);
     if (typeof shuffleQuote === "function") shuffleQuote();
-    if (typeof showToast === "function") showToast("✨ Bagong Daily Quest na-unlock!");
   };
 
   const pNum = Number(totalP) || 0;
@@ -54,26 +52,32 @@ export default function HomeTab({
   const calNum = Number(totalCal) || 0;
 
   return (
-    <div className="screen active" style={{ maxWidth: "460px", margin: "0 auto", paddingBottom: "24px" }}>
+    <div className="screen active" style={{ maxWidth: "440px", margin: "0 auto", paddingBottom: "16px" }}>
       
-      {/* 1. BRAND HEADER */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
-        <div>
-          <span style={{ fontSize: "10px", fontWeight: 800, color: "#1e1b4b", textTransform: "uppercase", letterSpacing: "1px" }}>
-            NUTRIPULSE
-          </span>
-          <h2 style={{ fontSize: "20px", fontWeight: 900, color: "#0f172a", margin: "2px 0 0 0", display: "flex", alignItems: "center", gap: "6px" }}>
-            <span>👋</span> Hello, {appData?.userName || "Athlete"}!
-          </h2>
-        </div>
+      {/* 1. BRAND HEADER MAY LOGO */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <div style={{ background: "#fff7ed", border: "1px solid #ffedd5", padding: "6px 12px", borderRadius: "14px", display: "flex", alignItems: "center", gap: "5px", fontSize: "12px", fontWeight: 800, color: "#ea580c", boxShadow: "0 2px 4px rgba(234,88,12,0.06)" }}>
-            <span>{appData?.streakDays || 7}</span>
-            <span>🔥</span>
+          {/* Logo icon */}
+          <div style={{ width: "28px", height: "28px", borderRadius: "50%", background: "linear-gradient(135deg, #4f46e5, #06b6d4)", display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontSize: "12px", boxShadow: "0 2px 6px rgba(79,70,229,0.25)", flexShrink: 0 }}>
+            <i className="fa-solid fa-heart-pulse"></i>
+          </div>
+          <div>
+            <span style={{ fontSize: "8.5px", fontWeight: 800, color: "#4f46e5", textTransform: "uppercase", letterSpacing: "0.8px", display: "block", lineHeight: 1 }}>
+              NUTRIPULSE
+            </span>
+            <h2 style={{ fontSize: "15px", fontWeight: 900, color: "#0f172a", margin: "2px 0 0 0", lineHeight: 1.1 }}>
+              Hey, {appData?.userName || "Athlete"}!
+            </h2>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+          <div style={{ background: "#fff7ed", border: "1px solid #ffedd5", padding: "3px 8px", borderRadius: "10px", display: "flex", alignItems: "center", gap: "4px", fontSize: "11px", fontWeight: 800, color: "#ea580c" }}>
+            <span>🔥 {appData?.streakDays || 1}d</span>
           </div>
           <button 
             onClick={() => setShowAboutModal && setShowAboutModal(true)} 
-            style={{ width: "32px", height: "32px", borderRadius: "50%", background: "#f8fafc", border: "1px solid #e2e8f0", color: "#64748b", fontWeight: 900, fontSize: "13px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+            style={{ width: "26px", height: "26px", borderRadius: "8px", background: "#f1f5f9", border: "none", color: "#64748b", fontWeight: 900, fontSize: "11px", cursor: "pointer" }}
             title="App Info"
           >
             ?
@@ -81,60 +85,60 @@ export default function HomeTab({
         </div>
       </div>
 
-      {/* 2. DAILY QUEST BANNER (Soft Violet/Magenta Gradient) */}
+      {/* 2. DAILY QUEST BANNER (Sleek Compact Size) */}
       <div 
         onClick={handleNextQuest}
         style={{ 
           background: "linear-gradient(135deg, #6366f1 0%, #a855f7 50%, #ec4899 100%)", 
-          borderRadius: "20px", 
-          padding: "14px 18px", 
+          borderRadius: "14px", 
+          padding: "9px 12px", 
           color: "white", 
-          marginBottom: "16px", 
-          boxShadow: "0 8px 20px rgba(99, 102, 241, 0.25)",
+          marginBottom: "12px", 
+          boxShadow: "0 4px 12px rgba(99, 102, 241, 0.15)",
           cursor: "pointer",
           display: "flex",
           justifyContent: "space-between",
-          alignItems: "center",
-          transition: "transform 0.15s ease"
+          alignItems: "center"
         }}
-        title="Tap to view next quest"
+        title="Tap to change quest"
       >
-        <div>
-          <span style={{ fontSize: "9px", textTransform: "uppercase", fontWeight: 800, opacity: 0.85, letterSpacing: "0.8px", display: "block" }}>
+        <div style={{ minWidth: 0, flex: 1, paddingRight: "8px" }}>
+          <span style={{ fontSize: "8px", textTransform: "uppercase", fontWeight: 800, opacity: 0.85, letterSpacing: "0.5px", display: "block" }}>
             DAILY QUEST
           </span>
-          <div style={{ fontSize: "13px", fontWeight: 800, marginTop: "2px", letterSpacing: "-0.2px" }}>
+          <div style={{ fontSize: "11px", fontWeight: 700, marginTop: "1px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
             {quests[questIndex]}
           </div>
         </div>
-        <span style={{ fontSize: "14px", opacity: 0.8, fontWeight: 900 }}>›</span>
+        <span style={{ fontSize: "12px", opacity: 0.8, fontWeight: 900 }}>›</span>
       </div>
 
-      {/* 3. ENERGY OVERVIEW CARD (Clean White with Soft Shadow) */}
-      <div style={{ background: "#ffffff", border: "1px solid #f1f5f9", borderRadius: "24px", padding: "20px", marginBottom: "16px", boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.04)" }}>
+      {/* 3. ENERGY OVERVIEW CARD (Compact & Proportional) */}
+      <div style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "18px", padding: "14px", marginBottom: "12px", boxShadow: "0 4px 12px rgba(15, 23, 42, 0.03)" }}>
         
-        {/* Top Part: Calories & Gradient Ring */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
           <div>
-            <span style={{ fontSize: "10px", fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.6px" }}>
+            <span style={{ fontSize: "9px", fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px" }}>
               ENERGY OVERVIEW
             </span>
-            <div style={{ fontSize: "11px", color: "#94a3b8", marginTop: "2px", fontWeight: 600 }}>
-              Calorie tracking with active burn calculations
-            </div>
-            <div style={{ display: "flex", alignItems: "baseline", gap: "6px", marginTop: "8px" }}>
-              <span style={{ fontSize: "36px", fontWeight: 900, color: "#0f172a", letterSpacing: "-1px", lineHeight: 1 }}>
+            <div style={{ display: "flex", alignItems: "baseline", gap: "5px", marginTop: "3px" }}>
+              <span style={{ fontSize: "24px", fontWeight: 900, color: "#0f172a", lineHeight: 1 }}>
                 {calNum.toLocaleString()}
               </span>
-              <span style={{ fontSize: "13px", fontWeight: 700, color: "#64748b" }}>
-                kcal of {goalCal.toLocaleString()}
+              <span style={{ fontSize: "11px", fontWeight: 700, color: "#64748b" }}>
+                / {goalCal.toLocaleString()} kcal
               </span>
             </div>
+            {(appData?.todayBurnedCal || 0) > 0 && (
+              <span style={{ fontSize: "10px", color: "#16a34a", fontWeight: 700, display: "inline-block", marginTop: "3px" }}>
+                🔥 {appData.todayBurnedCal} kcal burned today
+              </span>
+            )}
           </div>
 
-          {/* CIRCULAR PROGRESS RING */}
-          <div style={{ position: "relative", width: "80px", height: "80px", flexShrink: 0 }}>
-            <svg width="80" height="80" viewBox="0 0 100 100" style={{ transform: "rotate(-90deg)" }}>
+          {/* COMPACT CIRCULAR RING */}
+          <div style={{ position: "relative", width: "64px", height: "64px", flexShrink: 0 }}>
+            <svg width="64" height="64" viewBox="0 0 100 100" style={{ transform: "rotate(-90deg)" }}>
               <defs>
                 <linearGradient id="ringGradient" x1="0%" y1="0%" x2="100%" y2="100%">
                   <stop offset="0%" stopColor="#ec4899" />
@@ -153,129 +157,128 @@ export default function HomeTab({
                 strokeDashoffset={strokeOffset ?? 0} 
                 strokeLinecap="round" 
                 fill="transparent" 
-                style={{ transition: "stroke-dashoffset 0.8s ease" }}
+                style={{ transition: "stroke-dashoffset 0.6s ease" }}
               />
             </svg>
-            <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "15px", fontWeight: 900, color: "#1e1b4b" }}>
+            <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "12px", fontWeight: 900, color: "#1e1b4b" }}>
               {pct ?? 0}%
             </div>
           </div>
         </div>
 
-        {/* Bottom Part: MACRONUTRIENT BALANCE (Pill Tracks) */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "10px", paddingTop: "14px", borderTop: "1px solid #f8fafc" }}>
-          <span style={{ fontSize: "9px", fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.6px" }}>
-            MACRONUTRIENT BALANCE
-          </span>
-
+        {/* MACRONUTRIENT BALANCE (Compact Capsule Tracks) */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "6px", paddingTop: "10px", borderTop: "1px solid #f1f5f9" }}>
+          
           {/* Proteins */}
-          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-            <span style={{ width: "55px", fontSize: "12px", fontWeight: 700, color: "#475569" }}>Proteins</span>
-            <div style={{ flex: 1, height: "10px", background: "#f1f5f9", borderRadius: "999px", overflow: "hidden", position: "relative" }}>
-              <div style={{ width: `${Math.max(Math.min((pNum / 120) * 100, 100), pNum > 0 ? 5 : 2)}%`, height: "100%", background: "linear-gradient(90deg, #4ade80, #22c55e)", borderRadius: "999px", transition: "width 0.4s ease" }}></div>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <span style={{ width: "48px", fontSize: "10px", fontWeight: 700, color: "#475569" }}>Protein</span>
+            <div style={{ flex: 1, height: "6px", background: "#e2e8f0", borderRadius: "999px", overflow: "hidden" }}>
+              <div style={{ width: `${Math.max(Math.min((pNum / 120) * 100, 100), pNum > 0 ? 5 : 2)}%`, height: "100%", background: "#22c55e", borderRadius: "999px" }}></div>
             </div>
-            <span style={{ width: "42px", textAlign: "right", fontSize: "12px", fontWeight: 800, color: "#0f172a" }}>{pNum}gm</span>
+            <span style={{ width: "36px", textAlign: "right", fontSize: "10px", fontWeight: 800, color: "#0f172a" }}>{pNum}g</span>
           </div>
 
           {/* Carbs */}
-          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-            <span style={{ width: "55px", fontSize: "12px", fontWeight: 700, color: "#475569" }}>Carbs</span>
-            <div style={{ flex: 1, height: "10px", background: "#f1f5f9", borderRadius: "999px", overflow: "hidden", position: "relative" }}>
-              <div style={{ width: `${Math.max(Math.min((cNum / 260) * 100, 100), cNum > 0 ? 5 : 2)}%`, height: "100%", background: "linear-gradient(90deg, #fbbf24, #f97316)", borderRadius: "999px", transition: "width 0.4s ease" }}></div>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <span style={{ width: "48px", fontSize: "10px", fontWeight: 700, color: "#475569" }}>Carbs</span>
+            <div style={{ flex: 1, height: "6px", background: "#e2e8f0", borderRadius: "999px", overflow: "hidden" }}>
+              <div style={{ width: `${Math.max(Math.min((cNum / 260) * 100, 100), cNum > 0 ? 5 : 2)}%`, height: "100%", background: "#f97316", borderRadius: "999px" }}></div>
             </div>
-            <span style={{ width: "42px", textAlign: "right", fontSize: "12px", fontWeight: 800, color: "#0f172a" }}>{cNum}gm</span>
+            <span style={{ width: "36px", textAlign: "right", fontSize: "10px", fontWeight: 800, color: "#0f172a" }}>{cNum}g</span>
           </div>
 
           {/* Fats */}
-          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-            <span style={{ width: "55px", fontSize: "12px", fontWeight: 700, color: "#475569" }}>Fats</span>
-            <div style={{ flex: 1, height: "10px", background: "#f1f5f9", borderRadius: "999px", overflow: "hidden", position: "relative" }}>
-              <div style={{ width: `${Math.max(Math.min((fNum / 70) * 100, 100), fNum > 0 ? 5 : 2)}%`, height: "100%", background: "linear-gradient(90deg, #60a5fa, #0ea5e9)", borderRadius: "999px", transition: "width 0.4s ease" }}></div>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <span style={{ width: "48px", fontSize: "10px", fontWeight: 700, color: "#475569" }}>Fats</span>
+            <div style={{ flex: 1, height: "6px", background: "#e2e8f0", borderRadius: "999px", overflow: "hidden" }}>
+              <div style={{ width: `${Math.max(Math.min((fNum / 70) * 100, 100), fNum > 0 ? 5 : 2)}%`, height: "100%", background: "#0ea5e9", borderRadius: "999px" }}></div>
             </div>
-            <span style={{ width: "42px", textAlign: "right", fontSize: "12px", fontWeight: 800, color: "#0f172a" }}>{fNum}gm</span>
+            <span style={{ width: "36px", textAlign: "right", fontSize: "10px", fontWeight: 800, color: "#0f172a" }}>{fNum}g</span>
           </div>
         </div>
       </div>
 
-      {/* 4. QUICK CAPTURE PILLS (Soft Pastel Cards with Real Actions) */}
-      <div style={{ marginBottom: "18px" }}>
-        <span style={{ fontSize: "10px", fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.6px", display: "block", marginBottom: "8px" }}>
-          QUICK CAPTURE
+      {/* 4. QUICK CAPTURE PILLS (Useful, Compact, at may 'Log Weight') */}
+      <div style={{ marginBottom: "14px" }}>
+        <span style={{ fontSize: "9px", fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px", display: "block", marginBottom: "6px" }}>
+          QUICK ACTIONS
         </span>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "10px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "8px" }}>
           
-          {/* Log Food */}
+          {/* 1. Log Food */}
           <button 
             onClick={() => {
               if (typeof setActiveTab === "function") setActiveTab("log");
             }}
-            style={{ padding: "14px 6px", background: "#ebfbf2", border: "1px solid #d1fae5", borderRadius: "18px", display: "flex", flexDirection: "column", alignItems: "center", gap: "6px", cursor: "pointer", boxShadow: "0 2px 6px rgba(16,185,129,0.06)" }}
+            style={{ padding: "8px 4px", background: "#ebfbf2", border: "1px solid #d1fae5", borderRadius: "12px", display: "flex", flexDirection: "column", alignItems: "center", gap: "3px", cursor: "pointer" }}
           >
-            <span style={{ fontSize: "20px" }}>🥗</span>
-            <span style={{ fontSize: "11px", fontWeight: 800, color: "#065f46" }}>Log Food</span>
+            <span style={{ fontSize: "16px" }}>🥗</span>
+            <span style={{ fontSize: "10px", fontWeight: 800, color: "#065f46" }}>Log Food</span>
           </button>
 
-          {/* Workout (Switches to Workout Timer HUD) */}
+          {/* 2. Workout Action */}
           <button 
             onClick={() => {
               setActiveHUD("timer");
-              const timerCard = document.getElementById("active-hud-section");
-              if (timerCard) timerCard.scrollIntoView({ behavior: "smooth" });
+              const el = document.getElementById("active-hud-section");
+              if (el) el.scrollIntoView({ behavior: "smooth" });
             }}
-            style={{ padding: "14px 6px", background: "#fff4eb", border: "1px solid #fed7aa", borderRadius: "18px", display: "flex", flexDirection: "column", alignItems: "center", gap: "6px", cursor: "pointer", boxShadow: "0 2px 6px rgba(249,115,22,0.06)" }}
+            style={{ padding: "8px 4px", background: "#fff4eb", border: "1px solid #fed7aa", borderRadius: "12px", display: "flex", flexDirection: "column", alignItems: "center", gap: "3px", cursor: "pointer" }}
           >
-            <span style={{ fontSize: "20px" }}>🏋️</span>
-            <span style={{ fontSize: "11px", fontWeight: 800, color: "#9a3412" }}>Workout</span>
+            <span style={{ fontSize: "16px" }}>🏋️</span>
+            <span style={{ fontSize: "10px", fontWeight: 800, color: "#9a3412" }}>Workout</span>
           </button>
 
-          {/* Water Intake */}
+          {/* 3. Water Intake */}
           <button 
             onClick={() => {
               if (typeof setActiveTab === "function") setActiveTab("log");
             }}
-            style={{ padding: "14px 6px", background: "#edf7ff", border: "1px solid #bae6fd", borderRadius: "18px", display: "flex", flexDirection: "column", alignItems: "center", gap: "6px", cursor: "pointer", boxShadow: "0 2px 6px rgba(14,165,233,0.06)" }}
+            style={{ padding: "8px 4px", background: "#edf7ff", border: "1px solid #bae6fd", borderRadius: "12px", display: "flex", flexDirection: "column", alignItems: "center", gap: "3px", cursor: "pointer" }}
           >
-            <span style={{ fontSize: "20px" }}>💧</span>
-            <span style={{ fontSize: "11px", fontWeight: 800, color: "#075985" }}>Water</span>
+            <span style={{ fontSize: "16px" }}>💧</span>
+            <span style={{ fontSize: "10px", fontWeight: 800, color: "#075985" }}>Water</span>
           </button>
 
-          {/* Inspiration / Quick Quest */}
+          {/* 4. Log Weight / Progress (Kapaki-pakinabang kaysa quote!) */}
           <button 
-            onClick={handleNextQuest}
-            style={{ padding: "14px 6px", background: "#f8f0ff", border: "1px solid #e9d5ff", borderRadius: "18px", display: "flex", flexDirection: "column", alignItems: "center", gap: "6px", cursor: "pointer", boxShadow: "0 2px 6px rgba(168,85,247,0.06)" }}
+            onClick={() => {
+              if (typeof setActiveTab === "function") setActiveTab("progress");
+            }}
+            style={{ padding: "8px 4px", background: "#f5f3ff", border: "1px solid #ddd6fe", borderRadius: "12px", display: "flex", flexDirection: "column", alignItems: "center", gap: "3px", cursor: "pointer" }}
           >
-            <span style={{ fontSize: "20px" }}>✨</span>
-            <span style={{ fontSize: "11px", fontWeight: 800, color: "#6b21a8" }}>Inspiration</span>
+            <span style={{ fontSize: "16px" }}>⚖️</span>
+            <span style={{ fontSize: "10px", fontWeight: 800, color: "#5b21b6" }}>Weight</span>
           </button>
 
         </div>
       </div>
 
-      {/* 5. ACTIVE HUD (Clean White Segmented Cards) */}
-      <div id="active-hud-section" style={{ marginBottom: "16px" }}>
-        <span style={{ fontSize: "10px", fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.6px", display: "block", marginBottom: "8px" }}>
+      {/* 5. ACTIVE HUD (Compact White Timer / GPS Segment) */}
+      <div id="active-hud-section">
+        <span style={{ fontSize: "9px", fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px", display: "block", marginBottom: "6px" }}>
           ACTIVE HUD
         </span>
         
         {/* Toggle Switcher */}
-        <div style={{ display: "flex", background: "#f1f5f9", padding: "4px", borderRadius: "16px", marginBottom: "12px" }}>
+        <div style={{ display: "flex", background: "#f1f5f9", padding: "3px", borderRadius: "12px", marginBottom: "10px" }}>
           <button 
             onClick={() => setActiveHUD("timer")}
             style={{ 
               flex: 1, 
-              padding: "10px", 
-              borderRadius: "12px", 
+              padding: "7px 10px", 
+              borderRadius: "9px", 
               border: "none", 
               background: activeHUD === "timer" ? "#ffffff" : "transparent", 
               color: activeHUD === "timer" ? "#0f172a" : "#64748b", 
               fontWeight: 800, 
-              fontSize: "12px", 
+              fontSize: "11px", 
               cursor: "pointer",
-              boxShadow: activeHUD === "timer" ? "0 2px 8px rgba(0,0,0,0.06)" : "none",
+              boxShadow: activeHUD === "timer" ? "0 1px 4px rgba(0,0,0,0.06)" : "none",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              gap: "6px"
+              gap: "4px"
             }}
           >
             ⏱️ Workout Timer
@@ -284,37 +287,37 @@ export default function HomeTab({
             onClick={() => setActiveHUD("gps")}
             style={{ 
               flex: 1, 
-              padding: "10px", 
-              borderRadius: "12px", 
+              padding: "7px 10px", 
+              borderRadius: "9px", 
               border: "none", 
               background: activeHUD === "gps" ? "#ffffff" : "transparent", 
               color: activeHUD === "gps" ? "#0f172a" : "#64748b", 
               fontWeight: 800, 
-              fontSize: "12px", 
+              fontSize: "11px", 
               cursor: "pointer",
-              boxShadow: activeHUD === "gps" ? "0 2px 8px rgba(0,0,0,0.06)" : "none",
+              boxShadow: activeHUD === "gps" ? "0 1px 4px rgba(0,0,0,0.06)" : "none",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              gap: "6px"
+              gap: "4px"
             }}
           >
             📍 GPS Run & Steps
           </button>
         </div>
 
-        {/* VIEW A: CONCEPT C WORKOUT TIMER CARD */}
+        {/* WORKOUT TIMER CARD (Compact Concept C White Card) */}
         {activeHUD === "timer" && (
-          <div style={{ background: "#ffffff", border: "1px solid #f1f5f9", borderRadius: "24px", padding: "20px", boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.04)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-              <span style={{ fontSize: "10px", fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.6px" }}>
-                WORKOUT TIMER
+          <div style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "18px", padding: "14px", boxShadow: "0 4px 12px rgba(15, 23, 42, 0.03)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+              <span style={{ fontSize: "9px", fontWeight: 800, color: "#64748b", textTransform: "uppercase" }}>
+                TIMER CONTROLS
               </span>
-              <div style={{ width: "160px" }}>
+              <div style={{ width: "140px" }}>
                 <select 
                   value={selectedActivity} 
                   onChange={e => setSelectedActivity && setSelectedActivity(e.target.value)}
-                  style={{ width: "100%", background: "#f8fafc", border: "1px solid #e2e8f0", color: "#0f172a", borderRadius: "10px", padding: "6px 10px", fontSize: "11px", fontWeight: 700, outline: "none" }}
+                  style={{ width: "100%", background: "#f8fafc", border: "1px solid #cbd5e1", color: "#0f172a", borderRadius: "8px", padding: "4px 8px", fontSize: "10.5px", fontWeight: 700, outline: "none" }}
                 >
                   {(WORKOUT_ACTIVITIES || []).map(a => (
                     <option key={a.name} value={a.name}>{a.name}</option>
@@ -323,36 +326,36 @@ export default function HomeTab({
               </div>
             </div>
 
-            {/* Big Digital Clock Display */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", margin: "14px 0" }}>
-              <div style={{ fontSize: "40px", fontWeight: 900, color: "#0f172a", fontFamily: "monospace", letterSpacing: "-1px", lineHeight: 1 }}>
+            {/* Compact Digital Display */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", margin: "8px 0 12px 0" }}>
+              <div style={{ fontSize: "30px", fontWeight: 900, color: "#0f172a", fontFamily: "monospace", letterSpacing: "-0.5px", lineHeight: 1 }}>
                 {timerMinDisplay || "30"}:{timerSecDisplay || "00"}
               </div>
               <div style={{ textAlign: "right" }}>
-                <span style={{ fontSize: "10px", fontWeight: 700, color: "#94a3b8", display: "block" }}>EST. BURN</span>
-                <span style={{ fontSize: "14px", fontWeight: 800, color: "#f97316" }}>{estimatedWorkoutBurn ?? 0} kcal</span>
+                <span style={{ fontSize: "9px", fontWeight: 700, color: "#94a3b8", display: "block" }}>EST. BURN</span>
+                <span style={{ fontSize: "13px", fontWeight: 800, color: "#ea580c" }}>{estimatedWorkoutBurn ?? 0} kcal</span>
               </div>
             </div>
 
-            {/* Action Buttons: START & FINISH */}
-            <div style={{ display: "flex", gap: "10px" }}>
+            {/* Start & Finish Buttons */}
+            <div style={{ display: "flex", gap: "8px" }}>
               {!isTimerRunning ? (
-                <button onClick={startTimer} style={{ flex: 1, background: "#1e1b4b", color: "white", border: "none", padding: "12px", borderRadius: "14px", fontWeight: 800, fontSize: "13px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", boxShadow: "0 4px 12px rgba(30,27,75,0.2)" }}>
+                <button onClick={startTimer} style={{ flex: 1, background: "#1e1b4b", color: "white", border: "none", padding: "9px", borderRadius: "10px", fontWeight: 800, fontSize: "11px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "4px" }}>
                   START
                 </button>
               ) : (
-                <button onClick={pauseTimer} style={{ flex: 1, background: "#f59e0b", color: "white", border: "none", padding: "12px", borderRadius: "14px", fontWeight: 800, fontSize: "13px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}>
+                <button onClick={pauseTimer} style={{ flex: 1, background: "#f59e0b", color: "white", border: "none", padding: "9px", borderRadius: "10px", fontWeight: 800, fontSize: "11px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "4px" }}>
                   PAUSE
                 </button>
               )}
-              <button onClick={finishWorkoutSession} style={{ flex: 1, background: "#fb7185", color: "white", border: "none", padding: "12px", borderRadius: "14px", fontWeight: 800, fontSize: "13px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", boxShadow: "0 4px 12px rgba(251,113,133,0.2)" }}>
+              <button onClick={finishWorkoutSession} style={{ flex: 1, background: "#f43f5e", color: "white", border: "none", padding: "9px", borderRadius: "10px", fontWeight: 800, fontSize: "11px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "4px" }}>
                 FINISH
               </button>
             </div>
           </div>
         )}
 
-        {/* VIEW B: GPS RUN & STEPS VIEW (Only active when toggled) */}
+        {/* GPS VIEW */}
         <div style={{ display: activeHUD === "gps" ? "block" : "none" }}>
           <MapTracker
             activeTab={activeTab}
