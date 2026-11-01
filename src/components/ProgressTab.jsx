@@ -197,11 +197,11 @@ export default function ProgressTab({
   }, [appData]);
 
   const workoutDaysCount = useMemo(() => {
-    const cnt = calendarDays.filter(d => 
-      (appData?.workoutLogs || []).some(w => w.date === d.isoDate)
-    ).length;
-    return cnt || 4;
-  }, [calendarDays, appData]);
+      const cnt = calendarDays.filter(d => 
+        (appData?.workoutLogs || []).some(w => (w.dateLogged === d.isoDate || w.date === d.isoDate))
+      ).length;
+      return cnt; // Tinanggal na ang "|| 4" kaya totoong 0 kapag walang workout
+    }, [calendarDays, appData]);
 
   const workoutAdherence = Math.min(Math.round((workoutDaysCount / 4) * 100), 100);
 
