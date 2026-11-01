@@ -427,13 +427,27 @@ ${trkpts}
     }
   };
 
+  const drawSafeRoundedRect = (ctx, x, y, w, h, r) => {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+  };
+
   const renderActivityToCanvas = (activity) => {
     const canvas = document.createElement("canvas");
     canvas.width = 900;
     canvas.height = 1100;
     const ctx = canvas.getContext("2d");
 
-    // Athletic Dark Background
+    // Background Gradient
     const bgGrad = ctx.createLinearGradient(0, 0, 0, canvas.height);
     bgGrad.addColorStop(0, "#090d16");
     bgGrad.addColorStop(1, "#111827");
@@ -441,11 +455,13 @@ ${trkpts}
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     // Decorative Glow
-    const radial = ctx.createRadialGradient(canvas.width / 2, 400, 50, canvas.width / 2, 400, 450);
-    radial.addColorStop(0, "rgba(56, 189, 248, 0.08)");
-    radial.addColorStop(1, "transparent");
-    ctx.fillStyle = radial;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    try {
+      const radial = ctx.createRadialGradient(canvas.width / 2, 400, 50, canvas.width / 2, 400, 450);
+      radial.addColorStop(0, "rgba(56, 189, 248, 0.08)");
+      radial.addColorStop(1, "transparent");
+      ctx.fillStyle = radial;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    } catch (e) {}
 
     // Brand Header
     ctx.fillStyle = "#ffffff";
@@ -462,7 +478,7 @@ ${trkpts}
     ctx.fillText(activity.dateLogged || new Date().toLocaleDateString("en-US"), canvas.width - 60, 85);
     ctx.textAlign = "left";
 
-    // Map Box gamit ang ligtas na drawRoundedRect
+    // Map Box gamit ang drawSafeRoundedRect
     const boxX = 60;
     const boxY = 140;
     const boxW = canvas.width - 120;
@@ -471,7 +487,7 @@ ${trkpts}
     ctx.fillStyle = "#030712";
     ctx.strokeStyle = "#1e293b";
     ctx.lineWidth = 2;
-    drawRoundedRect(ctx, boxX, boxY, boxW, boxH, 20);
+    drawSafeRoundedRect(ctx, boxX, boxY, boxW, boxH, 20);
     ctx.fill();
     ctx.stroke();
 
@@ -542,7 +558,7 @@ ${trkpts}
       ctx.textAlign = "left";
     }
 
-    // Metrics Stats na may maayos na espasyo
+    // Metrics Stats na may tamang espasyo para sa KM
     const statsY = 690;
     ctx.fillStyle = "#64748b";
     ctx.font = "800 15px sans-serif";
@@ -587,41 +603,56 @@ ${trkpts}
     return canvas;
   };
 
-
-  // 📥 DIRECT REAL BINARY BLOB PNG DOWNLOAD
+  // 📥 DIRECT REAL PNG DOWNLOAD (Gamit ang Canvas Blob)
   const handleDirectDownloadImage = (activity) => {
     if (!activity) return;
     try {
       const canvas = renderActivityToCanvas(activity);
       canvas.toBlob((blob) => {
-        if (!blob) {
-          if (showToast) showToast("⚠️ Failed to generate image blob.");
-          return;
-        }
-        const blobUrl = URL.createObjectURL(blob);
         const fileName = `NutriPulse-${activity.dateLogged || "track"}-${(activity.distanceKm || 0).toFixed(2)}km.png`;
-        
-        const link = document.createElement("a");
-        link.href = blobUrl;
-        link.download = fileName;
-        link.setAttribute("download", fileName);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-
-        setTimeout(() => URL.revokeObjectURL(blobUrl), 4000);
-        if (showToast) showToast("📥 Pure PNG Image downloaded to your device!");
+        if (blob) {
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement("a");
+          link.href = url;
+          link.download = fileName;
+          document.body.appendChild(link);
+          link.click();
+          setTimeout(() => {
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+          }, 1500);
+        } else {
+          const link = document.createElement("a");
+          link.href = canvas.toDataURL("image/png");
+          link.download = fileName;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        }
+        if (showToast) showToast("📥 Download started! Saved as PNG.");
       }, "image/png");
     } catch (err) {
       console.error("Direct download error:", err);
-      if (showToast) showToast("⚠️ Error creating PNG file.");
+      if (showToast) showToast("⚠️ Error generating PNG file.");
     }
   };
 
-  // 🚀 REDIRECT TO SOCIAL TAB WITH PRE-FILLED EDITABLE POST
+  // 👁️ BUKSAN ANG FULL IMAGE PREVIEW
+  const handleOpenImagePreview = (activity) => {
+    if (!activity) return;
+    try {
+      const canvas = renderActivityToCanvas(activity);
+      const dataUrl = canvas.toDataURL("image/png");
+      setPreviewImageUrl(dataUrl);
+    } catch (err) {
+      console.error("Preview render error:", err);
+      if (showToast) showToast("⚠️ Error generating preview: " + err.message);
+    }
+  };
+
+  // 🚀 REDIRECT TO PULSE FEED (COMMUNITY TAB) WITH PRE-FILLED POST
   const handleShareToSocialTab = (activity) => {
     if (!activity) return;
-
     try {
       const canvas = renderActivityToCanvas(activity);
       const dataUrl = canvas.toDataURL("image/png");
@@ -643,11 +674,11 @@ ${trkpts}
       }
 
       if (setActiveTab) {
-        setActiveTab("social");
+        setActiveTab("community");
       }
 
       if (showToast) {
-        showToast("✨ Opening post in Pulse Feed... You can edit caption before posting!");
+        showToast("✨ Opening Pulse Feed... Edit your caption before posting!");
       }
     } catch (err) {
       console.error("Share redirect error:", err);
