@@ -12,9 +12,10 @@ const DEFAULT_STAPLES = [
 ];
 
 export default function HomeTab({
+  setImagePreview,
+  setPostText,
   setActiveTab,
   setDraftSocialPost,
-
   user,
   appData,
   saveToCloud,
@@ -409,24 +410,6 @@ ${trkpts}
   };
 
   
-  const drawRoundedRect = (ctx, x, y, w, h, r) => {
-    ctx.beginPath();
-    if (typeof ctx.roundRect === "function") {
-      ctx.roundRect(x, y, w, h, r);
-    } else {
-      ctx.moveTo(x + r, y);
-      ctx.lineTo(x + w - r, y);
-      ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-      ctx.lineTo(x + w, y + h - r);
-      ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-      ctx.lineTo(x + r, y + h);
-      ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-      ctx.lineTo(x, y + r);
-      ctx.quadraticCurveTo(x, y, x + r, y);
-      ctx.closePath();
-    }
-  };
-
   const drawSafeRoundedRect = (ctx, x, y, w, h, r) => {
     ctx.beginPath();
     ctx.moveTo(x + r, y);
@@ -454,7 +437,7 @@ ${trkpts}
     ctx.fillStyle = bgGrad;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Decorative Glow
+    // Glow
     try {
       const radial = ctx.createRadialGradient(canvas.width / 2, 400, 50, canvas.width / 2, 400, 450);
       radial.addColorStop(0, "rgba(56, 189, 248, 0.08)");
@@ -558,7 +541,7 @@ ${trkpts}
       ctx.textAlign = "left";
     }
 
-    // Metrics Stats na may tamang espasyo para sa KM
+    // Stats Grid
     const statsY = 690;
     ctx.fillStyle = "#64748b";
     ctx.font = "800 15px sans-serif";
@@ -603,41 +586,29 @@ ${trkpts}
     return canvas;
   };
 
-  // 📥 DIRECT REAL PNG DOWNLOAD (Gamit ang Canvas Blob)
+  // 📥 DIRECT REAL PNG DOWNLOAD
   const handleDirectDownloadImage = (activity) => {
     if (!activity) return;
     try {
       const canvas = renderActivityToCanvas(activity);
-      canvas.toBlob((blob) => {
-        const fileName = `NutriPulse-${activity.dateLogged || "track"}-${(activity.distanceKm || 0).toFixed(2)}km.png`;
-        if (blob) {
-          const url = URL.createObjectURL(blob);
-          const link = document.createElement("a");
-          link.href = url;
-          link.download = fileName;
-          document.body.appendChild(link);
-          link.click();
-          setTimeout(() => {
-            document.body.removeChild(link);
-            URL.revokeObjectURL(url);
-          }, 1500);
-        } else {
-          const link = document.createElement("a");
-          link.href = canvas.toDataURL("image/png");
-          link.download = fileName;
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-        }
-        if (showToast) showToast("📥 Download started! Saved as PNG.");
-      }, "image/png");
+      const dataUrl = canvas.toDataURL("image/png");
+      const fileName = `NutriPulse-${activity.dateLogged || "track"}-${(activity.distanceKm || 0).toFixed(2)}km.png`;
+
+      const link = document.createElement("a");
+      link.href = dataUrl;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(() => document.body.removeChild(link), 1500);
+
+      if (showToast) showToast("📥 Download started! Saved as PNG.");
     } catch (err) {
       console.error("Direct download error:", err);
       if (showToast) showToast("⚠️ Error generating PNG file.");
     }
   };
 
-  // 👁️ BUKSAN ANG FULL IMAGE PREVIEW
+  // 👁️ BUKSAN ANG IMAGE PREVIEW MODAL
   const handleOpenImagePreview = (activity) => {
     if (!activity) return;
     try {
@@ -646,12 +617,12 @@ ${trkpts}
       setPreviewImageUrl(dataUrl);
     } catch (err) {
       console.error("Preview render error:", err);
-      if (showToast) showToast("⚠️ Error generating preview: " + err.message);
+      if (showToast) showToast("⚠️ Preview error: " + err.message);
     }
   };
 
-  // 🚀 REDIRECT TO PULSE FEED (COMMUNITY TAB) WITH PRE-FILLED POST
-  const handleShareToSocialTab = (activity) => {
+  // 🚀 REDIRECT SA PULSE FEED NA MAY KASAMANG DRAFT POST AT LITRATO
+  const handleShareToPulseFeed = (activity) => {
     if (!activity) return;
     try {
       const canvas = renderActivityToCanvas(activity);
@@ -663,17 +634,19 @@ ${trkpts}
 
       const prefilledCaption = `🏃 Outdoor Activity: ${dist} km in ${dur}! Pace: ${pace}/km • Burned +${burn} kcal. Tracked with NutriPulse GPS ⚡`;
 
+      // 1. Isara ang GPS activity modal
       setSelectedViewingActivity(null);
 
-      if (setDraftSocialPost) {
-        setDraftSocialPost({
-          category: "Workout",
-          caption: prefilledCaption,
-          image: dataUrl
-        });
+      // 2. I-fill ang postText at imagePreview sa composer
+      if (typeof setPostText === "function") {
+        setPostText(prefilledCaption);
+      }
+      if (typeof setImagePreview === "function") {
+        setImagePreview(dataUrl);
       }
 
-      if (setActiveTab) {
+      // 3. Ilipat ang tab sa community (Pulse Feed)
+      if (typeof setActiveTab === "function") {
         setActiveTab("community");
       }
 
@@ -682,7 +655,7 @@ ${trkpts}
       }
     } catch (err) {
       console.error("Share redirect error:", err);
-      if (showToast) showToast("⚠️ Could not prepare social post.");
+      if (showToast) showToast("⚠️ Error preparing post.");
     }
   };
 
@@ -1646,14 +1619,13 @@ ${trkpts}
               {/* 🚀 1. SHARE DIRECTLY TO SOCIAL TAB FEED */}
               <button
                 type="button"
-                disabled={isSharingToSocial}
-                onClick={() => handleShareToSocialTab(selectedViewingActivity)}
+                onClick={() => handleShareToPulseFeed(selectedViewingActivity)}
                 style={{
                   width: "100%",
                   background: "linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)",
                   color: "white",
                   border: "none",
-                  padding: "10px",
+                  padding: "11px",
                   borderRadius: "10px",
                   fontWeight: 800,
                   fontSize: "12px",
@@ -1666,7 +1638,7 @@ ${trkpts}
                 }}
               >
                 <i className="fa-solid fa-paper-plane"></i>
-                <span>{isSharingToSocial ? "Posting to Social Feed..." : "Share to Social Tab (Pulse Feed)"}</span>
+                <span>Share to Pulse Feed</span>
               </button>
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px" }}>
