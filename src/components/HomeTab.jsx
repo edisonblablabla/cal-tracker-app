@@ -1,14 +1,20 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 
+// Default 5 Verified Quick Staples (Kinuha batay sa common staples)
+const DEFAULT_STAPLES = [
+  { id: "def_rice", name: "White Rice (Cooked)", cal: 205, serving: "1.0 cup", p: 4, c: 45, f: 0.4 },
+  { id: "def_boiled_egg", name: "Boiled egg", cal: 72, serving: "1.0 egg", p: 6, c: 0.6, f: 5 },
+  { id: "def_fried_egg", name: "Fried egg", cal: 83, serving: "1.0 large", p: 6, c: 0.4, f: 7 },
+  { id: "def_chicken", name: "Chicken Breast", cal: 165, serving: "100.0 gram", p: 31, c: 0, f: 3.6 },
+  { id: "def_banana", name: "Banana", cal: 105, serving: "1.0 medium", p: 1.3, c: 27, f: 0.3 }
+];
+
 export default function HomeTab({
   user,
   appData,
   saveToCloud,
   showToast,
   setShowAboutModal,
-  setActivePanel,
-  allUserNotifs = [],
-  lastSeenNotifTime = 0,
   totalCal = 0,
   activeGoal = 2416,
   totalP = 0,
@@ -35,12 +41,7 @@ export default function HomeTab({
     });
   }, [currentDateStr]);
 
-  const unreadNotifCount = useMemo(() => {
-    return (allUserNotifs || []).filter(
-      (n) => (n.timestamp || 0) > (lastSeenNotifTime || 0)
-    ).length;
-  }, [allUserNotifs, lastSeenNotifTime]);
-
+  // Dynamic Functional Streak Engine
   const dynamicStreak = useMemo(() => {
     const activeDates = new Set();
     (appData?.meals || []).forEach((m) => {
@@ -92,6 +93,7 @@ export default function HomeTab({
 
   const calorieGoal = Number(activeGoal || appData?.dailyCalorieTarget || appData?.baseGoal || 2416);
 
+  // Today Workouts & Burn
   const todayWorkouts = useMemo(() => {
     return (appData?.workoutLogs || []).filter((w) => {
       const d = w.dateLogged || w.date;
@@ -105,6 +107,7 @@ export default function HomeTab({
     return todayWorkouts.reduce((acc, w) => acc + (Number(w.burnedCal || w.calories) || 0), 0);
   }, [todayWorkouts]);
 
+  // Consumed Calories (Ngayong Araw Lamang)
   const consumedCalories = useMemo(() => {
     if (Array.isArray(todayMeals) && todayMeals.length > 0) {
       return todayMeals.reduce((acc, m) => acc + (Number(m.cal ?? m.calories) || 0), 0);
@@ -118,6 +121,7 @@ export default function HomeTab({
     return filtered.reduce((acc, m) => acc + (Number(m.cal ?? m.calories) || 0), 0);
   }, [todayMeals, appData?.meals, currentDateStr]);
 
+  // Macronutrients
   const { proteinG, carbsG, fatG } = useMemo(() => {
     const list = (Array.isArray(todayMeals) && todayMeals.length > 0) 
       ? todayMeals 
@@ -142,6 +146,7 @@ export default function HomeTab({
   const waterTarget = Number(appData?.dailyWaterTarget || 2400);
   const stepGoal = Number(appData?.dailyStepsTarget || 10000);
 
+  // Hydration
   const todayWaterMl = useMemo(() => {
     const logs = (appData?.waterLogs || []).filter((w) => {
       const d = w.dateLogged || w.date;
@@ -167,7 +172,7 @@ export default function HomeTab({
   const targetCarbs = Math.round((calorieGoal * 0.45) / 4);
   const targetFat = Math.round((calorieGoal * 0.25) / 9);
 
-  // GPS Satellite Engine
+  // Satellite GPS Tracking Engine
   const [isGpsActive, setIsGpsActive] = useState(false);
   const [gpsDistanceKm, setGpsDistanceKm] = useState(0);
   const [gpsDurationSec, setGpsDurationSec] = useState(0);
@@ -221,7 +226,7 @@ export default function HomeTab({
       },
       (err) => {
         console.error("GPS Error:", err);
-        if (showToast) showToast("⚠️ Turn on Device Location / Allow GPS.");
+        if (showToast) showToast("⚠️ Turn on Location / Allow GPS.");
       },
       { enableHighAccuracy: true, maximumAge: 1000, timeout: 10000 }
     );
@@ -357,22 +362,126 @@ export default function HomeTab({
     if (showToast) showToast(`👟 Added +${added.toLocaleString()} steps!`);
   };
 
+  // ─── STAGE 2: QUICK FOOD MODAL STATE & LOGIC ───
   const [activeSheet, setActiveSheet] = useState(null);
-  const [foodName, setFoodName] = useState("");
-  const [foodCal, setFoodCal] = useState("");
+  const [foodSearchQuery, setFoodSearchQuery] = useState("");
+  const [isAddingCustomPreset, setIsAddingCustomPreset] = useState(false);
+  const [isManualEntryOpen, setIsManualEntryOpen] = useState(false);
+
+  // Form states for creating Custom Preset
+  const [newPresetName, setNewPresetName] = useState("");
+  const [newPresetCal, setNewPresetCal] = useState("");
+  const [newPresetServing, setNewPresetServing] = useState("");
+  const [newPresetP, setNewPresetP] = useState("");
+  const [newPresetC, setNewPresetC] = useState("");
+  const [newPresetF, setNewPresetF] = useState("");
+
+  // Form states for Manual One-Time Food Entry
+  const [manualFoodName, setManualFoodName] = useState("");
+  const [manualFoodCal, setManualFoodCal] = useState("");
+
+  // Form states for Workout Log
   const [workoutType, setWorkoutType] = useState("Running");
   const [workoutDuration, setWorkoutDuration] = useState("30");
 
-  const handleSaveMeal = (e) => {
+  // Pagsamahin ang default staples at ang custom quick staples ng user
+  const combinedStaples = useMemo(() => {
+    const customList = appData?.customQuickStaples || [];
+    return [...DEFAULT_STAPLES, ...customList];
+  }, [appData?.customQuickStaples]);
+
+  // Real-time filter kapag nag-type sa quick search box
+  const filteredStaples = useMemo(() => {
+    if (!foodSearchQuery.trim()) return combinedStaples;
+    const q = foodSearchQuery.toLowerCase().trim();
+    return combinedStaples.filter((item) =>
+      item.name.toLowerCase().includes(q) || (item.serving && item.serving.toLowerCase().includes(q))
+    );
+  }, [combinedStaples, foodSearchQuery]);
+
+  // 1-TAP QUICK LOG FUNCTION PARA SA ANUMANG STAPLE
+  const handleQuickLogItem = (item) => {
+    const newMeal = {
+      id: Date.now(),
+      name: item.name,
+      cal: Number(item.cal),
+      calories: Number(item.cal),
+      p: Number(item.p || 0),
+      c: Number(item.c || 0),
+      f: Number(item.f || 0),
+      serving: item.serving || "1 serving",
+      dateLogged: currentDateStr,
+      timestamp: Date.now()
+    };
+    if (saveToCloud) {
+      saveToCloud({
+        ...appData,
+        meals: [...(appData?.meals || []), newMeal]
+      });
+    }
+    if (showToast) showToast(`🍽️ Logged: ${item.name} (+${item.cal} kcal)!`);
+    setActiveSheet(null);
+    setFoodSearchQuery("");
+  };
+
+  // MAG-SAVE NG BAGONG CUSTOM QUICK STAPLE SA PRESETS
+  const handleSaveCustomPreset = (e) => {
     e.preventDefault();
-    const calNum = parseInt(foodCal, 10);
-    if (!foodName.trim() || isNaN(calNum) || calNum <= 0) {
+    const calNum = parseInt(newPresetCal, 10);
+    if (!newPresetName.trim() || isNaN(calNum) || calNum <= 0) {
+      if (showToast) showToast("Pakilagay ang wastong pangalan at calories!");
+      return;
+    }
+    const newPreset = {
+      id: "cust_" + Date.now(),
+      name: newPresetName.trim(),
+      cal: calNum,
+      serving: newPresetServing.trim() || "1 serving",
+      p: Number(newPresetP) || 0,
+      c: Number(newPresetC) || 0,
+      f: Number(newPresetF) || 0,
+      isCustom: true
+    };
+    const updated = [...(appData?.customQuickStaples || []), newPreset];
+    if (saveToCloud) {
+      saveToCloud({
+        ...appData,
+        customQuickStaples: updated
+      });
+    }
+    if (showToast) showToast(`⭐ Nai-save si "${newPreset.name}" sa Quick Staples!`);
+    setNewPresetName("");
+    setNewPresetCal("");
+    setNewPresetServing("");
+    setNewPresetP("");
+    setNewPresetC("");
+    setNewPresetF("");
+    setIsAddingCustomPreset(false);
+  };
+
+  // BURAHIN ANG ISANG CUSTOM PRESET
+  const handleDeleteCustomPreset = (idToDelete) => {
+    const updated = (appData?.customQuickStaples || []).filter((p) => p.id !== idToDelete);
+    if (saveToCloud) {
+      saveToCloud({
+        ...appData,
+        customQuickStaples: updated
+      });
+    }
+    if (showToast) showToast("Natanggal ang custom quick item.");
+  };
+
+  // MANUAL ONE-TIME MEAL SAVE
+  const handleManualSaveMeal = (e) => {
+    e.preventDefault();
+    const calNum = parseInt(manualFoodCal, 10);
+    if (!manualFoodName.trim() || isNaN(calNum) || calNum <= 0) {
       if (showToast) showToast("Please enter valid food details!");
       return;
     }
     const newMeal = {
       id: Date.now(),
-      name: foodName.trim(),
+      name: manualFoodName.trim(),
       cal: calNum,
       calories: calNum,
       p: 0,
@@ -384,12 +493,13 @@ export default function HomeTab({
     if (saveToCloud) {
       saveToCloud({ ...appData, meals: [...(appData?.meals || []), newMeal] });
     }
-    if (showToast) showToast(`🍽️ Logged: ${foodName} (${calNum} kcal)`);
-    setFoodName("");
-    setFoodCal("");
+    if (showToast) showToast(`🍽️ Logged: ${manualFoodName} (${calNum} kcal)`);
+    setManualFoodName("");
+    setManualFoodCal("");
     setActiveSheet(null);
   };
 
+  // WORKOUT SAVE
   const handleSaveWorkout = (e) => {
     e.preventDefault();
     const dur = parseInt(workoutDuration, 10) || 30;
@@ -412,7 +522,7 @@ export default function HomeTab({
   return (
     <div className="screen active" style={{ maxWidth: "420px", margin: "0 auto", padding: "0 10px 24px 10px" }}>
       
-      {/* ─── 1. TOP BRAND HEADER WITH NOTIFICATION BELL ─── */}
+      {/* ─── 1. TOP BRAND HEADER ─── */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px", paddingTop: "4px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
           <div style={{ width: "30px", height: "30px", borderRadius: "10px", background: "linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)", display: "flex", alignItems: "center", justifyContent: "center", color: "#ffffff", boxShadow: "0 4px 10px rgba(99, 102, 241, 0.3)" }}>
@@ -437,8 +547,6 @@ export default function HomeTab({
             </span>
           </div>
 
-          
-
           {/* About Modal (?) */}
           <button 
             onClick={() => setShowAboutModal && setShowAboutModal(true)}
@@ -450,7 +558,7 @@ export default function HomeTab({
         </div>
       </div>
 
-      {/* ─── 2. COMPACT MASTER ENERGY OVERVIEW CARD (0 INTAKE / 2416 LEFT) ─── */}
+      {/* ─── 2. COMPACT MASTER ENERGY OVERVIEW CARD ─── */}
       <div style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "20px", padding: "14px", marginBottom: "10px", boxShadow: "0 6px 20px rgba(15, 23, 42, 0.04)" }}>
         
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
@@ -761,52 +869,271 @@ export default function HomeTab({
         </button>
       </div>
 
-      {/* ─── 5. SLIDE-OVER QUICK LOG FOOD MODAL ─── */}
+      {/* ─── 5. STAGE 2: QUICK ONE-TAP FOOD & SUGGESTIONS MODAL ─── */}
       {activeSheet === "food" && (
-        <div onClick={() => setActiveSheet(null)} style={{ position: "fixed", inset: 0, background: "rgba(15, 23, 42, 0.45)", backdropFilter: "blur(3px)", zIndex: 9999, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: "420px", background: "#ffffff", borderTopLeftRadius: "22px", borderTopRightRadius: "22px", padding: "18px", boxShadow: "0 -10px 30px rgba(0,0,0,0.15)", animation: "slideUp 0.2s ease-out" }}>
+        <div 
+          onClick={() => {
+            setActiveSheet(null);
+            setIsAddingCustomPreset(false);
+            setIsManualEntryOpen(false);
+            setFoodSearchQuery("");
+          }} 
+          style={{ position: "fixed", inset: 0, background: "rgba(15, 23, 42, 0.45)", backdropFilter: "blur(3px)", zIndex: 9999, display: "flex", alignItems: "flex-end", justifyContent: "center" }}
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()} 
+            style={{ width: "100%", maxWidth: "420px", maxHeight: "85vh", display: "flex", flexDirection: "column", background: "#ffffff", borderTopLeftRadius: "22px", borderTopRightRadius: "22px", padding: "16px 16px 20px 16px", boxShadow: "0 -10px 30px rgba(0,0,0,0.15)", animation: "slideUp 0.2s ease-out" }}
+          >
+            {/* Modal Handle */}
             <div style={{ width: "36px", height: "4px", background: "#cbd5e1", borderRadius: "2px", margin: "0 auto 12px auto" }}></div>
             
+            {/* Header Title */}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                 <div style={{ width: "26px", height: "26px", borderRadius: "8px", background: "#e0e7ff", color: "#4f46e5", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "11px" }}>
-                  <i className="fa-solid fa-utensils"></i>
+                  <i className="fa-solid fa-bolt-lightning"></i>
                 </div>
-                <h3 style={{ fontSize: "14px", fontWeight: 800, margin: 0, color: "#0f172a" }}>Quick Log Food</h3>
+                <h3 style={{ fontSize: "14px", fontWeight: 800, margin: 0, color: "#0f172a" }}>
+                  Quick Log Food
+                </h3>
               </div>
-              <button onClick={() => setActiveSheet(null)} style={{ background: "none", border: "none", color: "#94a3b8", fontSize: "16px", cursor: "pointer" }}>✕</button>
+              <button 
+                onClick={() => {
+                  setActiveSheet(null);
+                  setIsAddingCustomPreset(false);
+                  setIsManualEntryOpen(false);
+                  setFoodSearchQuery("");
+                }} 
+                style={{ background: "none", border: "none", color: "#94a3b8", fontSize: "16px", cursor: "pointer" }}
+              >
+                ✕
+              </button>
             </div>
 
-            <form onSubmit={handleSaveMeal}>
-              <div style={{ marginBottom: "10px" }}>
-                <label style={{ fontSize: "10.5px", fontWeight: 700, color: "#64748b", display: "block", marginBottom: "3px" }}>Food / Meal Name</label>
-                <input
-                  type="text"
-                  placeholder="e.g., Grilled Chicken Breast (150g)"
-                  required
-                  autoFocus
-                  value={foodName}
-                  onChange={(e) => setFoodName(e.target.value)}
-                  style={{ width: "100%", padding: "10px", borderRadius: "10px", border: "1px solid #cbd5e1", fontSize: "13px", fontWeight: 700, outline: "none", background: "#f8fafc" }}
-                />
-              </div>
+            {/* Quick Search Bar */}
+            <div style={{ position: "relative", marginBottom: "12px" }}>
+              <i className="fa-solid fa-magnifying-glass" style={{ position: "absolute", left: "12px", top: "11px", color: "#94a3b8", fontSize: "12px" }}></i>
+              <input
+                type="text"
+                placeholder="Search staples (e.g. rice, egg, chicken)..."
+                value={foodSearchQuery}
+                onChange={(e) => setFoodSearchQuery(e.target.value)}
+                style={{ width: "100%", padding: "9px 12px 9px 34px", borderRadius: "10px", border: "1px solid #cbd5e1", fontSize: "12.5px", fontWeight: 700, outline: "none", background: "#f8fafc" }}
+              />
+              {foodSearchQuery && (
+                <button
+                  onClick={() => setFoodSearchQuery("")}
+                  style={{ position: "absolute", right: "10px", top: "9px", background: "none", border: "none", color: "#94a3b8", fontSize: "12px", cursor: "pointer" }}
+                >
+                  ✕
+                </button>
+              )}
+            </div>
 
-              <div style={{ marginBottom: "14px" }}>
-                <label style={{ fontSize: "10.5px", fontWeight: 700, color: "#64748b", display: "block", marginBottom: "3px" }}>Calories (kcal)</label>
-                <input
-                  type="number"
-                  placeholder="e.g., 250"
-                  required
-                  value={foodCal}
-                  onChange={(e) => setFoodCal(e.target.value)}
-                  style={{ width: "100%", padding: "10px", borderRadius: "10px", border: "1px solid #cbd5e1", fontSize: "13px", fontWeight: 700, outline: "none", background: "#f8fafc" }}
-                />
-              </div>
-
-              <button type="submit" style={{ width: "100%", background: "linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)", color: "white", border: "none", padding: "11px", borderRadius: "10px", fontWeight: 800, fontSize: "12px", cursor: "pointer" }}>
-                Confirm & Log Meal
+            {/* Sub-header with "+ Custom Staple" button */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+              <span style={{ fontSize: "10px", fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                Suggestions & Quick Staples
+              </span>
+              <button
+                onClick={() => {
+                  setIsAddingCustomPreset(!isAddingCustomPreset);
+                  setIsManualEntryOpen(false);
+                }}
+                style={{ background: isAddingCustomPreset ? "#e0e7ff" : "#f1f5f9", border: "none", color: "#4f46e5", padding: "3px 8px", borderRadius: "6px", fontSize: "10px", fontWeight: 800, cursor: "pointer", display: "flex", alignItems: "center", gap: "4px" }}
+              >
+                <i className={`fa-solid ${isAddingCustomPreset ? "fa-minus" : "fa-plus"}`} style={{ fontSize: "8px" }}></i>
+                {isAddingCustomPreset ? "Cancel" : "Add Custom Staple"}
               </button>
-            </form>
+            </div>
+
+            {/* FORM: ADD CUSTOM PRESET ACCORDION */}
+            {isAddingCustomPreset && (
+              <form onSubmit={handleSaveCustomPreset} style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "12px", padding: "10px", marginBottom: "10px" }}>
+                <span style={{ fontSize: "10.5px", fontWeight: 800, color: "#4f46e5", display: "block", marginBottom: "6px" }}>
+                  ⭐ Save New Custom Quick Staple
+                </span>
+                
+                <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: "6px", marginBottom: "6px" }}>
+                  <input
+                    type="text"
+                    placeholder="Food Name (e.g. Oatmeal)"
+                    required
+                    value={newPresetName}
+                    onChange={(e) => setNewPresetName(e.target.value)}
+                    style={{ padding: "7px 9px", borderRadius: "8px", border: "1px solid #cbd5e1", fontSize: "11px", fontWeight: 700 }}
+                  />
+                  <input
+                    type="text"
+                    placeholder="Serving (e.g. 1 bowl)"
+                    value={newPresetServing}
+                    onChange={(e) => setNewPresetServing(e.target.value)}
+                    style={{ padding: "7px 9px", borderRadius: "8px", border: "1px solid #cbd5e1", fontSize: "11px", fontWeight: 700 }}
+                  />
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "6px", marginBottom: "8px" }}>
+                  <input
+                    type="number"
+                    placeholder="Calories*"
+                    required
+                    value={newPresetCal}
+                    onChange={(e) => setNewPresetCal(e.target.value)}
+                    style={{ padding: "7px 6px", borderRadius: "8px", border: "1px solid #cbd5e1", fontSize: "11px", fontWeight: 700 }}
+                  />
+                  <input
+                    type="number"
+                    placeholder="Protein (g)"
+                    value={newPresetP}
+                    onChange={(e) => setNewPresetP(e.target.value)}
+                    style={{ padding: "7px 6px", borderRadius: "8px", border: "1px solid #cbd5e1", fontSize: "11px", fontWeight: 700 }}
+                  />
+                  <input
+                    type="number"
+                    placeholder="Carbs (g)"
+                    value={newPresetC}
+                    onChange={(e) => setNewPresetC(e.target.value)}
+                    style={{ padding: "7px 6px", borderRadius: "8px", border: "1px solid #cbd5e1", fontSize: "11px", fontWeight: 700 }}
+                  />
+                  <input
+                    type="number"
+                    placeholder="Fat (g)"
+                    value={newPresetF}
+                    onChange={(e) => setNewPresetF(e.target.value)}
+                    style={{ padding: "7px 6px", borderRadius: "8px", border: "1px solid #cbd5e1", fontSize: "11px", fontWeight: 700 }}
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  style={{ width: "100%", background: "#4f46e5", color: "white", border: "none", padding: "8px", borderRadius: "8px", fontSize: "11px", fontWeight: 800, cursor: "pointer" }}
+                >
+                  Save to Quick Staples List
+                </button>
+              </form>
+            )}
+
+            {/* SCROLLABLE STAPLES LIST (DARK CARDS LOOK ALIGNED WITH SCREENSHOT) */}
+            <div style={{ flex: 1, overflowY: "auto", maxHeight: "260px", display: "flex", flexDirection: "column", gap: "6px", paddingRight: "2px" }}>
+              {filteredStaples.length === 0 ? (
+                <div style={{ textAlign: "center", padding: "24px 10px", color: "#94a3b8", fontSize: "11.5px" }}>
+                  Walang tumugmang staple para sa "{foodSearchQuery}".
+                </div>
+              ) : (
+                filteredStaples.map((item) => (
+                  <div
+                    key={item.id}
+                    style={{
+                      background: "#1e293b",
+                      borderRadius: "12px",
+                      padding: "10px 12px",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      color: "#ffffff",
+                      transition: "all 0.15s ease"
+                    }}
+                  >
+                    <div>
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                        <span style={{ fontSize: "12.5px", fontWeight: 800, color: "#f8fafc" }}>
+                          {item.name}
+                        </span>
+                        {/* Verified Badge */}
+                        <i className="fa-solid fa-circle-check" style={{ color: "#10b981", fontSize: "11px" }}></i>
+                        {item.isCustom && (
+                          <span style={{ fontSize: "8px", fontWeight: 900, background: "#334155", color: "#93c5fd", padding: "1px 5px", borderRadius: "4px" }}>
+                            MY PRESET
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: "11px", color: "#94a3b8", marginTop: "2px", fontWeight: 600 }}>
+                        {item.cal} cal, {item.serving}
+                      </div>
+                    </div>
+
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                      {/* Delete Custom Preset button if user-created */}
+                      {item.isCustom && (
+                        <button
+                          onClick={() => handleDeleteCustomPreset(item.id)}
+                          style={{ width: "26px", height: "26px", borderRadius: "50%", background: "rgba(239, 68, 68, 0.15)", border: "none", color: "#ef4444", fontSize: "10px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+                          title="Delete from presets"
+                        >
+                          ✕
+                        </button>
+                      )}
+
+                      {/* 1-TAP QUICK ADD BUTTON */}
+                      <button
+                        onClick={() => handleQuickLogItem(item)}
+                        style={{
+                          width: "32px",
+                          height: "32px",
+                          borderRadius: "50%",
+                          background: "#334155",
+                          border: "1px solid rgba(255,255,255,0.12)",
+                          color: "#38bdf8",
+                          fontSize: "14px",
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          boxShadow: "0 2px 6px rgba(0,0,0,0.2)"
+                        }}
+                        title={`Quick Log ${item.name}`}
+                      >
+                        <i className="fa-solid fa-plus"></i>
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* MANUAL ONE-TIME ENTRY TOGGLE */}
+            <div style={{ marginTop: "10px", borderTop: "1px solid #f1f5f9", paddingTop: "8px" }}>
+              <button
+                onClick={() => {
+                  setIsManualEntryOpen(!isManualEntryOpen);
+                  setIsAddingCustomPreset(false);
+                }}
+                style={{ width: "100%", background: "transparent", border: "none", color: "#64748b", fontSize: "11px", fontWeight: 800, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "5px" }}
+              >
+                <span>{isManualEntryOpen ? "Hide Manual Entry" : "Iba ang kinain mo? Click for Manual Log"}</span>
+                <i className={`fa-solid ${isManualEntryOpen ? "fa-chevron-up" : "fa-chevron-down"}`} style={{ fontSize: "9px" }}></i>
+              </button>
+
+              {isManualEntryOpen && (
+                <form onSubmit={handleManualSaveMeal} style={{ marginTop: "8px" }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr", gap: "6px", marginBottom: "8px" }}>
+                    <input
+                      type="text"
+                      placeholder="Food Name (e.g. Adobo)"
+                      required
+                      value={manualFoodName}
+                      onChange={(e) => setManualFoodName(e.target.value)}
+                      style={{ padding: "8px 10px", borderRadius: "8px", border: "1px solid #cbd5e1", fontSize: "11px", fontWeight: 700 }}
+                    />
+                    <input
+                      type="number"
+                      placeholder="Calories"
+                      required
+                      value={manualFoodCal}
+                      onChange={(e) => setManualFoodCal(e.target.value)}
+                      style={{ padding: "8px 10px", borderRadius: "8px", border: "1px solid #cbd5e1", fontSize: "11px", fontWeight: 700 }}
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    style={{ width: "100%", background: "linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)", color: "white", border: "none", padding: "9px", borderRadius: "8px", fontWeight: 800, fontSize: "11px", cursor: "pointer" }}
+                  >
+                    Confirm & Log Once
+                  </button>
+                </form>
+              )}
+            </div>
+
           </div>
         </div>
       )}
