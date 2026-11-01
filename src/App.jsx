@@ -1612,12 +1612,12 @@ export default function App() {
     };
   });
 
-  // Global Unread Badges for Social Nav Item
+  const allUserNotifs = [...firestoreNotifs.filter(n => n.type !== "chat"), ...pendingRequestsNotifs].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+
+    // Global Unread Badges for Social Nav Item (Ligtas na kinalkula pagkatapos ng allUserNotifs)
     const unreadNotifsCount = (allUserNotifs || []).filter(n => (n.timestamp || 0) > (lastSeenNotifTime || 0)).length;
     const unreadMsgsCount = (inboxChats || []).filter(c => c.lastSenderUid !== user?.uid && (c.updatedAt || 0) > (lastSeenNotifTime || 0)).length;
     const totalSocialAlerts = unreadNotifsCount + unreadMsgsCount;
-
-    const allUserNotifs = [...firestoreNotifs.filter(n => n.type !== "chat"), ...pendingRequestsNotifs].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
 
   const activeWorkoutObj = WORKOUT_ACTIVITIES.find(a => a.name === selectedActivity) || WORKOUT_ACTIVITIES[0];
   const initialMins = parseInt(workoutDuration) || 30;
