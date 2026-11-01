@@ -1,6 +1,7 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
+import { Html5Qrcode } from "html5-qrcode";
 
-// Standard Filipino & Fitness Food Database
+// Verified Local Database para sa mabilisang auto-fill
 const VERIFIED_FOOD_DATABASE = [
   { id: "lib_white_rice", name: "White Rice (Cooked)", cal: 205, serving: "1.0 cup", p: 4, c: 45, f: 0.4 },
   { id: "lib_brown_rice", name: "Brown Rice (Cooked)", cal: 216, serving: "1.0 cup", p: 5, c: 45, f: 1.8 },
@@ -32,7 +33,7 @@ export default function DiaryTab({
   const getTodayISO = () => new Date().toLocaleDateString("en-CA");
   const todayISO = getTodayISO();
 
-  // 1. MACRONUTRIENTS COMPUTATION PARA SA ARAW
+  // 1. MACRONUTRIENTS COMPUTATION
   const { totalP, totalC, totalF } = useMemo(() => {
     return (todayMeals || []).reduce(
       (acc, m) => ({
@@ -49,20 +50,12 @@ export default function DiaryTab({
   const targetCarbs = Math.round((calorieGoal * 0.45) / 4);
   const targetFat = Math.round((calorieGoal * 0.25) / 9);
 
-  // 2. MEAL BUCKET SEGREGATION (Breakfast, Lunch, Dinner, Snacks)
-  // Fallback: Kapag walang mealType ang lumang tala, inilalagay ito batay sa oras o sa "snacks"
+  // 2. MEAL BUCKET SEGREGATION
   const mealBuckets = useMemo(() => {
-    const buckets = {
-      breakfast: [],
-      lunch: [],
-      dinner: [],
-      snack: []
-    };
-
+    const buckets = { breakfast: [], lunch: [], dinner: [], snack: [] };
     (todayMeals || []).forEach((m) => {
       let type = m.mealType;
       if (!type) {
-        // Alamin ayon sa oras kung may timestamp
         if (m.timestamp) {
           const hour = new Date(m.timestamp).getHours();
           if (hour >= 4 && hour < 11) type = "breakfast";
@@ -73,42 +66,65 @@ export default function DiaryTab({
           type = "snack";
         }
       }
-      if (buckets[type]) {
-        buckets[type].push(m);
-      } else {
-        buckets.snack.push(m);
-      }
+      if (buckets[type]) buckets[type].push(m);
+      else buckets.snack.push(m);
     });
-
     return buckets;
   }, [todayMeals]);
 
-  // Subtotal ng bawat bucket
   const getBucketCalories = (items) => {
     return items.reduce((sum, item) => sum + (Number(item.cal || item.calories) || 0), 0);
   };
 
-  // 3. SMART MODAL & SEARCH STATE
-  const [activeModalBucket, setActiveModalBucket] = useState(null); // 'breakfast' | 'lunch' | 'dinner' | 'snack' | null
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedFood, setSelectedFood] = useState(null);
+  // 3. SLIDE-OVER STATE & PRIMARY FORM
+  const [activeModalBucket, setActiveModalBucket] = useState(null);
+  const [manualName, setManualName] = useState("");
+  const [manualPortion, setManualPortion] = useState("1 serving");
+  const [manualCal, setManualCal] = useState("");
+  const [manualP, setManualP] = useState("");
+  const [manualC, setManualC] = useState("");
+  const [manualF, setManualF] = useState("");
+
+  // Portion Scaling Base Memory
+  const [baseNutrition, setBaseNutrition] = useState(null);
   const [multiplier, setMultiplier] = useState(1);
-  const [isManualFormOpen, setIsManualFormOpen] = useState(false);
 
-  // Manual Form States
-  const [customName, setCustomName] = useState("");
-  const [customPortion, setCustomPortion] = useState("1 serving");
-  const [customCal, setCustomCal] = useState("");
-  const [customP, setCustomP] = useState("");
-  const [customC, setCustomC] = useState("");
-  const [customF, setCustomF] = useState("");
+  // Suggestions Search Filter
+  const [searchQuery, setSearchQuery] = useState("");
+  const scrollRef = useRef(null);
 
-  // Pagsamahin ang Verified Database at Custom Quick Staples ng user
+  // 4. BARCODE CAMERA SCANNER STATE & ENGINE
+  const [isBarcodeScannerOpen, setIsBarcodeScannerOpen] = useState(false);
+  const [isFetchingBarcode, setIsFetchingBarcode] = useState(false);
+  const [manualBarcodeCode, setManualBarcodeCode] = useState("");
+  const scannerInstanceRef = useRef(null);
+
+  const closeModal = () => {
+    setActiveModalBucket(null);
+    setManualName("");
+    setManualPortion("1 serving");
+    setManualCal("");
+    setManualP("");
+    setManualC("");
+    setManualF("");
+    setBaseNutrition(null);
+    setMultiplier(1);
+    setSearchQuery("");
+    setIsBarcodeScannerOpen(false);
+  };
+
+  // Back Button Intercept
+  useEffect(() => {
+    if (!activeModalBucket) return;
+    window.history.pushState({ diarySlideOverOpen: true }, "");
+    const handlePopState = () => closeModal();
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [activeModalBucket]);
+
+  // COMBINED STAPLES & USER PRESETS
   const combinedDatabase = useMemo(() => {
-    const userCustoms = (appData?.customQuickStaples || []).map((c) => ({
-      ...c,
-      isUserCustom: true
-    }));
+    const userCustoms = (appData?.customQuickStaples || []).map((c) => ({ ...c, isUserCustom: true }));
     return [...VERIFIED_FOOD_DATABASE, ...userCustoms];
   }, [appData?.customQuickStaples]);
 
@@ -120,97 +136,193 @@ export default function DiaryTab({
     );
   }, [combinedDatabase, searchQuery]);
 
-  // Scaled values batay sa napiling multiplier
-  const scaledValues = useMemo(() => {
-    if (!selectedFood) return { cal: 0, p: 0, c: 0, f: 0 };
-    return {
-      cal: Math.round(Number(selectedFood.cal) * multiplier),
-      p: Number((Number(selectedFood.p || 0) * multiplier).toFixed(1)),
-      c: Number((Number(selectedFood.c || 0) * multiplier).toFixed(1)),
-      f: Number((Number(selectedFood.f || 0) * multiplier).toFixed(1))
-    };
-  }, [selectedFood, multiplier]);
+  // PORTION MULTIPLIER HANDLER
+  const handleSelectMultiplier = (scale) => {
+    setMultiplier(scale);
+    if (baseNutrition) {
+      setManualCal(String(Math.round(baseNutrition.cal * scale)));
+      setManualP(String(Number((baseNutrition.p * scale).toFixed(1))));
+      setManualC(String(Number((baseNutrition.c * scale).toFixed(1))));
+      setManualF(String(Number((baseNutrition.f * scale).toFixed(1))));
+      setManualPortion(scale === 1 ? baseNutrition.serving : `${scale}x (${baseNutrition.serving})`);
+    } else if (manualCal) {
+      const c = parseFloat(manualCal) || 0;
+      setBaseNutrition({
+        cal: c,
+        p: parseFloat(manualP) || 0,
+        c: parseFloat(manualC) || 0,
+        f: parseFloat(manualF) || 0,
+        serving: manualPortion || "1 serving"
+      });
+      setManualCal(String(Math.round(c * scale)));
+    }
+  };
 
-  // SAVE FOOD TO FIRESTORE VIA saveToCloud
-  const handleConfirmAddFood = () => {
-    if (!selectedFood || !activeModalBucket) return;
+  // AUTO-FILL FORM FROM SUGGESTIONS
+  const handleAutoFillFromSuggestion = (item) => {
+    setManualName(item.name);
+    setManualPortion(item.serving || "1 serving");
+    setManualCal(String(item.cal || ""));
+    setManualP(String(item.p || 0));
+    setManualC(String(item.c || 0));
+    setManualF(String(item.f || 0));
 
+    // Save as base for multipliers
+    setBaseNutrition({
+      cal: Number(item.cal),
+      p: Number(item.p || 0),
+      c: Number(item.c || 0),
+      f: Number(item.f || 0),
+      serving: item.serving || "1 serving"
+    });
+    setMultiplier(1);
+
+    if (showToast) showToast(`✨ Na-load si "${item.name}" sa form sa itaas!`);
+    if (scrollRef.current) scrollRef.current.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  // 1-TAP QUICK LOG DIRECTLY
+  const handleQuickLogSuggestion = (item) => {
+    if (!activeModalBucket) return;
     const newMeal = {
       id: Date.now(),
-      name: selectedFood.name,
+      name: item.name,
       mealType: activeModalBucket,
-      portion: multiplier === 1 ? selectedFood.serving : `${multiplier}x (${selectedFood.serving})`,
-      cal: scaledValues.cal,
-      calories: scaledValues.cal,
-      p: scaledValues.p,
-      c: scaledValues.c,
-      f: scaledValues.f,
+      portion: item.serving || "1 serving",
+      cal: Number(item.cal),
+      calories: Number(item.cal),
+      p: Number(item.p || 0),
+      c: Number(item.c || 0),
+      f: Number(item.f || 0),
       dateLogged: todayISO,
       timestamp: Date.now()
     };
-
-    const updatedMeals = [newMeal, ...(appData?.meals || [])];
-    if (saveToCloud) {
-      saveToCloud({
-        ...appData,
-        meals: updatedMeals
-      });
-    }
-
-    if (showToast) {
-      showToast(`🍽️ Logged to ${getBucketLabel(activeModalBucket)}: ${selectedFood.name} (+${scaledValues.cal} kcal)!`);
-    }
-
+    if (saveToCloud) saveToCloud({ ...appData, meals: [newMeal, ...(appData?.meals || [])] });
+    if (showToast) showToast(`🍽️ Logged: ${item.name} (+${item.cal} kcal)!`);
     closeModal();
   };
 
-  // MANUAL CUSTOM SAVE
-  const handleManualSave = (e) => {
+  // OPEN FOOD FACTS API BARCODE LOOKUP
+  const lookupBarcodeOnline = async (barcode) => {
+    if (!barcode || !barcode.trim()) return;
+    setIsFetchingBarcode(true);
+    if (showToast) showToast(`🔍 Fetching barcode: ${barcode.trim()}...`);
+
+    try {
+      const res = await fetch(`https://world.openfoodfacts.org/api/v0/product/${barcode.trim()}.json`);
+      const data = await res.json();
+
+      if (data && data.status === 1 && data.product) {
+        const prod = data.product;
+        const name = prod.product_name || prod.product_name_en || prod.generic_name || `Scanned (${barcode})`;
+        const serving = prod.serving_size || "1 package / serving";
+        const n = prod.nutriments || {};
+
+        const cal = Math.round(n["energy-kcal_serving"] || n["energy-kcal_100g"] || n["energy-kcal"] || 0);
+        const p = Number((n.proteins_serving || n.proteins_100g || n.proteins || 0).toFixed(1));
+        const c = Number((n.carbohydrates_serving || n.carbohydrates_100g || n.carbohydrates || 0).toFixed(1));
+        const f = Number((n.fat_serving || n.fat_100g || n.fat || 0).toFixed(1));
+
+        setManualName(name);
+        setManualPortion(serving);
+        setManualCal(cal > 0 ? String(cal) : "");
+        setManualP(String(p));
+        setManualC(String(c));
+        setManualF(String(f));
+
+        setBaseNutrition({ cal, p, c, f, serving });
+        setMultiplier(1);
+
+        if (showToast) showToast(`🎉 Barcode Success: ${name} (${cal} kcal)!`);
+        setIsBarcodeScannerOpen(false);
+
+        if (scrollRef.current) scrollRef.current.scrollTo({ top: 0, behavior: "smooth" });
+      } else {
+        if (showToast) showToast(`⚠️ Walang produktong tumugma sa barcode ${barcode}. Ilagay nang manual.`);
+        setIsBarcodeScannerOpen(false);
+      }
+    } catch (err) {
+      console.error("Barcode API Error:", err);
+      if (showToast) showToast("❌ Error sa database connection.");
+      setIsBarcodeScannerOpen(false);
+    } finally {
+      setIsFetchingBarcode(false);
+    }
+  };
+
+  // CAMERA SCANNER LIFECYCLE
+  useEffect(() => {
+    if (!isBarcodeScannerOpen) {
+      if (scannerInstanceRef.current) {
+        try {
+          scannerInstanceRef.current.stop().catch(() => {});
+        } catch (e) {}
+        scannerInstanceRef.current = null;
+      }
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      try {
+        const scanner = new Html5Qrcode("interactive-camera-barcode-region");
+        scannerInstanceRef.current = scanner;
+
+        scanner.start(
+          { facingMode: "environment" },
+          { fps: 10, qrbox: { width: 240, height: 140 } },
+          (decoded) => {
+            lookupBarcodeOnline(decoded);
+            try {
+              scanner.stop().catch(() => {});
+            } catch (e) {}
+          },
+          () => {} // Frame error ignore
+        ).catch((err) => {
+          console.error("Camera access error:", err);
+          if (showToast) showToast("⚠️ Camera permission required or unavailable.");
+        });
+      } catch (e) {
+        console.error("Scanner setup failed:", e);
+      }
+    }, 200);
+
+    return () => {
+      clearTimeout(timer);
+      if (scannerInstanceRef.current) {
+        try {
+          scannerInstanceRef.current.stop().catch(() => {});
+        } catch (e) {}
+        scannerInstanceRef.current = null;
+      }
+    };
+  }, [isBarcodeScannerOpen]);
+
+  // CONFIRM & SAVE MANUAL FORM
+  const handleSaveManualMeal = (e) => {
     e.preventDefault();
-    const cNum = parseInt(customCal, 10);
-    if (!customName.trim() || isNaN(cNum) || cNum <= 0) {
-      if (showToast) showToast("Pakilagay ang pangalan at wastong calories!");
+    const cNum = parseInt(manualCal, 10);
+    if (!manualName.trim() || isNaN(cNum) || cNum <= 0) {
+      if (showToast) showToast("Pakilagay ang pangalan ng pagkain at wastong calories!");
       return;
     }
 
     const newMeal = {
       id: Date.now(),
-      name: customName.trim(),
-      mealType: activeModalBucket || "snack",
-      portion: customPortion.trim() || "1 serving",
+      name: manualName.trim(),
+      mealType: activeModalBucket,
+      portion: manualPortion.trim() || "1 serving",
       cal: cNum,
       calories: cNum,
-      p: Number(customP) || 0,
-      c: Number(customC) || 0,
-      f: Number(customF) || 0,
+      p: Number(manualP) || 0,
+      c: Number(manualC) || 0,
+      f: Number(manualF) || 0,
       dateLogged: todayISO,
       timestamp: Date.now()
     };
 
-    const updatedMeals = [newMeal, ...(appData?.meals || [])];
-    if (saveToCloud) {
-      saveToCloud({ ...appData, meals: updatedMeals });
-    }
-
-    if (showToast) {
-      showToast(`🍽️ Logged: ${customName} (+${cNum} kcal)!`);
-    }
-
+    if (saveToCloud) saveToCloud({ ...appData, meals: [newMeal, ...(appData?.meals || [])] });
+    if (showToast) showToast(`🍽️ Logged: ${manualName} (+${cNum} kcal)!`);
     closeModal();
-  };
-
-  const closeModal = () => {
-    setActiveModalBucket(null);
-    setSelectedFood(null);
-    setSearchQuery("");
-    setMultiplier(1);
-    setIsManualFormOpen(false);
-    setCustomName("");
-    setCustomPortion("1 serving");
-    setCustomCal("");
-    setCustomP("");
-    setCustomC("");
-    setCustomF("");
   };
 
   const getBucketLabel = (type) => {
@@ -252,30 +364,22 @@ export default function DiaryTab({
       </div>
 
       <div style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "18px", padding: "14px", marginBottom: "14px", boxShadow: "0 4px 14px rgba(15, 23, 42, 0.04)" }}>
-        
-        {/* Calories Overview */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", textAlign: "center", gap: "6px", marginBottom: "12px" }}>
           <div style={{ background: "#f8fafc", padding: "8px", borderRadius: "10px", border: "1px solid #f1f5f9" }}>
             <span style={{ fontSize: "9px", fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>Eaten</span>
-            <div style={{ fontSize: "16px", fontWeight: 900, color: "#0f172a", marginTop: "1px" }}>
-              {totalCal.toLocaleString()}
-            </div>
+            <div style={{ fontSize: "16px", fontWeight: 900, color: "#0f172a", marginTop: "1px" }}>{totalCal.toLocaleString()}</div>
             <span style={{ fontSize: "8.5px", color: "#94a3b8" }}>kcal</span>
           </div>
 
           <div style={{ background: "#f8fafc", padding: "8px", borderRadius: "10px", border: "1px solid #f1f5f9" }}>
             <span style={{ fontSize: "9px", fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>Target</span>
-            <div style={{ fontSize: "16px", fontWeight: 900, color: "#4f46e5", marginTop: "1px" }}>
-              {calorieGoal.toLocaleString()}
-            </div>
+            <div style={{ fontSize: "16px", fontWeight: 900, color: "#4f46e5", marginTop: "1px" }}>{calorieGoal.toLocaleString()}</div>
             <span style={{ fontSize: "8.5px", color: "#94a3b8" }}>kcal</span>
           </div>
 
           <div style={{ background: "#f8fafc", padding: "8px", borderRadius: "10px", border: "1px solid #f1f5f9" }}>
             <span style={{ fontSize: "9px", fontWeight: 700, color: "#10b981", textTransform: "uppercase" }}>Remaining</span>
-            <div style={{ fontSize: "16px", fontWeight: 900, color: "#10b981", marginTop: "1px" }}>
-              {Math.max(0, calorieGoal - totalCal).toLocaleString()}
-            </div>
+            <div style={{ fontSize: "16px", fontWeight: 900, color: "#10b981", marginTop: "1px" }}>{Math.max(0, calorieGoal - totalCal).toLocaleString()}</div>
             <span style={{ fontSize: "8.5px", color: "#94a3b8" }}>kcal</span>
           </div>
         </div>
@@ -312,12 +416,10 @@ export default function DiaryTab({
             </div>
           </div>
         </div>
-
       </div>
 
-      {/* ─── 2. MEAL CATEGORY BUCKETS (Breakfast, Lunch, Dinner, Snacks) ─── */}
+      {/* ─── 2. MEAL CATEGORY BUCKETS ─── */}
       <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-        
         {["breakfast", "lunch", "dinner", "snack"].map((bucketKey) => {
           const items = mealBuckets[bucketKey] || [];
           const bucketCal = getBucketCalories(items);
@@ -334,7 +436,6 @@ export default function DiaryTab({
                 boxShadow: "0 2px 8px rgba(0,0,0,0.02)"
               }}
             >
-              {/* Bucket Header */}
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: items.length > 0 ? "10px" : "4px" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                   <div style={{ width: "28px", height: "28px", borderRadius: "8px", background: meta.bg, color: meta.color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "12px" }}>
@@ -371,7 +472,6 @@ export default function DiaryTab({
                 </button>
               </div>
 
-              {/* Bucket Items List */}
               {items.length === 0 ? (
                 <div style={{ padding: "6px 0 2px 0", fontSize: "10.5px", color: "#94a3b8", fontStyle: "italic" }}>
                   No food logged for {getBucketLabel(bucketKey).toLowerCase()} yet.
@@ -393,12 +493,8 @@ export default function DiaryTab({
                     >
                       <div>
                         <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                          <span style={{ fontSize: "12px", fontWeight: 800, color: "#0f172a" }}>
-                            {m.name}
-                          </span>
-                          <span style={{ fontSize: "10px", fontWeight: 600, color: "#6366f1" }}>
-                            ({m.portion || "1 serving"})
-                          </span>
+                          <span style={{ fontSize: "12px", fontWeight: 800, color: "#0f172a" }}>{m.name}</span>
+                          <span style={{ fontSize: "10px", fontWeight: 600, color: "#6366f1" }}>({m.portion || "1 serving"})</span>
                         </div>
                         <span style={{ fontSize: "10px", color: "#64748b", fontWeight: 700, display: "block", marginTop: "1px" }}>
                           {m.cal} kcal • P:{m.p || 0}g • C:{m.c || 0}g • F:{m.f || 0}g
@@ -407,14 +503,7 @@ export default function DiaryTab({
 
                       <button
                         onClick={() => deleteMeal(m.id)}
-                        style={{
-                          background: "none",
-                          border: "none",
-                          color: "#94a3b8",
-                          fontSize: "12px",
-                          cursor: "pointer",
-                          padding: "4px"
-                        }}
+                        style={{ background: "none", border: "none", color: "#94a3b8", fontSize: "12px", cursor: "pointer", padding: "4px" }}
                         title="Delete entry"
                       >
                         <i className="fa-solid fa-trash" style={{ color: "#ef4444" }}></i>
@@ -426,87 +515,198 @@ export default function DiaryTab({
             </div>
           );
         })}
-
       </div>
 
-      {/* ─── 3. SMART FOOD SEARCH & PORTION SCALER MODAL ─── */}
+      {/* ─── 3. FULL SLIDE-OVER COMMAND PANEL ─── */}
       {activeModalBucket && (
         <div
-          onClick={closeModal}
           style={{
             position: "fixed",
-            inset: 0,
-            background: "rgba(15, 23, 42, 0.5)",
-            backdropFilter: "blur(3px)",
-            zIndex: 9999,
+            top: 0,
+            bottom: 0,
+            left: 0,
+            right: 0,
+            margin: "0 auto",
+            maxWidth: "480px",
+            width: "100%",
+            background: "#f8fafc",
+            zIndex: 1050,
             display: "flex",
-            alignItems: "flex-end",
-            justifyContent: "center"
+            flexDirection: "column",
+            boxShadow: "0 0 35px rgba(0,0,0,0.18)",
+            animation: "slideInRight 0.22s ease-out"
           }}
         >
+          {/* STICKY TOP HEADER */}
           <div
-            onClick={(e) => e.stopPropagation()}
             style={{
-              width: "100%",
-              maxWidth: "420px",
-              maxHeight: "88vh",
               display: "flex",
-              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "space-between",
+              padding: "14px 16px",
+              borderBottom: "1px solid #e2e8f0",
               background: "#ffffff",
-              borderTopLeftRadius: "22px",
-              borderTopRightRadius: "22px",
-              padding: "16px",
-              boxShadow: "0 -10px 30px rgba(0,0,0,0.15)",
-              animation: "slideUp 0.2s ease-out"
+              position: "sticky",
+              top: 0,
+              zIndex: 10
             }}
           >
-            {/* Modal Handle */}
-            <div style={{ width: "36px", height: "4px", background: "#cbd5e1", borderRadius: "2px", margin: "0 auto 12px auto" }}></div>
-
-            {/* Header */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <button
+                onClick={closeModal}
+                style={{
+                  width: "32px",
+                  height: "32px",
+                  borderRadius: "50%",
+                  background: "#f8fafc",
+                  border: "1px solid #e2e8f0",
+                  color: "#334155",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  cursor: "pointer",
+                  fontSize: "13px"
+                }}
+                title="Back"
+              >
+                <i className="fa-solid fa-arrow-left"></i>
+              </button>
               <div>
-                <h3 style={{ fontSize: "15px", fontWeight: 800, margin: 0, color: "#0f172a" }}>
+                <h3 style={{ fontSize: "15px", fontWeight: 900, margin: 0, color: "#0f172a" }}>
                   Add to {getBucketLabel(activeModalBucket)}
                 </h3>
                 <span style={{ fontSize: "10px", color: "#64748b", fontWeight: 700 }}>
-                  Search library or enter manual food
+                  Scan barcode, manual log, or choose staple
                 </span>
               </div>
-              <button onClick={closeModal} style={{ background: "none", border: "none", color: "#94a3b8", fontSize: "16px", cursor: "pointer" }}>✕</button>
             </div>
 
-            {/* If a food is selected: Show the Portion & Scaler Confirmation View */}
-            {selectedFood ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "14px", padding: "12px" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "8px" }}>
-                    <div>
-                      <h4 style={{ fontSize: "14px", fontWeight: 800, color: "#0f172a", margin: 0 }}>
-                        {selectedFood.name}
-                      </h4>
-                      <span style={{ fontSize: "10.5px", color: "#64748b", fontWeight: 700 }}>
-                        Base: {selectedFood.serving} ({selectedFood.cal} kcal)
-                      </span>
-                    </div>
-                    <button
-                      onClick={() => { setSelectedFood(null); setMultiplier(1); }}
-                      style={{ background: "#f1f5f9", border: "none", color: "#64748b", padding: "3px 8px", borderRadius: "6px", fontSize: "10px", fontWeight: 800, cursor: "pointer" }}
-                    >
-                      Change
-                    </button>
+            <button
+              onClick={closeModal}
+              style={{ background: "none", border: "none", color: "#94a3b8", fontSize: "18px", cursor: "pointer", padding: "4px 8px" }}
+            >
+              ✕
+            </button>
+          </div>
+
+          {/* SCROLLABLE PANEL BODY */}
+          <div
+            ref={scrollRef}
+            style={{
+              flex: 1,
+              overflowY: "auto",
+              padding: "16px",
+              paddingBottom: "110px",
+              WebkitOverflowScrolling: "touch"
+            }}
+          >
+            {/* ─── PRIMARY SECTION: MANUAL FORM + BARCODE BUTTON + PORTION SCALER ─── */}
+            <div
+              style={{
+                background: "#ffffff",
+                border: "1px solid #e2e8f0",
+                borderRadius: "16px",
+                padding: "14px",
+                marginBottom: "16px",
+                boxShadow: "0 4px 14px rgba(15, 23, 42, 0.04)"
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                  <i className="fa-solid fa-pen-to-square" style={{ color: "#4f46e5", fontSize: "13px" }}></i>
+                  <span style={{ fontSize: "12.5px", fontWeight: 900, color: "#0f172a" }}>
+                    Manual Food & Scaler
+                  </span>
+                </div>
+
+                {/* 📷 BARCODE SCANNER TRIGGER BUTTON */}
+                <button
+                  type="button"
+                  onClick={() => setIsBarcodeScannerOpen(true)}
+                  style={{
+                    background: "linear-gradient(135deg, #0284c7 0%, #0ea5e9 100%)",
+                    color: "white",
+                    border: "none",
+                    padding: "5px 10px",
+                    borderRadius: "8px",
+                    fontSize: "11px",
+                    fontWeight: 800,
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "5px",
+                    boxShadow: "0 2px 6px rgba(14, 165, 233, 0.3)"
+                  }}
+                >
+                  <i className="fa-solid fa-barcode"></i>
+                  <span>Scan Barcode</span>
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveManualMeal}>
+                <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: "8px", marginBottom: "8px" }}>
+                  <div>
+                    <label style={{ fontSize: "10.5px", fontWeight: 700, color: "#64748b", display: "block", marginBottom: "3px" }}>
+                      Food / Dish Name*
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Sinigang na Baboy"
+                      required
+                      value={manualName}
+                      onChange={(e) => setManualName(e.target.value)}
+                      style={{
+                        width: "100%",
+                        padding: "9px 10px",
+                        borderRadius: "8px",
+                        border: "1px solid #cbd5e1",
+                        fontSize: "12px",
+                        fontWeight: 700,
+                        background: "#f8fafc",
+                        outline: "none"
+                      }}
+                    />
                   </div>
 
-                  {/* Multiplier Pills */}
-                  <span style={{ fontSize: "10px", fontWeight: 800, color: "#64748b", textTransform: "uppercase", display: "block", marginBottom: "6px" }}>
-                    Select Serving Multiplier:
-                  </span>
-                  <div style={{ display: "flex", gap: "6px", marginBottom: "10px" }}>
+                  <div>
+                    <label style={{ fontSize: "10.5px", fontWeight: 700, color: "#64748b", display: "block", marginBottom: "3px" }}>
+                      Portion Size
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. 1 bowl / 150g"
+                      value={manualPortion}
+                      onChange={(e) => setManualPortion(e.target.value)}
+                      style={{
+                        width: "100%",
+                        padding: "9px 10px",
+                        borderRadius: "8px",
+                        border: "1px solid #cbd5e1",
+                        fontSize: "12px",
+                        fontWeight: 700,
+                        background: "#f8fafc",
+                        outline: "none"
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* ⚖️ DYNAMIC PORTION MULTIPLIER BUTTONS */}
+                <div style={{ marginBottom: "10px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
+                    <span style={{ fontSize: "10px", fontWeight: 800, color: "#64748b", textTransform: "uppercase" }}>
+                      Portion Multiplier:
+                    </span>
+                    <span style={{ fontSize: "9.5px", color: "#6366f1", fontWeight: 800 }}>
+                      Current: {multiplier}x
+                    </span>
+                  </div>
+                  <div style={{ display: "flex", gap: "6px" }}>
                     {[0.5, 1, 1.5, 2].map((num) => (
                       <button
                         key={num}
                         type="button"
-                        onClick={() => setMultiplier(num)}
+                        onClick={() => handleSelectMultiplier(num)}
                         style={{
                           flex: 1,
                           padding: "6px 0",
@@ -523,30 +723,102 @@ export default function DiaryTab({
                       </button>
                     ))}
                   </div>
+                </div>
 
-                  {/* Real-time Scaled Nutrition Card */}
-                  <div style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "10px", padding: "10px", display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", textAlign: "center" }}>
-                    <div>
-                      <span style={{ fontSize: "8.5px", fontWeight: 700, color: "#64748b" }}>CALORIES</span>
-                      <div style={{ fontSize: "14px", fontWeight: 900, color: "#0f172a" }}>{scaledValues.cal}</div>
-                    </div>
-                    <div>
-                      <span style={{ fontSize: "8.5px", fontWeight: 700, color: "#6366f1" }}>PROTEIN</span>
-                      <div style={{ fontSize: "14px", fontWeight: 900, color: "#6366f1" }}>{scaledValues.p}g</div>
-                    </div>
-                    <div>
-                      <span style={{ fontSize: "8.5px", fontWeight: 700, color: "#0ea5e9" }}>CARBS</span>
-                      <div style={{ fontSize: "14px", fontWeight: 900, color: "#0ea5e9" }}>{scaledValues.c}g</div>
-                    </div>
-                    <div>
-                      <span style={{ fontSize: "8.5px", fontWeight: 700, color: "#f59e0b" }}>FAT</span>
-                      <div style={{ fontSize: "14px", fontWeight: 900, color: "#f59e0b" }}>{scaledValues.f}g</div>
-                    </div>
+                <div style={{ marginBottom: "10px" }}>
+                  <label style={{ fontSize: "10.5px", fontWeight: 700, color: "#64748b", display: "block", marginBottom: "3px" }}>
+                    Calories (kcal)*
+                  </label>
+                  <input
+                    type="number"
+                    placeholder="e.g. 350"
+                    required
+                    value={manualCal}
+                    onChange={(e) => setManualCal(e.target.value)}
+                    style={{
+                      width: "100%",
+                      padding: "9px 10px",
+                      borderRadius: "8px",
+                      border: "1px solid #cbd5e1",
+                      fontSize: "13px",
+                      fontWeight: 800,
+                      background: "#f8fafc",
+                      outline: "none"
+                    }}
+                  />
+                </div>
+
+                {/* 3-Column Macros Grid */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px", marginBottom: "12px" }}>
+                  <div>
+                    <label style={{ fontSize: "9.5px", fontWeight: 700, color: "#6366f1", display: "block", marginBottom: "2px" }}>
+                      Protein (g)
+                    </label>
+                    <input
+                      type="number"
+                      placeholder="0"
+                      value={manualP}
+                      onChange={(e) => setManualP(e.target.value)}
+                      style={{
+                        width: "100%",
+                        padding: "7px 8px",
+                        borderRadius: "8px",
+                        border: "1px solid #cbd5e1",
+                        fontSize: "11.5px",
+                        fontWeight: 700,
+                        background: "#f8fafc",
+                        outline: "none"
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: "9.5px", fontWeight: 700, color: "#0ea5e9", display: "block", marginBottom: "2px" }}>
+                      Carbs (g)
+                    </label>
+                    <input
+                      type="number"
+                      placeholder="0"
+                      value={manualC}
+                      onChange={(e) => setManualC(e.target.value)}
+                      style={{
+                        width: "100%",
+                        padding: "7px 8px",
+                        borderRadius: "8px",
+                        border: "1px solid #cbd5e1",
+                        fontSize: "11.5px",
+                        fontWeight: 700,
+                        background: "#f8fafc",
+                        outline: "none"
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: "9.5px", fontWeight: 700, color: "#f59e0b", display: "block", marginBottom: "2px" }}>
+                      Fats (g)
+                    </label>
+                    <input
+                      type="number"
+                      placeholder="0"
+                      value={manualF}
+                      onChange={(e) => setManualF(e.target.value)}
+                      style={{
+                        width: "100%",
+                        padding: "7px 8px",
+                        borderRadius: "8px",
+                        border: "1px solid #cbd5e1",
+                        fontSize: "11.5px",
+                        fontWeight: 700,
+                        background: "#f8fafc",
+                        outline: "none"
+                      }}
+                    />
                   </div>
                 </div>
 
                 <button
-                  onClick={handleConfirmAddFood}
+                  type="submit"
                   style={{
                     width: "100%",
                     background: "linear-gradient(135deg, #4f46e5 0%, #6366f1 100%)",
@@ -557,163 +829,247 @@ export default function DiaryTab({
                     fontSize: "12px",
                     fontWeight: 800,
                     cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "6px",
                     boxShadow: "0 4px 12px rgba(79, 70, 229, 0.25)"
                   }}
                 >
-                  Confirm & Add to {getBucketLabel(activeModalBucket)}
+                  <i className="fa-solid fa-circle-check"></i>
+                  <span>Log to {getBucketLabel(activeModalBucket)}</span>
+                </button>
+              </form>
+            </div>
+
+            {/* ─── SECONDARY SECTION: VERIFIED SUGGESTIONS & AUTO-FILL LIBRARY ─── */}
+            <div style={{ marginBottom: "10px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
+                <span style={{ fontSize: "11px", fontWeight: 900, color: "#475569", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                  ⚡ Quick Suggestions (Auto-fill)
+                </span>
+                <span style={{ fontSize: "9.5px", color: "#94a3b8", fontWeight: 700 }}>
+                  Tap card to auto-fill above
+                </span>
+              </div>
+
+              {/* Search Bar for Suggestions */}
+              <div style={{ position: "relative", marginBottom: "10px" }}>
+                <i className="fa-solid fa-magnifying-glass" style={{ position: "absolute", left: "12px", top: "11px", color: "#94a3b8", fontSize: "12px" }}></i>
+                <input
+                  type="text"
+                  placeholder="Filter staples (e.g. Rice, Egg, Chicken, Adobo)..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  style={{
+                    width: "100%",
+                    padding: "9px 12px 9px 34px",
+                    borderRadius: "10px",
+                    border: "1px solid #cbd5e1",
+                    fontSize: "12px",
+                    fontWeight: 700,
+                    outline: "none",
+                    background: "#ffffff"
+                  }}
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery("")}
+                    style={{ position: "absolute", right: "10px", top: "9px", background: "none", border: "none", color: "#94a3b8", fontSize: "12px", cursor: "pointer" }}
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+
+              {/* Suggestions Cards List */}
+              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                {filteredFoods.length === 0 ? (
+                  <div style={{ textAlign: "center", padding: "16px 10px", color: "#94a3b8", fontSize: "11px" }}>
+                    Walang tumugmang staple para sa "{searchQuery}". Gamitin ang manual form sa itaas!
+                  </div>
+                ) : (
+                  filteredFoods.map((item) => (
+                    <div
+                      key={item.id}
+                      style={{
+                        background: "#1e293b",
+                        borderRadius: "12px",
+                        padding: "10px 12px",
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        color: "#ffffff"
+                      }}
+                    >
+                      <div
+                        onClick={() => handleAutoFillFromSuggestion(item)}
+                        style={{ flex: 1, cursor: "pointer" }}
+                        title="Click to auto-fill form above"
+                      >
+                        <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+                          <span style={{ fontSize: "12px", fontWeight: 800, color: "#f8fafc" }}>{item.name}</span>
+                          <i className="fa-solid fa-circle-check" style={{ color: "#10b981", fontSize: "10.5px" }}></i>
+                          {item.isUserCustom && (
+                            <span style={{ fontSize: "8px", fontWeight: 900, background: "#334155", color: "#93c5fd", padding: "1px 4px", borderRadius: "4px" }}>
+                              PRESET
+                            </span>
+                          )}
+                        </div>
+                        <span style={{ fontSize: "10.5px", color: "#94a3b8", fontWeight: 600, display: "block", marginTop: "2px" }}>
+                          {item.cal} cal • {item.serving} (P:{item.p || 0}g C:{item.c || 0}g F:{item.f || 0}g)
+                        </span>
+                      </div>
+
+                      <button
+                        onClick={() => handleQuickLogSuggestion(item)}
+                        style={{
+                          width: "30px",
+                          height: "30px",
+                          borderRadius: "50%",
+                          background: "#334155",
+                          border: "1px solid rgba(255,255,255,0.12)",
+                          color: "#38bdf8",
+                          fontSize: "13px",
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          marginLeft: "8px"
+                        }}
+                        title={`1-Tap Quick Log ${item.name}`}
+                      >
+                        <i className="fa-solid fa-plus"></i>
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* ─── 4. CAMERA BARCODE SCANNER OVERLAY MODAL ─── */}
+      {isBarcodeScannerOpen && (
+        <div
+          onClick={() => setIsBarcodeScannerOpen(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(15, 23, 42, 0.75)",
+            backdropFilter: "blur(4px)",
+            zIndex: 1100,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "16px"
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: "100%",
+              maxWidth: "380px",
+              background: "#ffffff",
+              borderRadius: "20px",
+              padding: "18px",
+              boxShadow: "0 10px 30px rgba(0,0,0,0.3)",
+              display: "flex",
+              flexDirection: "column",
+              gap: "12px"
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                <i className="fa-solid fa-camera" style={{ color: "#0ea5e9", fontSize: "14px" }}></i>
+                <h4 style={{ fontSize: "14px", fontWeight: 800, margin: 0, color: "#0f172a" }}>
+                  Barcode Scanner
+                </h4>
+              </div>
+              <button
+                onClick={() => setIsBarcodeScannerOpen(false)}
+                style={{ background: "none", border: "none", color: "#94a3b8", fontSize: "16px", cursor: "pointer" }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <p style={{ fontSize: "11px", color: "#64748b", margin: 0, lineHeight: 1.4 }}>
+              Itapat ang camera sa barcode ng packaging ng pagkain para awtomatikong makuha ang nutrition facts.
+            </p>
+
+            {/* LIVE CAMERA VIEW CONTAINER */}
+            <div
+              id="interactive-camera-barcode-region"
+              style={{
+                width: "100%",
+                minHeight: "200px",
+                borderRadius: "12px",
+                overflow: "hidden",
+                background: "#0f172a",
+                position: "relative"
+              }}
+            ></div>
+
+            {/* DIRECT MANUAL BARCODE NUMBER INPUT */}
+            <div style={{ borderTop: "1px solid #f1f5f9", paddingTop: "10px" }}>
+              <span style={{ fontSize: "10px", fontWeight: 800, color: "#64748b", display: "block", marginBottom: "4px" }}>
+                O i-type ang 12 o 13-digit Barcode number:
+              </span>
+              <div style={{ display: "flex", gap: "6px" }}>
+                <input
+                  type="text"
+                  placeholder="Hal. 4800016644810"
+                  value={manualBarcodeCode}
+                  onChange={(e) => setManualBarcodeCode(e.target.value)}
+                  style={{
+                    flex: 1,
+                    padding: "8px 10px",
+                    borderRadius: "8px",
+                    border: "1px solid #cbd5e1",
+                    fontSize: "12px",
+                    fontWeight: 700,
+                    outline: "none"
+                  }}
+                />
+                <button
+                  type="button"
+                  disabled={isFetchingBarcode}
+                  onClick={() => lookupBarcodeOnline(manualBarcodeCode)}
+                  style={{
+                    background: "#0284c7",
+                    color: "white",
+                    border: "none",
+                    padding: "0 12px",
+                    borderRadius: "8px",
+                    fontSize: "11px",
+                    fontWeight: 800,
+                    cursor: "pointer"
+                  }}
+                >
+                  {isFetchingBarcode ? "..." : "Search"}
                 </button>
               </div>
-            ) : (
-              <>
-                {/* Search Bar */}
-                <div style={{ position: "relative", marginBottom: "10px" }}>
-                  <i className="fa-solid fa-magnifying-glass" style={{ position: "absolute", left: "12px", top: "11px", color: "#94a3b8", fontSize: "12px" }}></i>
-                  <input
-                    type="text"
-                    placeholder="Search food (e.g. Rice, Adobo, Egg)..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    style={{
-                      width: "100%",
-                      padding: "9px 12px 9px 34px",
-                      borderRadius: "10px",
-                      border: "1px solid #cbd5e1",
-                      fontSize: "12px",
-                      fontWeight: 700,
-                      outline: "none",
-                      background: "#f8fafc"
-                    }}
-                  />
-                  {searchQuery && (
-                    <button
-                      onClick={() => setSearchQuery("")}
-                      style={{ position: "absolute", right: "10px", top: "9px", background: "none", border: "none", color: "#94a3b8", fontSize: "12px", cursor: "pointer" }}
-                    >
-                      ✕
-                    </button>
-                  )}
-                </div>
+            </div>
 
-                {/* Scrollable Food Library */}
-                <div style={{ flex: 1, overflowY: "auto", maxHeight: "240px", display: "flex", flexDirection: "column", gap: "6px" }}>
-                  {filteredFoods.length === 0 ? (
-                    <div style={{ textAlign: "center", padding: "20px 10px", color: "#94a3b8", fontSize: "11px" }}>
-                      Walang nakitang pagkain para sa "{searchQuery}".
-                    </div>
-                  ) : (
-                    filteredFoods.map((item) => (
-                      <div
-                        key={item.id}
-                        onClick={() => { setSelectedFood(item); setMultiplier(1); }}
-                        style={{
-                          background: "#1e293b",
-                          borderRadius: "10px",
-                          padding: "9px 12px",
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                          color: "#ffffff",
-                          cursor: "pointer"
-                        }}
-                      >
-                        <div>
-                          <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
-                            <span style={{ fontSize: "12px", fontWeight: 800, color: "#f8fafc" }}>
-                              {item.name}
-                            </span>
-                            <i className="fa-solid fa-circle-check" style={{ color: "#10b981", fontSize: "10px" }}></i>
-                            {item.isUserCustom && (
-                              <span style={{ fontSize: "8px", fontWeight: 900, background: "#334155", color: "#93c5fd", padding: "1px 4px", borderRadius: "4px" }}>
-                                MY PRESET
-                              </span>
-                            )}
-                          </div>
-                          <span style={{ fontSize: "10.5px", color: "#94a3b8", fontWeight: 600 }}>
-                            {item.cal} cal • {item.serving} (P:{item.p || 0}g C:{item.c || 0}g F:{item.f || 0}g)
-                          </span>
-                        </div>
-
-                        <div style={{ width: "26px", height: "26px", borderRadius: "50%", background: "#334155", color: "#38bdf8", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "12px" }}>
-                          <i className="fa-solid fa-plus"></i>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-
-                {/* Manual Fallback Accordion */}
-                <div style={{ marginTop: "10px", borderTop: "1px solid #f1f5f9", paddingTop: "8px" }}>
-                  <button
-                    type="button"
-                    onClick={() => setIsManualFormOpen(!isManualFormOpen)}
-                    style={{ width: "100%", background: "transparent", border: "none", color: "#64748b", fontSize: "11px", fontWeight: 800, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "4px" }}
-                  >
-                    <span>{isManualFormOpen ? "Hide Manual Form" : "Wala sa listahan? Click for Manual Entry"}</span>
-                    <i className={`fa-solid ${isManualFormOpen ? "fa-chevron-up" : "fa-chevron-down"}`} style={{ fontSize: "9px" }}></i>
-                  </button>
-
-                  {isManualFormOpen && (
-                    <form onSubmit={handleManualSave} style={{ marginTop: "8px" }}>
-                      <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: "6px", marginBottom: "6px" }}>
-                        <input
-                          type="text"
-                          placeholder="Food Name"
-                          required
-                          value={customName}
-                          onChange={(e) => setCustomName(e.target.value)}
-                          style={{ padding: "7px 9px", borderRadius: "8px", border: "1px solid #cbd5e1", fontSize: "11px", fontWeight: 700 }}
-                        />
-                        <input
-                          type="text"
-                          placeholder="Portion (1 plate)"
-                          value={customPortion}
-                          onChange={(e) => setCustomPortion(e.target.value)}
-                          style={{ padding: "7px 9px", borderRadius: "8px", border: "1px solid #cbd5e1", fontSize: "11px", fontWeight: 700 }}
-                        />
-                      </div>
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "6px", marginBottom: "8px" }}>
-                        <input
-                          type="number"
-                          placeholder="Cal*"
-                          required
-                          value={customCal}
-                          onChange={(e) => setCustomCal(e.target.value)}
-                          style={{ padding: "7px 6px", borderRadius: "8px", border: "1px solid #cbd5e1", fontSize: "11px", fontWeight: 700 }}
-                        />
-                        <input
-                          type="number"
-                          placeholder="P (g)"
-                          value={customP}
-                          onChange={(e) => setCustomP(e.target.value)}
-                          style={{ padding: "7px 6px", borderRadius: "8px", border: "1px solid #cbd5e1", fontSize: "11px", fontWeight: 700 }}
-                        />
-                        <input
-                          type="number"
-                          placeholder="C (g)"
-                          value={customC}
-                          onChange={(e) => setCustomC(e.target.value)}
-                          style={{ padding: "7px 6px", borderRadius: "8px", border: "1px solid #cbd5e1", fontSize: "11px", fontWeight: 700 }}
-                        />
-                        <input
-                          type="number"
-                          placeholder="F (g)"
-                          value={customF}
-                          onChange={(e) => setCustomF(e.target.value)}
-                          style={{ padding: "7px 6px", borderRadius: "8px", border: "1px solid #cbd5e1", fontSize: "11px", fontWeight: 700 }}
-                        />
-                      </div>
-                      <button
-                        type="submit"
-                        style={{ width: "100%", background: "#4f46e5", color: "white", border: "none", padding: "8px", borderRadius: "8px", fontSize: "11px", fontWeight: 800, cursor: "pointer" }}
-                      >
-                        Log to {getBucketLabel(activeModalBucket)}
-                      </button>
-                    </form>
-                  )}
-                </div>
-              </>
-            )}
-
+            <button
+              onClick={() => setIsBarcodeScannerOpen(false)}
+              style={{
+                width: "100%",
+                background: "#f1f5f9",
+                border: "none",
+                color: "#475569",
+                padding: "8px",
+                borderRadius: "8px",
+                fontSize: "11px",
+                fontWeight: 800,
+                cursor: "pointer"
+              }}
+            >
+              Cancel
+            </button>
           </div>
         </div>
       )}
