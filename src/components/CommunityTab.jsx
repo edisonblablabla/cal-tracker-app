@@ -137,73 +137,101 @@ export default function CommunityTab({
   return (
     <div style={{ backgroundColor: "#f8fafc", minHeight: "100vh", paddingBottom: "90px", fontFamily: "sans-serif" }}>
 
-      {/* ─── 1. TOP BRAND HEADER (RESPONSIVE, HINDI MATATAKPAN ANG ICONS) ─── */}
+      {/* ─── 1. COMPACT SOLID BRAND HEADER ─── */}
       <div style={{
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
-        padding: "12px 16px",
+        height: "56px",
+        padding: "0 12px",
         backgroundColor: "#ffffff",
-        borderBottom: "1px solid #f1f5f9",
+        borderBottom: "1px solid #e2e8f0",
         position: "sticky",
         top: 0,
-        zIndex: 100,
-        boxShadow: "0 1px 3px rgba(0,0,0,0.02)"
+        zIndex: 1000,
+        boxShadow: "0 2px 8px rgba(15, 23, 42, 0.04)",
+        boxSizing: "border-box",
+        width: "100%"
       }}>
-        {/* Brand & Logo */}
-        <div style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: 0, flexShrink: 1 }}>
+        {/* Brand & Logo (Naka-lock ang sukat, hindi aabot sa kanan) */}
+        <div style={{ display: "flex", alignItems: "center", gap: "7px", flexShrink: 0, maxWidth: "145px" }}>
           <div style={{
-            width: "34px",
-            height: "34px",
-            borderRadius: "9px",
+            width: "30px",
+            height: "30px",
+            borderRadius: "8px",
             background: "linear-gradient(135deg, #4f46e5 0%, #38bdf8 100%)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             flexShrink: 0,
-            boxShadow: "0 2px 8px rgba(79, 70, 229, 0.25)"
+            boxShadow: "0 2px 6px rgba(79, 70, 229, 0.2)"
           }}>
-            <i className="fa-solid fa-heart-pulse" style={{ color: "#ffffff", fontSize: "17px" }}></i>
+            <i className="fa-solid fa-heart-pulse" style={{ color: "#ffffff", fontSize: "15px" }}></i>
           </div>
           <div style={{ minWidth: 0, overflow: "hidden" }}>
-            <h1 style={{ margin: 0, fontSize: "16px", fontWeight: 900, color: "#0f172a", letterSpacing: "-0.3px", whiteSpace: "nowrap" }}>
+            <h1 style={{ margin: 0, fontSize: "14px", fontWeight: 900, color: "#0f172a", letterSpacing: "-0.2px", lineHeight: 1.1, whiteSpace: "nowrap" }}>
               NUTRIPULSE
             </h1>
-            <span style={{ fontSize: "9px", fontWeight: 800, color: "#0284c7", letterSpacing: "0.8px", display: "block" }}>
+            <span style={{ fontSize: "8.5px", fontWeight: 800, color: "#0284c7", letterSpacing: "0.8px", display: "block" }}>
               COMMUNITY
             </span>
           </div>
         </div>
 
-        {/* Action Controls: Search, Messages, Notifications, Profile */}
-        <div style={{ display: "flex", alignItems: "center", gap: "14px", flexShrink: 0 }}>
-          {/* 🔍 SEARCH BUTTON */}
+        {/* Action Controls: Search, Messages, Notifications, Avatar (Siksik, 32px touch target) */}
+        <div style={{ display: "flex", alignItems: "center", gap: "4px", flexShrink: 0 }}>
+          {/* 🔍 SEARCH */}
           <button
             type="button"
             onClick={() => {
               if (typeof setShowSearchModal === "function") setShowSearchModal(true);
             }}
-            style={{ background: "none", border: "none", padding: "6px", cursor: "pointer", color: "#334155", display: "flex", alignItems: "center" }}
+            style={{
+              width: "32px",
+              height: "32px",
+              background: "none",
+              border: "none",
+              borderRadius: "8px",
+              cursor: "pointer",
+              color: "#334155",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: 0
+            }}
             title="Search Athletes"
           >
-            <i className="fa-solid fa-magnifying-glass" style={{ fontSize: "17px" }}></i>
+            <i className="fa-solid fa-magnifying-glass" style={{ fontSize: "15px" }}></i>
           </button>
 
-          {/* 💬 MESSAGES BUTTON (SLIDE-OVER / INBOX) */}
+          {/* 💬 MESSAGES */}
           <button
             type="button"
             onClick={() => {
               if (typeof setActivePanel === "function") setActivePanel("inbox");
               if (typeof setLastSeenMsgTime === "function") setLastSeenMsgTime(Date.now());
             }}
-            style={{ background: "none", border: "none", padding: "6px", cursor: "pointer", color: "#334155", position: "relative", display: "flex", alignItems: "center" }}
+            style={{
+              width: "32px",
+              height: "32px",
+              background: "none",
+              border: "none",
+              borderRadius: "8px",
+              cursor: "pointer",
+              color: "#334155",
+              position: "relative",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: 0
+            }}
             title="Huddle Messages"
           >
-            <i className="fa-regular fa-comment-dots" style={{ fontSize: "18px" }}></i>
+            <i className="fa-regular fa-comment-dots" style={{ fontSize: "16px" }}></i>
             {unreadMsgCount > 0 && (
               <span style={{
-                position: "absolute", top: "1px", right: "0px", background: "#ef4444", color: "#ffffff",
-                fontSize: "9px", fontWeight: 800, minWidth: "15px", height: "15px", borderRadius: "10px",
+                position: "absolute", top: "2px", right: "2px", background: "#ef4444", color: "#ffffff",
+                fontSize: "8.5px", fontWeight: 800, minWidth: "14px", height: "14px", borderRadius: "10px",
                 display: "flex", alignItems: "center", justifyContent: "center", padding: "0 2px"
               }}>
                 {unreadMsgCount > 9 ? "9+" : unreadMsgCount}
@@ -211,39 +239,62 @@ export default function CommunityTab({
             )}
           </button>
 
-          {/* 🔔 NOTIFICATIONS BUTTON */}
+          {/* 🔔 NOTIFICATIONS */}
           <button
             type="button"
             onClick={() => {
               if (typeof setActivePanel === "function") setActivePanel("notifications");
               if (typeof setLastSeenNotifTime === "function") setLastSeenNotifTime(Date.now());
             }}
-            style={{ background: "none", border: "none", padding: "6px", cursor: "pointer", color: "#334155", position: "relative", display: "flex", alignItems: "center" }}
+            style={{
+              width: "32px",
+              height: "32px",
+              background: "none",
+              border: "none",
+              borderRadius: "8px",
+              cursor: "pointer",
+              color: "#334155",
+              position: "relative",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: 0
+            }}
             title="Notifications"
           >
-            <i className="fa-regular fa-bell" style={{ fontSize: "18px" }}></i>
+            <i className="fa-regular fa-bell" style={{ fontSize: "16px" }}></i>
             {unreadNotifCount > 0 && (
               <span style={{
-                position: "absolute", top: "2px", right: "2px", background: "#f43f5e",
-                width: "8px", height: "8px", borderRadius: "50%", border: "2px solid #ffffff"
+                position: "absolute", top: "4px", right: "4px", background: "#f43f5e",
+                width: "7px", height: "7px", borderRadius: "50%", border: "2px solid #ffffff"
               }}></span>
             )}
           </button>
 
-          {/* 👤 PROFILE AVATAR (BUBUKSAN ANG PROFILE TAB) */}
+          {/* 👤 AVATAR */}
           <button
             type="button"
             onClick={() => {
               if (typeof setSelectedVisitor === "function") setSelectedVisitor(null);
               if (typeof setActiveTab === "function") setActiveTab("profile");
             }}
-            style={{ background: "none", border: "none", padding: 0, cursor: "pointer", display: "flex" }}
+            style={{
+              width: "32px",
+              height: "32px",
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: 0
+            }}
             title="My Profile"
           >
             <img
               src={user?.photoURL || avatarPreview || "https://i.pravatar.cc/150"}
               alt="Profile"
-              style={{ width: "30px", height: "30px", borderRadius: "50%", objectFit: "cover", border: "2px solid #38bdf8" }}
+              style={{ width: "26px", height: "26px", borderRadius: "50%", objectFit: "cover", border: "2px solid #38bdf8" }}
             />
           </button>
         </div>
