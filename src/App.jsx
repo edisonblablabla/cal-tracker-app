@@ -1612,7 +1612,12 @@ export default function App() {
     };
   });
 
-  const allUserNotifs = [...firestoreNotifs.filter(n => n.type !== "chat"), ...pendingRequestsNotifs].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+  // Global Unread Badges for Social Nav Item
+    const unreadNotifsCount = (allUserNotifs || []).filter(n => (n.timestamp || 0) > (lastSeenNotifTime || 0)).length;
+    const unreadMsgsCount = (inboxChats || []).filter(c => c.lastSenderUid !== user?.uid && (c.updatedAt || 0) > (lastSeenNotifTime || 0)).length;
+    const totalSocialAlerts = unreadNotifsCount + unreadMsgsCount;
+
+    const allUserNotifs = [...firestoreNotifs.filter(n => n.type !== "chat"), ...pendingRequestsNotifs].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
 
   const activeWorkoutObj = WORKOUT_ACTIVITIES.find(a => a.name === selectedActivity) || WORKOUT_ACTIVITIES[0];
   const initialMins = parseInt(workoutDuration) || 30;
@@ -1886,7 +1891,17 @@ export default function App() {
       <div className="bottom-nav" style={{ boxSizing: "border-box", margin: "0 auto", position: "fixed", bottom: 0, left: 0, right: 0, display: "flex", justifyContent: "center", maxWidth: "480px", width: "100%", background: "#ffffff", borderTop: "1px solid #e2e8f0", zIndex: 1000 }}>
         <div className={"nav-item " + (activeTab === "home" ? "active" : "")} onClick={() => handleTabChange("home")}><i className="fa-solid fa-house"></i><span>Home</span></div>
         <div className={"nav-item " + (activeTab === "diary" ? "active" : "")} onClick={() => handleTabChange("diary")}><i className="fa-regular fa-calendar-check"></i><span>Log</span></div>
-        <div className={"nav-item " + (activeTab === "community" ? "active" : "")} onClick={() => handleTabChange("community")}><i className="fa-solid fa-users"></i><span>Social</span></div>
+        <div className={"nav-item " + (activeTab === "community" ? "active" : "")} onClick={() => handleTabChange("community")} style={{ position: "relative" }}>
+            <div style={{ position: "relative", display: "inline-block" }}>
+              <i className="fa-solid fa-users"></i>
+              {totalSocialAlerts > 0 && (
+                <span style={{ position: "absolute", top: "-5px", right: "-8px", background: "#ef4444", color: "#ffffff", fontSize: "9px", fontWeight: 900, minWidth: "16px", height: "16px", borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "center", padding: "0 3px", border: "2px solid #ffffff", boxShadow: "0 2px 5px rgba(239, 68, 68, 0.4)" }}>
+                  {totalSocialAlerts > 9 ? "9+" : totalSocialAlerts}
+                </span>
+              )}
+            </div>
+            <span>Social</span>
+          </div>
         <div className={"nav-item " + (activeTab === "progress" ? "active" : "")} onClick={() => handleTabChange("progress")}><i className="fa-solid fa-chart-simple"></i><span>Progress</span></div>
         <div className={"nav-item " + (activeTab === "goals" ? "active" : "")} onClick={() => handleTabChange("goals")}><i className="fa-solid fa-bullseye"></i><span>Goals</span></div>
         <div className={"nav-item " + (activeTab === "profile" ? "active" : "")} onClick={() => handleTabChange("profile")}><i className="fa-regular fa-user"></i><span>Profile</span></div>

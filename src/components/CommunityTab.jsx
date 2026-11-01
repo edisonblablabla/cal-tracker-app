@@ -105,9 +105,9 @@ export default function CommunityTab({
           >
             <i className="fa-regular fa-bell"></i>
             {allUserNotifs.filter(n => (n.timestamp || 0) > lastSeenNotifTime).length > 0 && (
-              <span style={{ position: "absolute", top: "2px", right: "2px", background: "#ef4444", color: "white", fontSize: "9px", fontWeight: 800, width: "15px", height: "15px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                {allUserNotifs.filter(n => (n.timestamp || 0) > lastSeenNotifTime).length}
-              </span>
+              <span style={{ position: "absolute", top: "-4px", right: "-4px", background: "#ef4444", color: "#ffffff", fontSize: "10px", fontWeight: 900, minWidth: "18px", height: "18px", borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "center", padding: "0 4px", boxShadow: "0 2px 6px rgba(239, 68, 68, 0.4)", border: "2px solid #ffffff" }}>
+                  {allUserNotifs.filter(n => (n.timestamp || 0) > lastSeenNotifTime).length > 9 ? "9+" : allUserNotifs.filter(n => (n.timestamp || 0) > lastSeenNotifTime).length}
+                </span>
             )}
           </button>
           {/* INBOX / MESSAGES BUTTON */}
@@ -121,7 +121,7 @@ export default function CommunityTab({
           >
             <i className="fa-regular fa-envelope"></i>
             {unreadChatsCount > 0 && (
-              <span style={{ position: "absolute", top: "-4px", right: "-4px", background: "#0284c7", color: "white", fontSize: "10px", fontWeight: 900, minWidth: "18px", height: "18px", borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "center", padding: "0 4px", boxShadow: "0 2px 6px rgba(2, 132, 199, 0.4)", border: "2px solid #ffffff" }}>
+              <span style={{ position: "absolute", top: "-4px", right: "-4px", background: "#ef4444", color: "white", fontSize: "10px", fontWeight: 900, minWidth: "18px", height: "18px", borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "center", padding: "0 4px", boxShadow: "0 2px 6px rgba(239, 68, 68, 0.4)", border: "2px solid #ffffff" }}>
                 {unreadChatsCount > 9 ? "9+" : unreadChatsCount}
               </span>
             )}

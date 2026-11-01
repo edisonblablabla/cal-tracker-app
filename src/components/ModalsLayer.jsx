@@ -346,7 +346,7 @@ export default function ModalsLayer({
               {/* Inalis ang X icon */}
             </div>
             {activePanel === 'notif' && (
-              <span style={{ fontSize: "11px", fontWeight: 700, color: "#0284c7", background: "#e0f2fe", padding: "4px 10px", borderRadius: "12px" }}>
+              <span style={{ fontSize: "11px", fontWeight: 700, color: "#ef4444", background: "#fef2f2", border: "1px solid #fee2e2", padding: "4px 10px", borderRadius: "12px" }}>
                 {allUserNotifs.filter(n => (n.timestamp || 0) > lastSeenNotifTime).length} New
               </span>
             )}
