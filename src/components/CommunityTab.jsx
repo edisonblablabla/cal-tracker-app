@@ -20,7 +20,7 @@ function defaultFormatTime(ts) {
   return new Date(ms).toLocaleDateString();
 }
 
-export default function CommunityTab({ 
+export default function CommunityTab({  
   user,
   appData,
   avatarPreview = "",
@@ -54,7 +54,7 @@ export default function CommunityTab({
   setResonatePost,
   showToast,
   formatPostTime = defaultFormatTime
-, draftSocialPost, setDraftSocialPost }) {
+, draftSocialPost, setDraftSocialPost  }) {
   const unreadChatsCount = (inboxChats || []).filter(c => c.lastSenderUid !== user?.uid && (c.updatedAt || 0) > (lastSeenMsgTime || 0)).length;
   const formatTime = formatPostTime || defaultFormatTime;
 

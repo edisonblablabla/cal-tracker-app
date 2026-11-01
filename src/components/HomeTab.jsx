@@ -409,13 +409,31 @@ ${trkpts}
   };
 
   
+  const drawRoundedRect = (ctx, x, y, w, h, r) => {
+    ctx.beginPath();
+    if (typeof ctx.roundRect === "function") {
+      ctx.roundRect(x, y, w, h, r);
+    } else {
+      ctx.moveTo(x + r, y);
+      ctx.lineTo(x + w - r, y);
+      ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+      ctx.lineTo(x + w, y + h - r);
+      ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+      ctx.lineTo(x + r, y + h);
+      ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+      ctx.lineTo(x, y + r);
+      ctx.quadraticCurveTo(x, y, x + r, y);
+      ctx.closePath();
+    }
+  };
+
   const renderActivityToCanvas = (activity) => {
     const canvas = document.createElement("canvas");
     canvas.width = 900;
     canvas.height = 1100;
     const ctx = canvas.getContext("2d");
 
-    // Background Gradient
+    // Athletic Dark Background
     const bgGrad = ctx.createLinearGradient(0, 0, 0, canvas.height);
     bgGrad.addColorStop(0, "#090d16");
     bgGrad.addColorStop(1, "#111827");
@@ -444,7 +462,7 @@ ${trkpts}
     ctx.fillText(activity.dateLogged || new Date().toLocaleDateString("en-US"), canvas.width - 60, 85);
     ctx.textAlign = "left";
 
-    // Map Box
+    // Map Box gamit ang ligtas na drawRoundedRect
     const boxX = 60;
     const boxY = 140;
     const boxW = canvas.width - 120;
@@ -453,8 +471,7 @@ ${trkpts}
     ctx.fillStyle = "#030712";
     ctx.strokeStyle = "#1e293b";
     ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.roundRect(boxX, boxY, boxW, boxH, 20);
+    drawRoundedRect(ctx, boxX, boxY, boxW, boxH, 20);
     ctx.fill();
     ctx.stroke();
 
@@ -525,7 +542,7 @@ ${trkpts}
       ctx.textAlign = "left";
     }
 
-    // Metrics Stats
+    // Metrics Stats na may maayos na espasyo
     const statsY = 690;
     ctx.fillStyle = "#64748b";
     ctx.font = "800 15px sans-serif";
@@ -615,10 +632,8 @@ ${trkpts}
 
       const prefilledCaption = `🏃 Outdoor Activity: ${dist} km in ${dur}! Pace: ${pace}/km • Burned +${burn} kcal. Tracked with NutriPulse GPS ⚡`;
 
-      // 1. Isara ang GPS Summary modal
       setSelectedViewingActivity(null);
 
-      // 2. Ihanda ang draft post para sa Social Tab composer
       if (setDraftSocialPost) {
         setDraftSocialPost({
           category: "Workout",
@@ -627,17 +642,12 @@ ${trkpts}
         });
       }
 
-      // 3. Ilipat ang screen sa Social Tab
       if (setActiveTab) {
-        // Alamin kung 'social' o 'community' ang tab ID
         setActiveTab("social");
-        setTimeout(() => {
-          setActiveTab((curr) => (curr !== "social" && curr !== "community" ? "community" : curr));
-        }, 50);
       }
 
       if (showToast) {
-        showToast("✨ Opening post in Social Feed... You can edit caption before posting!");
+        showToast("✨ Opening post in Pulse Feed... You can edit caption before posting!");
       }
     } catch (err) {
       console.error("Share redirect error:", err);
