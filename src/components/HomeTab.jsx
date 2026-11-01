@@ -12,6 +12,9 @@ const DEFAULT_STAPLES = [
 ];
 
 export default function HomeTab({
+  setActiveTab,
+  setDraftSocialPost,
+
   user,
   appData,
   saveToCloud,
@@ -405,14 +408,14 @@ ${trkpts}
     if (showToast) showToast("💾 GPX File downloaded successfully!");
   };
 
-  // HELPER: Lumikha ng Canvas Image DataURL
-  const generateCanvasDataUrl = (activity) => {
+  
+  const renderActivityToCanvas = (activity) => {
     const canvas = document.createElement("canvas");
     canvas.width = 900;
     canvas.height = 1100;
     const ctx = canvas.getContext("2d");
 
-    // 1. Athletic Dark Background
+    // Background Gradient
     const bgGrad = ctx.createLinearGradient(0, 0, 0, canvas.height);
     bgGrad.addColorStop(0, "#090d16");
     bgGrad.addColorStop(1, "#111827");
@@ -426,7 +429,7 @@ ${trkpts}
     ctx.fillStyle = radial;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // 2. Brand Header
+    // Brand Header
     ctx.fillStyle = "#ffffff";
     ctx.font = "900 36px sans-serif";
     ctx.fillText("NUTRIPULSE", 60, 80);
@@ -441,7 +444,7 @@ ${trkpts}
     ctx.fillText(activity.dateLogged || new Date().toLocaleDateString("en-US"), canvas.width - 60, 85);
     ctx.textAlign = "left";
 
-    // 3. Map Box
+    // Map Box
     const boxX = 60;
     const boxY = 140;
     const boxW = canvas.width - 120;
@@ -488,13 +491,11 @@ ${trkpts}
       ctx.stroke();
       ctx.restore();
 
-      // Start circle (Green)
       ctx.fillStyle = "#10b981";
       ctx.beginPath();
       ctx.arc(mapX(coords[0].lon), mapY(coords[0].lat), 9, 0, Math.PI * 2);
       ctx.fill();
 
-      // Finish circle (Red)
       const lastPt = coords[coords.length - 1];
       ctx.fillStyle = "#f43f5e";
       ctx.beginPath();
@@ -524,26 +525,22 @@ ${trkpts}
       ctx.textAlign = "left";
     }
 
-    // 4. Metrics Grid Section (Naayos na ang Text Spacing ng KM!)
+    // Metrics Stats
     const statsY = 690;
-    
-    // Distance
     ctx.fillStyle = "#64748b";
     ctx.font = "800 15px sans-serif";
     ctx.fillText("DISTANCE", 60, statsY);
     
     ctx.fillStyle = "#ffffff";
     ctx.font = "900 64px sans-serif";
-    const distStr = activity.distanceKm.toFixed(2);
+    const distStr = (activity.distanceKm || 0).toFixed(2);
     ctx.fillText(distStr, 60, statsY + 65);
     
-    // Sukatin gamit ang 64px font para hindi pumatong ang KM
     const distMetrics = ctx.measureText(distStr);
     ctx.fillStyle = "#38bdf8";
     ctx.font = "900 24px sans-serif";
     ctx.fillText("KM", 60 + distMetrics.width + 12, statsY + 60);
 
-    // Duration
     ctx.fillStyle = "#64748b";
     ctx.font = "800 15px sans-serif";
     ctx.fillText("ACTIVE TIME", 520, statsY);
@@ -551,9 +548,7 @@ ${trkpts}
     ctx.font = "900 64px sans-serif";
     ctx.fillText(formatTime(activity.durationSec || activity.durationMin * 60), 520, statsY + 65);
 
-    // Pace & Burn
     const row2Y = statsY + 140;
-    
     ctx.fillStyle = "#64748b";
     ctx.font = "800 15px sans-serif";
     ctx.fillText("AVG PACE", 60, row2Y);
@@ -566,76 +561,90 @@ ${trkpts}
     ctx.fillText("CALORIES BURNED", 520, row2Y);
     ctx.fillStyle = "#ea580c";
     ctx.font = "900 48px sans-serif";
-    ctx.fillText(`+${activity.burnedCal} kcal`, 520, row2Y + 52);
+    ctx.fillText(`+${activity.burnedCal || 0} kcal`, 520, row2Y + 52);
 
-    // 5. Watermark Footer
     ctx.fillStyle = "#334155";
     ctx.font = "800 14px sans-serif";
     ctx.fillText("⚡ TRACKED LIVE WITH NUTRIPULSE ATHLETICS ENGINE", 60, canvas.height - 45);
 
-    return canvas.toDataURL("image/png");
+    return canvas;
   };
 
-  // DIRECT DOWNLOAD SA TELEPONO O PC (Walang Messenger Popup)
+
+  // 📥 DIRECT REAL BINARY BLOB PNG DOWNLOAD
   const handleDirectDownloadImage = (activity) => {
     if (!activity) return;
     try {
-      const dataUrl = generateCanvasDataUrl(activity);
-      const link = document.createElement("a");
-      link.href = dataUrl;
-      link.download = `NutriPulse-${activity.dateLogged || "track"}-${activity.distanceKm}km.png`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      if (showToast) showToast("📥 Download started! Saved directly to your device.");
+      const canvas = renderActivityToCanvas(activity);
+      canvas.toBlob((blob) => {
+        if (!blob) {
+          if (showToast) showToast("⚠️ Failed to generate image blob.");
+          return;
+        }
+        const blobUrl = URL.createObjectURL(blob);
+        const fileName = `NutriPulse-${activity.dateLogged || "track"}-${(activity.distanceKm || 0).toFixed(2)}km.png`;
+        
+        const link = document.createElement("a");
+        link.href = blobUrl;
+        link.download = fileName;
+        link.setAttribute("download", fileName);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 4000);
+        if (showToast) showToast("📥 Pure PNG Image downloaded to your device!");
+      }, "image/png");
     } catch (err) {
       console.error("Direct download error:", err);
-      if (showToast) showToast("⚠️ Error generating file. Use Preview & Save below.");
+      if (showToast) showToast("⚠️ Error creating PNG file.");
     }
   };
 
-  // BUKSAN ANG PHOTO VIEWER MODAL PARA SA LONG-PRESS SAVE
-  const handleOpenImagePreview = (activity) => {
+  // 🚀 REDIRECT TO SOCIAL TAB WITH PRE-FILLED EDITABLE POST
+  const handleShareToSocialTab = (activity) => {
     if (!activity) return;
-    const dataUrl = generateCanvasDataUrl(activity);
-    setPreviewImageUrl(dataUrl);
-  };
-
-  // 🚀 DIRECT SHARE TO SOCIAL TAB (COMMUNITY PULSE FEED)
-  const handleShareToSocialTab = async (activity) => {
-    if (!activity) return;
-    setIsSharingToSocial(true);
-    if (showToast) showToast("⏳ Publishing route to Pulse Community...");
 
     try {
-      const dataUrl = generateCanvasDataUrl(activity);
-      const captionText = `🏃 Outdoor Activity: ${activity.distanceKm.toFixed(2)} km in ${formatTime(activity.durationSec || activity.durationMin * 60)}! Pace: ${activity.avgPaceMinKm || "0.00"}/km • Burned +${activity.burnedCal} kcal. Tracked with NutriPulse GPS ⚡`;
+      const canvas = renderActivityToCanvas(activity);
+      const dataUrl = canvas.toDataURL("image/png");
+      const dist = (activity.distanceKm || 0).toFixed(2);
+      const dur = formatTime(activity.durationSec || activity.durationMin * 60);
+      const pace = activity.avgPaceMinKm || "0.00";
+      const burn = activity.burnedCal || 0;
 
-      await addDoc(collection(db, "notifications"), {
-        authorUid: user?.uid || "athlete",
-        authorName: user?.displayName || appData?.name || "Pulse Athlete",
-        authorHandle: `@${(user?.displayName || appData?.name || "athlete").toLowerCase().replace(/\s+/g, '')}`,
-        authorAvatar: user?.photoURL || appData?.avatarUrl || "",
-        authorBadge: "Outdoor Runner",
-        category: "Workout",
-        caption: captionText,
-        image: dataUrl,
-        likesCount: 0,
-        likedBy: [],
-        commentsCount: 0,
-        createdAt: serverTimestamp()
-      });
+      const prefilledCaption = `🏃 Outdoor Activity: ${dist} km in ${dur}! Pace: ${pace}/km • Burned +${burn} kcal. Tracked with NutriPulse GPS ⚡`;
+
+      // 1. Isara ang GPS Summary modal
+      setSelectedViewingActivity(null);
+
+      // 2. Ihanda ang draft post para sa Social Tab composer
+      if (setDraftSocialPost) {
+        setDraftSocialPost({
+          category: "Workout",
+          caption: prefilledCaption,
+          image: dataUrl
+        });
+      }
+
+      // 3. Ilipat ang screen sa Social Tab
+      if (setActiveTab) {
+        // Alamin kung 'social' o 'community' ang tab ID
+        setActiveTab("social");
+        setTimeout(() => {
+          setActiveTab((curr) => (curr !== "social" && curr !== "community" ? "community" : curr));
+        }, 50);
+      }
 
       if (showToast) {
-        showToast("🎉 Posted! Your route is now live on the Social Tab!");
+        showToast("✨ Opening post in Social Feed... You can edit caption before posting!");
       }
     } catch (err) {
-      console.error("Share to community error:", err);
-      if (showToast) showToast("❌ Failed to share post. Check connection.");
-    } finally {
-      setIsSharingToSocial(false);
+      console.error("Share redirect error:", err);
+      if (showToast) showToast("⚠️ Could not prepare social post.");
     }
   };
+
 
   useEffect(() => {
     return () => {

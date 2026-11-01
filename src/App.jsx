@@ -54,6 +54,7 @@ export default function App() {
 
   const [appData, setAppData] = useState(null);
   const [activeTab, setActiveTab] = useState("home");
+  const [draftSocialPost, setDraftSocialPost] = useState(null);
 
   // AUTO-SCROLL TO TOP ON TAB SWITCH
   React.useEffect(() => {
@@ -1636,6 +1637,8 @@ export default function App() {
         {/* TAB 1: HOME */}
         {activeTab === "home" && (
           <HomeTab
+              setActiveTab={setActiveTab}
+              setDraftSocialPost={setDraftSocialPost}
               setActivePanel={setActivePanel}
               allUserNotifs={allUserNotifs}
               lastSeenNotifTime={lastSeenNotifTime}
@@ -1684,6 +1687,8 @@ export default function App() {
         {/* TAB 3: SOCIAL TAB */}
         {activeTab === "community" && (
           <CommunityTab
+              draftSocialPost={draftSocialPost}
+              setDraftSocialPost={setDraftSocialPost}
             lastSeenMsgTime={lastSeenMsgTime}
             setLastSeenMsgTime={setLastSeenMsgTime}
             user={user}
