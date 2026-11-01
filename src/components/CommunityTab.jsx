@@ -1,321 +1,386 @@
-import React, { useState, useEffect } from "react";
+import React from "react";
+import ExpandableText from "./ExpandableText";
 import { db } from "../services/firebase";
-import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, doc, updateDoc, increment } from "firebase/firestore";
+import { collection, addDoc } from "firebase/firestore";
 
-export default function CommunityTab({ draftSocialPost, setDraftSocialPost, user, showToast }) {
-  // ─── TABS & PANELS STATE ───
-  const [activeTab, setActiveTab] = useState("leaderboard"); // 'leaderboard' or 'feed'
-  const [showSearch, setShowSearch] = useState(false);
-  const [showMessages, setShowMessages] = useState(false);
+function defaultFormatTime(ts) {
+  if (!ts) return "Just now";
+  let ms = null;
+  if (typeof ts === "number") ms = ts < 1e11 ? ts * 1000 : ts;
+  else if (ts && typeof ts.toDate === "function") ms = ts.toDate().getTime();
+  else if (ts && typeof ts.seconds === "number") ms = ts.seconds * 1000;
+  else if (typeof ts === "string") ms = Date.parse(ts);
+  else if (ts instanceof Date) ms = ts.getTime();
 
-  // ─── POST COMPOSER STATE ───
-  const [showComposer, setShowComposer] = useState(false);
-  const [postText, setPostText] = useState("");
-  const [imagePreview, setImagePreview] = useState(null);
-  const [posts, setPosts] = useState([]);
+  if (!ms || isNaN(ms)) return "Just now";
+  const d = Date.now() - ms;
+  if (d < 60000) return "Just now";
+  if (d < 3600000) return Math.floor(d / 60000) + "m ago";
+  if (d < 86400000) return Math.floor(d / 3600000) + "h ago";
+  return new Date(ms).toLocaleDateString();
+}
 
-  // ─── DUMMY DATA FOR LEADERBOARD (To be connected to DB later) ───
-  const leaderboardData = [
-    { rank: 1, name: "James K.", km: 45.8, avatar: "https://i.pravatar.cc/150?u=james", badge: "APEX ELITE" },
-    { rank: 2, name: "Sarah M.", km: 38.2, avatar: "https://i.pravatar.cc/150?u=sarah", badge: "ENDURANCE" },
-    { rank: 3, name: "Emma L.", km: 35.4, avatar: "https://i.pravatar.cc/150?u=emma", badge: "PACER" },
-    { rank: 4, name: "David P.", km: 31.4, avatar: "https://i.pravatar.cc/150?u=david" },
-    { rank: 5, name: "Aisha T.", km: 29.8, avatar: "https://i.pravatar.cc/150?u=aisha" },
-    { rank: 6, name: "Marcus V.", km: 25.0, avatar: "https://i.pravatar.cc/150?u=marcus" },
-  ];
-
-  // ─── EFFECTS ───
-  // Auto-load draft from HomeTab GPS Share
-  useEffect(() => {
-    if (draftSocialPost) {
-      setActiveTab("feed");
-      setPostText(draftSocialPost.caption || "");
-      setImagePreview(draftSocialPost.image || null);
-      setShowComposer(true);
-      if (typeof setDraftSocialPost === "function") setDraftSocialPost(null);
-    }
-  }, [draftSocialPost]);
-
-  // Fetch Feed Posts
-  useEffect(() => {
-    const q = query(collection(db, "communityPosts"), orderBy("createdAt", "desc"));
-    const unsub = onSnapshot(q, (snap) => {
-      const fetched = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      setPosts(fetched);
-    });
-    return () => unsub();
-  }, []);
-
-  // ─── HANDLERS ───
-  const handlePublish = async () => {
-    if (!postText && !imagePreview) return;
-    try {
-      await addDoc(collection(db, "communityPosts"), {
-        authorName: user?.displayName || "NutriPulse Athlete",
-        authorPhoto: user?.photoURL || "https://i.pravatar.cc/150?u=guest",
-        category: "Workout",
-        caption: postText,
-        image: imagePreview,
-        boosts: 0,
-        createdAt: serverTimestamp(),
-      });
-      setPostText("");
-      setImagePreview(null);
-      setShowComposer(false);
-      if (showToast) showToast("🎉 Post published to Pulse Feed!");
-    } catch (err) {
-      console.error(err);
-      if (showToast) showToast("⚠️ Error publishing post.");
-    }
-  };
-
-  const handleBoost = async (postId) => {
-    try {
-      const ref = doc(db, "communityPosts", postId);
-      await updateDoc(ref, { boosts: increment(1) });
-    } catch (e) {
-      console.error("Boost error", e);
-    }
-  };
+export default function CommunityTab({
+  user,
+  appData,
+  avatarPreview = "",
+  setShowSearchModal,
+  setActivePanel,
+  allUserNotifs = [],
+  inboxChats = [],
+  lastSeenMsgTime = 0,
+  setLastSeenMsgTime,
+  lastSeenNotifTime = 0,
+  setLastSeenNotifTime,
+  postVisibility,
+  setPostVisibility,
+  postText,
+  setPostText,
+  imagePreview,
+  setImagePreview,
+  handleImageChange,
+  createPost,
+  isPublishing,
+  publicCommunityPosts = [],
+  userList = [],
+  setActiveTab,
+  setSelectedVisitor,
+  activeMenuPostId,
+  setActiveMenuPostId,
+  openEditModal,
+  handleDeletePost,
+  setSelectedPost,
+  handleLike,
+  setResonatePost,
+  showToast,
+  formatPostTime = defaultFormatTime
+}) {
+  const unreadChatsCount = (inboxChats || []).filter(c => c.lastSenderUid !== user?.uid && (c.updatedAt || 0) > (lastSeenMsgTime || 0)).length;
+  const formatTime = formatPostTime || defaultFormatTime;
 
   return (
-    <div style={{ backgroundColor: "#f8fafc", minHeight: "100vh", paddingBottom: "80px", fontFamily: "sans-serif" }}>
-      
-      {/* ─── SLIDE-OVER MESSAGES PANEL ─── */}
-      <div style={{
-        position: "fixed", top: 0, right: showMessages ? "0" : "-100%", width: "100%", maxWidth: "350px", height: "100vh",
-        backgroundColor: "#ffffff", zIndex: 4000, transition: "right 0.3s ease", boxShadow: "-4px 0 15px rgba(0,0,0,0.1)",
-        display: "flex", flexDirection: "column"
+    <div className="screen active">
+      {/* FROZEN STICKY SOCIAL HEADER */}
+      <div style={{ 
+        position: "sticky", 
+        top: "-16px", 
+        marginTop: "-16px",
+        paddingTop: "24px",
+        paddingBottom: "12px",
+        paddingLeft: "16px",
+        paddingRight: "16px",
+        marginLeft: "-16px",
+        marginRight: "-16px",
+        zIndex: 900, 
+        background: "#f8fafc", 
+        boxShadow: "0 4px 12px rgba(15, 23, 42, 0.05)",
+        marginBottom: "12px", 
+        display: "flex", 
+        justifyContent: "space-between", 
+        alignItems: "center",
+        borderBottom: "1px solid #e2e8f0"
       }}>
-        <div style={{ padding: "20px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #e2e8f0" }}>
-          <h3 style={{ margin: 0, color: "#0f172a", fontSize: "18px", fontWeight: 800 }}>💬 Huddles (Inbox)</h3>
-          <button onClick={() => setShowMessages(false)} style={{ background: "none", border: "none", fontSize: "20px", cursor: "pointer" }}>✕</button>
-        </div>
-        <div style={{ padding: "20px", color: "#64748b", textAlign: "center", marginTop: "20px" }}>
-          <i className="fa-solid fa-inbox" style={{ fontSize: "40px", marginBottom: "10px", color: "#cbd5e1" }}></i>
-          <p>No new messages. Start a huddle with your squad!</p>
-        </div>
-      </div>
-
-      {/* ─── SEARCH OVERLAY ─── */}
-      {showSearch && (
-        <div style={{ position: "fixed", top: 0, left: 0, width: "100%", height: "100vh", backgroundColor: "rgba(15, 23, 42, 0.6)", zIndex: 3500, padding: "20px" }}>
-          <div style={{ backgroundColor: "#ffffff", borderRadius: "12px", padding: "10px", display: "flex", alignItems: "center", gap: "10px" }}>
-            <i className="fa-solid fa-magnifying-glass" style={{ color: "#94a3b8", marginLeft: "10px" }}></i>
-            <input type="text" placeholder="Search athletes, routes, or clubs..." autoFocus style={{ border: "none", outline: "none", width: "100%", padding: "10px", fontSize: "16px" }} />
-            <button onClick={() => setShowSearch(false)} style={{ background: "none", border: "none", fontSize: "18px", cursor: "pointer", color: "#64748b", paddingRight: "10px" }}>✕</button>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <div style={{ width: "30px", height: "30px", borderRadius: "50%", background: "linear-gradient(135deg, #4f46e5, #06b6d4)", display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontSize: "13px", boxShadow: "0 2px 8px rgba(79,70,229,0.3)" }}>
+            <i className="fa-solid fa-heart-pulse"></i>
           </div>
+          <h2 style={{ fontSize: "20px", fontWeight: 900, color: "var(--primary)", letterSpacing: "-0.5px", margin: 0 }}>NutriPulse</h2>
         </div>
-      )}
-
-      {/* ─── TOP BRAND HEADER ─── */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 20px", backgroundColor: "#ffffff", borderBottom: "1px solid #f1f5f9", position: "sticky", top: 0, zIndex: 1000 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          <div style={{ width: "36px", height: "36px", background: "linear-gradient(135deg, #1e1b4b, #4338ca)", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <i className="fa-solid fa-heart-pulse" style={{ color: "#38bdf8", fontSize: "20px" }}></i>
-          </div>
-          <div>
-            <h1 style={{ margin: 0, fontSize: "20px", fontWeight: 900, color: "#0f172a", letterSpacing: "-0.5px" }}>NUTRIPULSE</h1>
-            <span style={{ fontSize: "10px", fontWeight: 700, color: "#38bdf8", letterSpacing: "1px" }}>COMMUNITY</span>
-          </div>
-        </div>
-        <div style={{ display: "flex", gap: "16px", alignItems: "center" }}>
-          <i className="fa-solid fa-magnifying-glass" onClick={() => setShowSearch(true)} style={{ fontSize: "20px", color: "#0f172a", cursor: "pointer" }}></i>
-          <div style={{ position: "relative", cursor: "pointer" }} onClick={() => setShowMessages(true)}>
-            <i className="fa-solid fa-comment-dots" style={{ fontSize: "20px", color: "#0f172a" }}></i>
-            <span style={{ position: "absolute", top: "-5px", right: "-5px", background: "#ef4444", color: "white", fontSize: "9px", fontWeight: 800, padding: "2px 5px", borderRadius: "10px" }}>3</span>
-          </div>
-          <i className="fa-regular fa-bell" style={{ fontSize: "20px", color: "#0f172a" }}></i>
-          <img src={user?.photoURL || "https://i.pravatar.cc/150"} alt="User" style={{ width: "28px", height: "28px", borderRadius: "50%", border: "2px solid #38bdf8" }} />
-        </div>
-      </div>
-
-      {/* ─── TAB SWITCHER ─── */}
-      <div style={{ padding: "16px 20px" }}>
-        <div style={{ display: "flex", background: "#e2e8f0", borderRadius: "20px", padding: "4px" }}>
-          <button onClick={() => setActiveTab("leaderboard")} style={{ flex: 1, padding: "10px", borderRadius: "16px", border: "none", fontWeight: 800, fontSize: "13px", cursor: "pointer", display: "flex", justifyContent: "center", alignItems: "center", gap: "6px", background: activeTab === "leaderboard" ? "#ffffff" : "transparent", color: activeTab === "leaderboard" ? "#0f172a" : "#64748b", boxShadow: activeTab === "leaderboard" ? "0 2px 8px rgba(0,0,0,0.05)" : "none", transition: "all 0.2s" }}>
-            <i className="fa-solid fa-trophy" style={{ color: activeTab === "leaderboard" ? "#eab308" : "#94a3b8" }}></i> LEADERBOARD
+        
+        <div style={{ display: "flex", gap: "8px" }}>
+          <button 
+            onClick={() => setShowSearchModal(true)} 
+            style={{ background: "#ffffff", border: "1px solid #e2e8f0", width: "36px", height: "36px", borderRadius: "50%", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#334155", fontSize: "15px", boxShadow: "0 2px 6px rgba(0,0,0,0.03)" }}
+          >
+            <i className="fa-solid fa-magnifying-glass"></i>
           </button>
-          <button onClick={() => setActiveTab("feed")} style={{ flex: 1, padding: "10px", borderRadius: "16px", border: "none", fontWeight: 800, fontSize: "13px", cursor: "pointer", display: "flex", justifyContent: "center", alignItems: "center", gap: "6px", background: activeTab === "feed" ? "#ffffff" : "transparent", color: activeTab === "feed" ? "#0f172a" : "#64748b", boxShadow: activeTab === "feed" ? "0 2px 8px rgba(0,0,0,0.05)" : "none", transition: "all 0.2s" }}>
-            <i className="fa-solid fa-bolt" style={{ color: activeTab === "feed" ? "#38bdf8" : "#94a3b8" }}></i> PULSE FEED
-          </button>
-        </div>
-      </div>
 
-      {/* ========================================== */}
-      {/* 🏆 LEADERBOARD VIEW */}
-      {/* ========================================== */}
-      {activeTab === "leaderboard" && (
-        <div style={{ padding: "0 20px" }}>
-          {/* Community Goal */}
-          <div style={{ background: "#ffffff", borderRadius: "16px", padding: "20px", boxShadow: "0 4px 15px rgba(0,0,0,0.02)", marginBottom: "20px" }}>
-            <h3 style={{ margin: "0 0 10px 0", fontSize: "16px", color: "#0f172a" }}>Weekly Community Challenge 🏃</h3>
-            <p style={{ margin: "0 0 12px 0", fontSize: "13px", color: "#64748b" }}>Run 50,000 km together!</p>
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", fontWeight: 800, marginBottom: "8px" }}>
-              <span style={{ color: "#0f172a" }}>32,450 km / 50,000 km</span>
-              <span style={{ color: "#38bdf8" }}>65%</span>
-            </div>
-            <div style={{ height: "8px", background: "#e2e8f0", borderRadius: "4px", overflow: "hidden" }}>
-              <div style={{ width: "65%", height: "100%", background: "linear-gradient(90deg, #4f46e5, #38bdf8)", borderRadius: "4px" }}></div>
-            </div>
-            <p style={{ margin: "8px 0 0 0", fontSize: "11px", color: "#94a3b8", textAlign: "right" }}>5 days left</p>
-          </div>
-
-          {/* Podium */}
-          <div style={{ display: "flex", justifyContent: "center", alignItems: "flex-end", gap: "10px", marginTop: "30px", marginBottom: "30px" }}>
-            {/* Rank 2 */}
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-              <img src={leaderboardData[1].avatar} style={{ width: "50px", height: "50px", borderRadius: "50%", border: "3px solid #cbd5e1", zIndex: 2 }} />
-              <div style={{ background: "linear-gradient(180deg, #e2e8f0, #cbd5e1)", width: "80px", height: "70px", borderTopLeftRadius: "10px", borderTopRightRadius: "10px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", marginTop: "-10px" }}>
-                <span style={{ fontSize: "11px", fontWeight: 700, color: "#475569" }}>{leaderboardData[1].name.split(" ")[0]}</span>
-                <span style={{ fontSize: "14px", fontWeight: 900, color: "#0f172a" }}>{leaderboardData[1].km}km</span>
-              </div>
-            </div>
-            {/* Rank 1 */}
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-              <i className="fa-solid fa-crown" style={{ color: "#eab308", fontSize: "20px", marginBottom: "-5px", zIndex: 3 }}></i>
-              <img src={leaderboardData[0].avatar} style={{ width: "65px", height: "65px", borderRadius: "50%", border: "4px solid #fde047", zIndex: 2 }} />
-              <div style={{ background: "linear-gradient(180deg, #fef08a, #eab308)", width: "90px", height: "90px", borderTopLeftRadius: "10px", borderTopRightRadius: "10px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", marginTop: "-10px", boxShadow: "0 -4px 15px rgba(234, 179, 8, 0.4)" }}>
-                <span style={{ fontSize: "12px", fontWeight: 700, color: "#713f12" }}>{leaderboardData[0].name.split(" ")[0]}</span>
-                <span style={{ fontSize: "16px", fontWeight: 900, color: "#422006" }}>{leaderboardData[0].km}km</span>
-              </div>
-            </div>
-            {/* Rank 3 */}
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-              <img src={leaderboardData[2].avatar} style={{ width: "45px", height: "45px", borderRadius: "50%", border: "3px solid #fbcfe8", zIndex: 2 }} />
-              <div style={{ background: "linear-gradient(180deg, #fcd34d, #d97706)", width: "75px", height: "60px", borderTopLeftRadius: "10px", borderTopRightRadius: "10px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", marginTop: "-10px" }}>
-                <span style={{ fontSize: "10px", fontWeight: 700, color: "#78350f" }}>{leaderboardData[2].name.split(" ")[0]}</span>
-                <span style={{ fontSize: "13px", fontWeight: 900, color: "#451a03" }}>{leaderboardData[2].km}km</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Filter Pills */}
-          <div style={{ display: "flex", gap: "10px", marginBottom: "15px", overflowX: "auto", paddingBottom: "5px" }}>
-            <button style={{ background: "#1e293b", color: "#ffffff", border: "none", padding: "8px 16px", borderRadius: "20px", fontSize: "12px", fontWeight: 700, display: "flex", alignItems: "center", gap: "5px" }}><i className="fa-solid fa-person-running" style={{color: "#38bdf8"}}></i> Distance</button>
-            <button style={{ background: "#e2e8f0", color: "#475569", border: "none", padding: "8px 16px", borderRadius: "20px", fontSize: "12px", fontWeight: 700, display: "flex", alignItems: "center", gap: "5px" }}><i className="fa-solid fa-fire" style={{color: "#ef4444"}}></i> Calories</button>
-            <button style={{ background: "#e2e8f0", color: "#475569", border: "none", padding: "8px 16px", borderRadius: "20px", fontSize: "12px", fontWeight: 700, display: "flex", alignItems: "center", gap: "5px" }}><i className="fa-solid fa-bolt" style={{color: "#f59e0b"}}></i> Streak</button>
-          </div>
-
-          {/* List */}
-          <div style={{ background: "#ffffff", borderRadius: "16px", padding: "10px", boxShadow: "0 4px 15px rgba(0,0,0,0.02)" }}>
-            {leaderboardData.slice(3).map((u, i) => (
-              <div key={i} style={{ display: "flex", alignItems: "center", padding: "12px", borderBottom: i !== 2 ? "1px solid #f1f5f9" : "none" }}>
-                <span style={{ width: "20px", fontWeight: 800, color: "#64748b", fontSize: "14px" }}>{u.rank}</span>
-                <img src={u.avatar} style={{ width: "36px", height: "36px", borderRadius: "50%", margin: "0 12px" }} />
-                <span style={{ flex: 1, fontWeight: 700, color: "#0f172a", fontSize: "14px" }}>{u.name}</span>
-                <span style={{ fontWeight: 900, color: "#0f172a", fontSize: "14px" }}>{u.km.toFixed(1)} km</span>
-              </div>
-            ))}
-          </div>
-
-          {/* Sticky Your Rank */}
-          <div style={{ position: "fixed", bottom: "70px", left: "20px", right: "20px", background: "linear-gradient(90deg, #f0f9ff, #e0f2fe)", borderRadius: "12px", padding: "12px 16px", display: "flex", alignItems: "center", border: "1px solid #bae6fd", boxShadow: "0 4px 12px rgba(56, 189, 248, 0.15)", zIndex: 100 }}>
-            <img src={user?.photoURL || "https://i.pravatar.cc/150"} style={{ width: "40px", height: "40px", borderRadius: "50%", border: "2px solid #38bdf8", marginRight: "12px" }} />
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: "14px", fontWeight: 900, color: "#0369a1" }}>Your Rank: #8</div>
-            </div>
-            <div style={{ textAlign: "right" }}>
-              <div style={{ fontSize: "15px", fontWeight: 900, color: "#0f172a" }}>18.2 km</div>
-              <div style={{ fontSize: "10px", fontWeight: 700, color: "#0284c7" }}>📈 You're doing great!</div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================== */}
-      {/* ⚡ PULSE FEED VIEW */}
-      {/* ========================================== */}
-      {activeTab === "feed" && (
-        <div style={{ padding: "0 20px" }}>
-          
-          {/* Composer Trigger */}
-          <div style={{ background: "#ffffff", borderRadius: "16px", padding: "16px", boxShadow: "0 4px 15px rgba(0,0,0,0.02)", marginBottom: "20px" }}>
-            <h3 style={{ margin: "0 0 10px 0", fontSize: "15px", color: "#0f172a" }}>What's Your Activity?</h3>
-            {!showComposer ? (
-              <div onClick={() => setShowComposer(true)} style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer" }}>
-                <img src={user?.photoURL || "https://i.pravatar.cc/150"} style={{ width: "32px", height: "32px", borderRadius: "50%" }} />
-                <span style={{ color: "#94a3b8", fontSize: "14px", flex: 1 }}>Share your latest sweat session... 🏃🚴</span>
-                <i className="fa-solid fa-image" style={{ color: "#4f46e5", fontSize: "20px" }}></i>
-                <i className="fa-solid fa-location-dot" style={{ color: "#38bdf8", fontSize: "20px", marginLeft: "5px" }}></i>
-              </div>
-            ) : (
-              <div>
-                <textarea
-                  autoFocus
-                  value={postText}
-                  onChange={(e) => setPostText(e.target.value)}
-                  placeholder="How was your workout?"
-                  style={{ width: "100%", minHeight: "80px", border: "1px solid #e2e8f0", borderRadius: "12px", padding: "12px", fontSize: "14px", outline: "none", resize: "none" }}
-                />
-                {imagePreview && (
-                  <div style={{ position: "relative", marginTop: "10px" }}>
-                    <img src={imagePreview} style={{ width: "100%", borderRadius: "12px", maxHeight: "200px", objectFit: "cover" }} />
-                    <button onClick={() => setImagePreview(null)} style={{ position: "absolute", top: "5px", right: "5px", background: "rgba(0,0,0,0.6)", color: "white", border: "none", borderRadius: "50%", width: "24px", height: "24px" }}>✕</button>
-                  </div>
-                )}
-                <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "10px" }}>
-                  <button onClick={() => { setShowComposer(false); setPostText(""); setImagePreview(null); }} style={{ padding: "8px 16px", background: "transparent", color: "#64748b", border: "none", fontWeight: 700, borderRadius: "8px", cursor: "pointer" }}>Cancel</button>
-                  <button onClick={handlePublish} style={{ padding: "8px 20px", background: "linear-gradient(135deg, #6366f1, #4f46e5)", color: "white", border: "none", fontWeight: 800, borderRadius: "8px", cursor: "pointer" }}>Post ⚡</button>
-                </div>
-              </div>
+          <button 
+            onClick={() => { 
+              setActivePanel("notif"); 
+              const nowT = Date.now(); 
+              if (typeof setLastSeenNotifTime === "function") setLastSeenNotifTime(nowT); 
+            }} 
+            style={{ position: "relative", background: "#ffffff", border: "1px solid #e2e8f0", width: "36px", height: "36px", borderRadius: "50%", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#334155", fontSize: "15px", boxShadow: "0 2px 6px rgba(0,0,0,0.03)" }}
+          >
+            <i className="fa-regular fa-bell"></i>
+            {allUserNotifs.filter(n => (n.timestamp || 0) > lastSeenNotifTime).length > 0 && (
+              <span style={{ position: "absolute", top: "-4px", right: "-4px", background: "#ef4444", color: "#ffffff", fontSize: "10px", fontWeight: 900, minWidth: "18px", height: "18px", borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "center", padding: "0 4px", boxShadow: "0 2px 6px rgba(239, 68, 68, 0.4)", border: "2px solid #ffffff" }}>
+                  {allUserNotifs.filter(n => (n.timestamp || 0) > lastSeenNotifTime).length > 9 ? "9+" : allUserNotifs.filter(n => (n.timestamp || 0) > lastSeenNotifTime).length}
+                </span>
             )}
+          </button>
+          {/* INBOX / MESSAGES BUTTON */}
+          <button 
+            onClick={() => {
+              if (typeof setLastSeenMsgTime === "function") setLastSeenMsgTime(Date.now());
+              setActivePanel("inbox");
+            }} 
+            style={{ position: "relative", background: "#ffffff", border: "1px solid #e2e8f0", width: "36px", height: "36px", borderRadius: "50%", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#334155", fontSize: "15px", boxShadow: "0 2px 6px rgba(0,0,0,0.03)" }}
+            title="Messages"
+          >
+            <i className="fa-regular fa-envelope"></i>
+            {unreadChatsCount > 0 && (
+              <span style={{ position: "absolute", top: "-4px", right: "-4px", background: "#ef4444", color: "white", fontSize: "10px", fontWeight: 900, minWidth: "18px", height: "18px", borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "center", padding: "0 4px", boxShadow: "0 2px 6px rgba(239, 68, 68, 0.4)", border: "2px solid #ffffff" }}>
+                {unreadChatsCount > 9 ? "9+" : unreadChatsCount}
+              </span>
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* CREATE POST CARD */}
+      <div className="card" style={{ padding: "12px", borderRadius: "18px", boxShadow: "0 4px 16px rgba(0,0,0,0.04)", marginBottom: "14px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+            <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: "#4f46e5", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: "12px", overflow: "hidden", flexShrink: 0 }}>
+              {appData?.avatarUrl ? (
+                <img src={appData.avatarUrl} alt="Avatar" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              ) : (
+                (appData?.userName || "A").charAt(0).toUpperCase()
+              )}
+            </div>
+            <span style={{ fontSize: "12px", fontWeight: 800, color: "#0f172a" }}>{appData?.userName || "Athlete"}</span>
           </div>
 
-          {/* Posts List */}
-          {posts.map((post) => (
-            <div key={post.id} style={{ background: "#ffffff", borderRadius: "16px", padding: "16px", boxShadow: "0 4px 15px rgba(0,0,0,0.02)", marginBottom: "20px" }}>
-              
-              {/* Header */}
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "12px" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                  <img src={post.authorPhoto || "https://i.pravatar.cc/150"} style={{ width: "40px", height: "40px", borderRadius: "50%", border: "2px solid #e2e8f0" }} />
-                  <div>
-                    <div style={{ fontSize: "15px", fontWeight: 800, color: "#0f172a" }}>{post.authorName}</div>
-                    <div style={{ display: "inline-block", background: "linear-gradient(90deg, #6366f1, #4f46e5)", color: "white", fontSize: "9px", fontWeight: 800, padding: "2px 6px", borderRadius: "4px", marginTop: "2px" }}>APEX ELITE 🟡</div>
+          <div style={{ display: "flex", gap: "3px", background: "#f1f5f9", padding: "2px", borderRadius: "8px" }}>
+            <button 
+              onClick={() => setPostVisibility("public")} 
+              style={{ background: postVisibility === "public" ? "#ffffff" : "transparent", border: "none", padding: "3px 7px", borderRadius: "6px", fontSize: "9px", fontWeight: 800, color: postVisibility === "public" ? "var(--primary)" : "#64748b", cursor: "pointer" }}
+            >
+               Public
+            </button>
+            <button 
+              onClick={() => setPostVisibility("boosters")} 
+              style={{ background: postVisibility === "boosters" ? "#ffffff" : "transparent", border: "none", padding: "3px 7px", borderRadius: "6px", fontSize: "9px", fontWeight: 800, color: postVisibility === "boosters" ? "var(--primary)" : "#64748b", cursor: "pointer" }}
+            >
+               Boosters
+            </button>
+            <button 
+              onClick={() => setPostVisibility("private")} 
+              style={{ background: postVisibility === "private" ? "#ffffff" : "transparent", border: "none", padding: "3px 7px", borderRadius: "6px", fontSize: "9px", fontWeight: 800, color: postVisibility === "private" ? "var(--primary)" : "#64748b", cursor: "pointer" }}
+            >
+               Private
+            </button>
+          </div>
+        </div>
+
+        <textarea 
+          className="form-input" 
+          style={{ height: "48px", borderRadius: "12px", padding: "8px 10px", fontSize: "11px", border: "1px solid #e2e8f0", resize: "none", marginBottom: "8px" }} 
+          placeholder="Share a milestone or fitness update..."
+          value={postText}
+          onChange={e => setPostText(e.target.value)}
+        />
+
+        {imagePreview && (
+          <div style={{ position: "relative", marginBottom: "8px" }}>
+            <img src={imagePreview} alt="Preview" style={{ width: "100%", maxHeight: "140px", objectFit: "cover", borderRadius: "12px" }} />
+            <button 
+              onClick={() => setImagePreview(null)}
+              style={{ position: "absolute", top: "6px", right: "6px", background: "rgba(0,0,0,0.6)", color: "white", border: "none", borderRadius: "50%", width: "22px", height: "22px", fontSize: "10px", cursor: "pointer" }}
+            >
+              X
+            </button>
+          </div>
+        )}
+
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <label style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "11px", fontWeight: 700, color: "var(--primary)", cursor: "pointer", background: "#f0fdf4", padding: "6px 10px", borderRadius: "10px", border: "1px solid #bbf7d0" }}>
+            <i className="fa-solid fa-image" style={{ fontSize: "12px" }}></i> Photo
+            <input type="file" accept="image/*" onChange={e => handleImageChange(e, false)} style={{ display: "none" }} />
+          </label>
+
+          <button 
+            onClick={() => createPost(false)} 
+            disabled={isPublishing}
+            style={{ background: isPublishing ? "#94a3b8" : "var(--primary)", color: "white", border: "none", padding: "6px 14px", borderRadius: "10px", fontWeight: 800, fontSize: "11px", cursor: "pointer" }}
+          >
+            {isPublishing ? "Publishing..." : "Publish Post"}
+          </button>
+        </div>
+      </div>
+
+      {/* COMMUNITY POSTS FEED */}
+      <div>
+        {publicCommunityPosts.length === 0 ? (
+          <div style={{ textAlign: "center", padding: "40px 20px", color: "var(--text-muted)" }}>
+            <i className="fa-regular fa-newspaper" style={{ fontSize: "32px", marginBottom: "8px", opacity: 0.5 }}></i>
+            <p style={{ fontSize: "12px", fontWeight: 600 }}>No public or booster posts in the feed yet.<br />Be the first to share your progress!</p>
+          </div>
+        ) : (
+          publicCommunityPosts.map(p => {
+            const isLiked = p.likedBy && p.likedBy.includes(user?.uid);
+            const isOwner = p.userId === user?.uid;
+            const postAuthorObj = userList.find(u => u.uid === p.userId);
+
+            const handleOpenAuthorProfile = (e) => {
+              e.stopPropagation();
+              if (p.userId === user?.uid) {
+                setActiveTab("profile");
+              } else {
+                setSelectedVisitor(postAuthorObj || { 
+                  uid: p.userId, 
+                  userName: p.userName, 
+                  userTitle: p.userTitle, 
+                  avatarUrl: p.userAvatar 
+                });
+                setActivePanel("visitor_profile");
+              }
+            };
+
+            return (
+              <div key={p.id} className="card" style={{ padding: "14px", borderRadius: "18px", marginBottom: "14px", boxShadow: "0 4px 15px rgba(0,0,0,0.03)", position: "relative" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
+                  <div 
+                    onClick={handleOpenAuthorProfile}
+                    style={{ display: "flex", gap: "8px", alignItems: "center", cursor: "pointer" }}
+                  >
+                    <div style={{ width: "36px", height: "36px", borderRadius: "50%", background: "#4f46e5", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: "13px", overflow: "hidden", flexShrink: 0 }}>
+                      {p.userAvatar ? (
+                        <img src={p.userAvatar} alt="Avatar" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                      ) : (
+                        (p.userName || "A").charAt(0).toUpperCase()
+                      )}
+                    </div>
+                    <div>
+                      <div style={{ fontSize: "13px", fontWeight: 800, color: "#0f172a" }}>{p.userName}</div>
+                      <div style={{ fontSize: "9px", color: "var(--text-muted)" }}>
+                        {p.userTitle || "Athlete"} • {formatTime(p.createdAt)}
+                      </div>
+                    </div>
                   </div>
-                </div>
-                <div style={{ textAlign: "right" }}>
-                  <div style={{ fontSize: "11px", color: "#94a3b8", fontWeight: 600 }}>Just now</div>
-                  <div style={{ display: "inline-block", background: "#dcfce7", color: "#166534", fontSize: "10px", fontWeight: 800, padding: "3px 8px", borderRadius: "10px", marginTop: "4px" }}>🏃 OUTDOOR RUN</div>
-                </div>
-              </div>
 
-              {/* Caption */}
-              {post.caption && (
-                <p style={{ fontSize: "14px", color: "#334155", lineHeight: "1.5", margin: "0 0 12px 0", whiteSpace: "pre-wrap" }}>{post.caption}</p>
-              )}
+                  {isOwner && (
+                    <div style={{ position: "relative" }}>
+                      <button 
+                        onClick={(e) => { 
+                          e.stopPropagation(); 
+                          setActiveMenuPostId(activeMenuPostId === p.id ? null : p.id); 
+                        }} 
+                        style={{ background: "transparent", border: "none", color: "#64748b", fontSize: "15px", cursor: "pointer", padding: "4px 8px" }}
+                      >
+                        <i className="fa-solid fa-ellipsis-vertical"></i>
+                      </button>
 
-              {/* Image / Route Map */}
-              {post.image && (
-                <div style={{ borderRadius: "12px", overflow: "hidden", marginBottom: "12px", border: "1px solid #f1f5f9" }}>
-                  <img src={post.image} style={{ width: "100%", display: "block" }} />
+                      {activeMenuPostId === p.id && (
+                        <div style={{ position: "absolute", right: 0, top: "24px", background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "10px", boxShadow: "0 8px 20px -4px rgba(0,0,0,0.1)", zIndex: 100, minWidth: "120px", overflow: "hidden" }}>
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); setActiveMenuPostId(null); openEditModal(p); }} 
+                            style={{ width: "100%", padding: "8px 10px", background: "transparent", border: "none", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "#334155", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px" }}
+                          >
+                            <i className="fa-solid fa-pen" style={{ color: "var(--primary)" }}></i> Edit
+                          </button>
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); setActiveMenuPostId(null); handleDeletePost(p.id); }} 
+                            style={{ width: "100%", padding: "8px 10px", background: "transparent", border: "none", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "#ef4444", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px", borderTop: "1px solid #f1f5f9" }}
+                          >
+                            <i className="fa-solid fa-trash"></i> Delete
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
-              )}
 
-              {/* Actions */}
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid #f1f5f9", paddingTop: "12px" }}>
-                <button onClick={() => handleBoost(post.id)} style={{ background: "transparent", border: "none", color: "#0284c7", fontSize: "13px", fontWeight: 800, display: "flex", alignItems: "center", gap: "6px", cursor: "pointer" }}>
-                  <i className="fa-solid fa-bolt" style={{ color: "#38bdf8", fontSize: "16px" }}></i> Pulse Boost ({post.boosts || 0})
-                </button>
-                <button style={{ background: "transparent", border: "none", color: "#64748b", fontSize: "13px", fontWeight: 700, display: "flex", alignItems: "center", gap: "6px", cursor: "pointer" }}>
-                  <i className="fa-regular fa-comment-dots" style={{ fontSize: "16px" }}></i> Huddle (0)
-                </button>
-                <button style={{ background: "transparent", border: "none", color: "#64748b", fontSize: "13px", fontWeight: 700, display: "flex", alignItems: "center", gap: "6px", cursor: "pointer" }}>
-                  <i className="fa-solid fa-link" style={{ fontSize: "15px" }}></i> Share
-                </button>
-              </div>
-            </div>
-          ))}
-          
-          {posts.length === 0 && (
-            <div style={{ textAlign: "center", padding: "40px 20px", color: "#94a3b8" }}>
-              <i className="fa-solid fa-shoe-prints" style={{ fontSize: "40px", marginBottom: "10px", color: "#cbd5e1" }}></i>
-              <p style={{ fontWeight: 700 }}>No activities yet. Be the first to share your workout!</p>
+                <div onClick={() => { setSelectedPost(p); setActivePanel("post_detail"); }} style={{ cursor: "pointer" }}>
+                  <ExpandableText text={p.text} />
+                </div>
+
+                {p.imageUrl && (
+            <div 
+              onClick={() => {
+                if (typeof setSelectedPost === "function") setSelectedPost(p);
+                if (typeof setActivePanel === "function") setActivePanel("post_detail");
+              }}
+              style={{ 
+                marginTop: "10px", 
+                marginBottom: "12px", 
+                width: "100%", 
+                height: "320px", 
+                borderRadius: "16px", 
+                overflow: "hidden", 
+                background: "#0f172a", 
+                display: "flex", 
+                alignItems: "center", 
+                justifyContent: "center",
+                boxShadow: "inset 0 0 20px rgba(0,0,0,0.25)",
+                cursor: "pointer"
+              }}
+              title="Tap to view post details & comments"
+            >
+              <img 
+                src={p.imageUrl} 
+                alt="Post content" 
+                style={{ 
+                  width: "100%", 
+                  height: "100%", 
+                  objectFit: "contain", 
+                  display: "block",
+                  pointerEvents: "none"
+                }} 
+              />
             </div>
           )}
-        </div>
-      )}
+
+                <div style={{ display: "flex", alignItems: "center", gap: "10px", borderTop: "1px solid #f1f5f9", paddingTop: "8px", marginTop: "4px" }}>
+                  <button 
+                    onClick={() => handleLike(p.id, p.likes || 0, p.likedBy || [])} 
+                    style={{ 
+                      background: isLiked ? "#fef2f2" : "transparent", 
+                      border: "none", 
+                      color: isLiked ? "#ef4444" : "#64748b", 
+                      padding: "4px 8px", 
+                      fontSize: "11px", 
+                      fontWeight: 800, 
+                      cursor: "pointer", 
+                      display: "flex", 
+                      alignItems: "center", 
+                      gap: "5px", 
+                      borderRadius: "10px" 
+                    }}
+                  >
+                    <i className={isLiked ? "fa-solid fa-heart" : "fa-regular fa-heart"} style={{ fontSize: "13px", color: isLiked ? "#ef4444" : "#64748b" }}></i>
+                    {p.likes || 0} {(p.likes === 1) ? "Pulse" : "Pulses"}
+                  </button>
+
+                  <button 
+                    onClick={() => { setSelectedPost(p); setActivePanel("post_detail"); }}
+                    style={{ background: "transparent", border: "none", color: "#64748b", padding: "4px 8px", fontSize: "11px", fontWeight: 800, cursor: "pointer", display: "flex", alignItems: "center", gap: "5px" }}
+                  >
+                    <i className="fa-regular fa-comment" style={{ fontSize: "12px" }}></i> {p.commentsCount || 0}
+                  </button>
+
+                  <button 
+                    onClick={() => {
+                      setResonatePost(p);
+                      navigator.clipboard.writeText(window.location.href);
+                      showToast("Link copied & post resonated!");
+                      if (p.userId !== user?.uid) {
+                        try {
+                          addDoc(collection(db, "notifications"), {
+                            recipientUid: p.userId,
+                            senderUid: user?.uid || "",
+                            senderName: appData?.userName || user?.displayName || "Athlete",
+                            senderAvatar: appData?.avatarUrl || avatarPreview || "",
+                            type: "resonate",
+                            text: `resonated your post: "${(p.text || "photo post").slice(0, 20)}..."`,
+                            postId: p.id,
+                            timestamp: Date.now()
+                          });
+                        } catch (e) { console.error(e); }
+                      }
+                    }}
+                    style={{ background: "transparent", border: "none", color: "#64748b", padding: "4px 8px", fontSize: "11px", fontWeight: 800, cursor: "pointer", display: "flex", alignItems: "center", gap: "5px" }}
+                  >
+                    <i className="fa-solid fa-share-nodes" style={{ fontSize: "12px" }}></i> Resonate
+                  </button>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
     </div>
   );
 }
