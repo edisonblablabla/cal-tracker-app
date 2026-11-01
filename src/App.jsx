@@ -1487,7 +1487,13 @@ export default function App() {
 
   const todayStr = new Date().toDateString();
   const allMeals = appData?.meals || [];
-  const todayMeals = allMeals.filter(m => !m.dateLogged || m.dateLogged === todayStr);
+  const todayISO = new Date().toLocaleDateString("en-CA");
+    const todayMeals = allMeals.filter(m => {
+      const d = m.dateLogged || m.date;
+      if (!d) return false;
+      const s = String(d).trim();
+      return s === todayISO || s === todayStr || s.startsWith(todayISO);
+    });
 
   let totalCal = 0, totalP = 0, totalC = 0, totalF = 0;
   todayMeals.forEach(m => {

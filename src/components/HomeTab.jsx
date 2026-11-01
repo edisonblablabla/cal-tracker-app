@@ -6,23 +6,23 @@ export default function HomeTab({
   saveToCloud,
   showToast,
   setShowAboutModal,
+  setActivePanel,
+  allUserNotifs = [],
+  lastSeenNotifTime = 0,
   totalCal = 0,
-  activeGoal = 2200,
+  activeGoal = 2416,
   totalP = 0,
   totalC = 0,
   totalF = 0,
   todayMeals = []
 }) {
-  // ─── 1. DYNAMIC DATE & MIDNIGHT AUTO-RESET ───
-  const getTodayISO = () => new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD
+  const getTodayISO = () => new Date().toLocaleDateString("en-CA");
   const [currentDateStr, setCurrentDateStr] = useState(getTodayISO());
 
   useEffect(() => {
     const interval = setInterval(() => {
       const nowStr = getTodayISO();
-      if (nowStr !== currentDateStr) {
-        setCurrentDateStr(nowStr);
-      }
+      if (nowStr !== currentDateStr) setCurrentDateStr(nowStr);
     }, 30000);
     return () => clearInterval(interval);
   }, [currentDateStr]);
@@ -35,7 +35,12 @@ export default function HomeTab({
     });
   }, [currentDateStr]);
 
-  // ─── 2. DYNAMIC FUNCTIONAL STREAK ENGINE ───
+  const unreadNotifCount = useMemo(() => {
+    return (allUserNotifs || []).filter(
+      (n) => (n.timestamp || 0) > (lastSeenNotifTime || 0)
+    ).length;
+  }, [allUserNotifs, lastSeenNotifTime]);
+
   const dynamicStreak = useMemo(() => {
     const activeDates = new Set();
     (appData?.meals || []).forEach((m) => {
@@ -61,7 +66,6 @@ export default function HomeTab({
     let streak = 0;
     const today = new Date();
     const todayISO = today.toLocaleDateString("en-CA");
-    
     const yesterday = new Date();
     yesterday.setDate(today.getDate() - 1);
     const yesterdayISO = yesterday.toLocaleDateString("en-CA");
@@ -86,35 +90,45 @@ export default function HomeTab({
     return Math.max(streak, storedStreak);
   }, [appData, currentDateStr]);
 
-  // ─── 3. SYNCHRONIZED METRICS WITH GOALS & DIARY TAB ───
-  // Calorie Goal (Tugmang-tugma sa 2416 ng Goals & Diary)
   const calorieGoal = Number(activeGoal || appData?.dailyCalorieTarget || appData?.baseGoal || 2416);
 
-  // Filtered Today's Workouts
   const todayWorkouts = useMemo(() => {
-    return (appData?.workoutLogs || []).filter(
-      (w) => (w.dateLogged || w.date) === currentDateStr
-    );
+    return (appData?.workoutLogs || []).filter((w) => {
+      const d = w.dateLogged || w.date;
+      if (!d) return false;
+      const str = String(d).trim();
+      return str === currentDateStr || str.startsWith(currentDateStr);
+    });
   }, [appData?.workoutLogs, currentDateStr]);
 
   const burnedCalories = useMemo(() => {
     return todayWorkouts.reduce((acc, w) => acc + (Number(w.burnedCal || w.calories) || 0), 0);
   }, [todayWorkouts]);
 
-  // Consumed Calories (Tugma sa 300 ng Diary Tab)
   const consumedCalories = useMemo(() => {
-    if (typeof totalCal === "number" && totalCal > 0) return totalCal;
-    const meals = todayMeals.length > 0 ? todayMeals : (appData?.meals || []);
-    return meals.reduce((acc, m) => acc + (Number(m.cal ?? m.calories) || 0), 0);
-  }, [totalCal, todayMeals, appData?.meals]);
-
-  // Macronutrients (Tugma sa Kanin: P:10g, C:10g, F:10g)
-  const { proteinG, carbsG, fatG } = useMemo(() => {
-    if (totalP > 0 || totalC > 0 || totalF > 0) {
-      return { proteinG: totalP, carbsG: totalC, fatG: totalF };
+    if (Array.isArray(todayMeals) && todayMeals.length > 0) {
+      return todayMeals.reduce((acc, m) => acc + (Number(m.cal ?? m.calories) || 0), 0);
     }
-    const meals = todayMeals.length > 0 ? todayMeals : (appData?.meals || []);
-    return meals.reduce(
+    const filtered = (appData?.meals || []).filter((m) => {
+      const d = m.dateLogged || m.date;
+      if (!d) return false;
+      const str = String(d).trim();
+      return str === currentDateStr || str.startsWith(currentDateStr);
+    });
+    return filtered.reduce((acc, m) => acc + (Number(m.cal ?? m.calories) || 0), 0);
+  }, [todayMeals, appData?.meals, currentDateStr]);
+
+  const { proteinG, carbsG, fatG } = useMemo(() => {
+    const list = (Array.isArray(todayMeals) && todayMeals.length > 0) 
+      ? todayMeals 
+      : (appData?.meals || []).filter((m) => {
+          const d = m.dateLogged || m.date;
+          if (!d) return false;
+          const str = String(d).trim();
+          return str === currentDateStr || str.startsWith(currentDateStr);
+        });
+
+    return list.reduce(
       (acc, m) => ({
         proteinG: acc.proteinG + (Number(m.p ?? m.protein) || 0),
         carbsG: acc.carbsG + (Number(m.c ?? m.carbs) || 0),
@@ -122,18 +136,19 @@ export default function HomeTab({
       }),
       { proteinG: 0, carbsG: 0, fatG: 0 }
     );
-  }, [totalP, totalC, totalF, todayMeals, appData?.meals]);
+  }, [todayMeals, appData?.meals, currentDateStr]);
 
   const burnTarget = Number(appData?.dailyBurnTarget || 400);
-  const currentWeight = Number(appData?.currentWeight || appData?.weight || 68.2);
   const waterTarget = Number(appData?.dailyWaterTarget || 2400);
   const stepGoal = Number(appData?.dailyStepsTarget || 10000);
 
-  // Hydration Calculation
   const todayWaterMl = useMemo(() => {
-    const logs = (appData?.waterLogs || []).filter(
-      (w) => (w.dateLogged || w.date) === currentDateStr
-    );
+    const logs = (appData?.waterLogs || []).filter((w) => {
+      const d = w.dateLogged || w.date;
+      if (!d) return false;
+      const str = String(d).trim();
+      return str === currentDateStr || str.startsWith(currentDateStr);
+    });
     if (logs.length > 0) {
       return logs.reduce((acc, w) => acc + (Number(w.amountMl || w.amount) || 0), 0);
     }
@@ -143,32 +158,27 @@ export default function HomeTab({
     return 0;
   }, [appData?.waterLogs, appData?.todayWaterMl, appData?.lastWaterDate, currentDateStr]);
 
-  // Calories Remaining
   const caloriesRemaining = Math.max(calorieGoal - consumedCalories + burnedCalories, 0);
   const intakePercent = Math.min(Math.round((consumedCalories / calorieGoal) * 100), 100);
   const burnPercent = Math.min(Math.round((burnedCalories / burnTarget) * 100), 100);
   const waterPercent = Math.min(Math.round((todayWaterMl / waterTarget) * 100), 100);
 
-  // Macro Targets (Scientific standard: 30% P / 45% C / 25% F)
   const targetProtein = Math.round((calorieGoal * 0.3) / 4);
   const targetCarbs = Math.round((calorieGoal * 0.45) / 4);
   const targetFat = Math.round((calorieGoal * 0.25) / 9);
 
-  // ─── 4. REAL-TIME SATELLITE GPS TRACKING ENGINE ───
+  // GPS Satellite Engine
   const [isGpsActive, setIsGpsActive] = useState(false);
-  const [isGpsPaused, setIsGpsPaused] = useState(false);
   const [gpsDistanceKm, setGpsDistanceKm] = useState(0);
   const [gpsDurationSec, setGpsDurationSec] = useState(0);
   const [gpsAccuracy, setGpsAccuracy] = useState(null);
-  const [gpsError, setGpsError] = useState(null);
 
   const watchIdRef = useRef(null);
   const lastCoordsRef = useRef(null);
   const timerRef = useRef(null);
 
-  // Haversine Geodesic Distance Formula (Sukat sa pagitan ng 2 GPS coordinates)
   const calcHaversine = (lat1, lon1, lat2, lon2) => {
-    const R = 6371; // Radius ng mundo sa km
+    const R = 6371;
     const dLat = ((lat2 - lat1) * Math.PI) / 180;
     const dLon = ((lon2 - lon1) * Math.PI) / 180;
     const a =
@@ -183,18 +193,14 @@ export default function HomeTab({
 
   const startGpsSession = () => {
     if (!navigator.geolocation) {
-      if (showToast) showToast("❌ GPS is not supported on your browser or device.");
+      if (showToast) showToast("❌ GPS is not supported on this device.");
       return;
     }
-
-    setGpsError(null);
     setGpsDistanceKm(0);
     setGpsDurationSec(0);
     lastCoordsRef.current = null;
     setIsGpsActive(true);
-    setIsGpsPaused(false);
 
-    // Magsimula ng GPS Satellite Watcher
     const id = navigator.geolocation.watchPosition(
       (pos) => {
         const { latitude, longitude, accuracy } = pos.coords;
@@ -207,8 +213,6 @@ export default function HomeTab({
             latitude,
             longitude
           );
-
-          // Salain ang jitter/noise (dagdag distansya lamang kung higit sa 3 metro at hindi kotse/eroplano)
           if (deltaKm > 0.003 && deltaKm < 0.2) {
             setGpsDistanceKm((prev) => Number((prev + deltaKm).toFixed(3)));
           }
@@ -217,19 +221,12 @@ export default function HomeTab({
       },
       (err) => {
         console.error("GPS Error:", err);
-        setGpsError(err.message || "Failed to acquire GPS lock");
-        if (showToast) showToast("⚠️ Turn on Device Location / Allow GPS permission.");
+        if (showToast) showToast("⚠️ Turn on Device Location / Allow GPS.");
       },
-      {
-        enableHighAccuracy: true,
-        maximumAge: 1000,
-        timeout: 10000
-      }
+      { enableHighAccuracy: true, maximumAge: 1000, timeout: 10000 }
     );
 
     watchIdRef.current = id;
-
-    // Timer para sa duration
     if (timerRef.current) clearInterval(timerRef.current);
     timerRef.current = setInterval(() => {
       setGpsDurationSec((sec) => sec + 1);
@@ -248,9 +245,8 @@ export default function HomeTab({
       timerRef.current = null;
     }
 
-    // Kalkulahin ang aktwal na hakbang at calories burned
-    const stepsAdded = Math.round(gpsDistanceKm * 1333); // 1 km ≈ 1,333 steps
-    const calBurned = Math.round(gpsDistanceKm * 60); // ~60 kcal/km para sa 68kg adult
+    const stepsAdded = Math.round(gpsDistanceKm * 1333);
+    const calBurned = Math.round(gpsDistanceKm * 60);
 
     if (gpsDistanceKm > 0.01) {
       const newWorkout = {
@@ -263,7 +259,6 @@ export default function HomeTab({
         dateLogged: currentDateStr,
         timestamp: Date.now()
       };
-
       const newStepRecord = {
         id: Date.now(),
         steps: stepsAdded,
@@ -281,21 +276,15 @@ export default function HomeTab({
           workoutLogs: [...(appData?.workoutLogs || []), newWorkout]
         });
       }
-
-      if (showToast) {
-        showToast(`🎉 GPS Saved: ${gpsDistanceKm.toFixed(2)} km (+${stepsAdded} steps, +${calBurned} kcal)!`);
-      }
+      if (showToast) showToast(`🎉 GPS Saved: +${gpsDistanceKm.toFixed(2)} km (+${stepsAdded} steps)!`);
     } else {
-      if (showToast) showToast("GPS session stopped (Distance was too short to record).");
+      if (showToast) showToast("GPS walk stopped (Too short to log).");
     }
-
     setIsGpsActive(false);
-    setIsGpsPaused(false);
     setGpsDistanceKm(0);
     setGpsDurationSec(0);
   };
 
-  // Linisin ang GPS watcher kapag umalis sa tab
   useEffect(() => {
     return () => {
       if (watchIdRef.current !== null) navigator.geolocation.clearWatch(watchIdRef.current);
@@ -303,33 +292,32 @@ export default function HomeTab({
     };
   }, []);
 
-  // Format Duration (MM:SS)
   const formatTime = (secs) => {
     const m = Math.floor(secs / 60);
     const s = secs % 60;
     return `${m}:${s < 10 ? "0" : ""}${s}`;
   };
 
-  // Cumulative Steps Mula sa Logs
   const todaySteps = useMemo(() => {
-    const logs = (appData?.stepLogs || []).filter(
-      (s) => (s.dateLogged || s.date) === currentDateStr
-    );
+    const logs = (appData?.stepLogs || []).filter((s) => {
+      const d = s.dateLogged || s.date;
+      if (!d) return false;
+      const str = String(d).trim();
+      return str === currentDateStr || str.startsWith(currentDateStr);
+    });
     if (logs.length > 0) {
       return logs.reduce((acc, s) => acc + (Number(s.steps || s.amount) || 0), 0);
     }
     if (appData?.lastStepDate === currentDateStr && appData?.todaySteps) {
       return Number(appData.todaySteps);
     }
-    return 0; // Magsisimula sa 0 sa bagong araw sa halip na pekeng demo number
+    return 0;
   }, [appData?.stepLogs, appData?.todaySteps, appData?.lastStepDate, currentDateStr]);
 
-  // Kasalukuyang distansya sa araw na ito
   const todayWaypointKm = (todaySteps * 0.00075).toFixed(2);
   const waypointTargetKm = (stepGoal * 0.00075).toFixed(2);
   const stepPercent = Math.min(Math.round((todaySteps / stepGoal) * 100), 100);
 
-  // Quick Action Handlers
   const handleQuickAddWater = (amount) => {
     const newRecord = {
       id: Date.now(),
@@ -369,7 +357,6 @@ export default function HomeTab({
     if (showToast) showToast(`👟 Added +${added.toLocaleString()} steps!`);
   };
 
-  // Slide-over states para sa Quick Logs
   const [activeSheet, setActiveSheet] = useState(null);
   const [foodName, setFoodName] = useState("");
   const [foodCal, setFoodCal] = useState("");
@@ -425,7 +412,7 @@ export default function HomeTab({
   return (
     <div className="screen active" style={{ maxWidth: "420px", margin: "0 auto", padding: "0 10px 24px 10px" }}>
       
-      {/* ─── 1. TOP BRAND HEADER & DYNAMIC STREAK ─── */}
+      {/* ─── 1. TOP BRAND HEADER WITH NOTIFICATION BELL ─── */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px", paddingTop: "4px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
           <div style={{ width: "30px", height: "30px", borderRadius: "10px", background: "linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)", display: "flex", alignItems: "center", justifyContent: "center", color: "#ffffff", boxShadow: "0 4px 10px rgba(99, 102, 241, 0.3)" }}>
@@ -442,13 +429,27 @@ export default function HomeTab({
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-          <div style={{ background: "#fff7ed", border: "1px solid #ffedd5", padding: "4px 10px", borderRadius: "12px", display: "flex", alignItems: "center", gap: "5px" }}>
-            <i className="fa-solid fa-fire" style={{ color: "#ea580c", fontSize: "12px" }}></i>
-            <span style={{ fontSize: "12px", fontWeight: 800, color: "#ea580c" }}>
+          {/* Dynamic Streak Badge */}
+          <div style={{ background: "#fff7ed", border: "1px solid #ffedd5", padding: "4px 9px", borderRadius: "12px", display: "flex", alignItems: "center", gap: "5px" }}>
+            <i className="fa-solid fa-fire" style={{ color: "#ea580c", fontSize: "11px" }}></i>
+            <span style={{ fontSize: "11.5px", fontWeight: 800, color: "#ea580c" }}>
               {dynamicStreak} {dynamicStreak === 1 ? "Day" : "Days"}
             </span>
           </div>
 
+          {/* NOTIFICATION BELL BUTTON */}
+          <button 
+            onClick={() => setActivePanel && setActivePanel("notif")}
+            style={{ position: "relative", width: "28px", height: "28px", borderRadius: "50%", background: "#f8fafc", border: "1px solid #e2e8f0", color: "#64748b", fontSize: "12px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+            title="Notifications"
+          >
+            <i className="fa-regular fa-bell"></i>
+            {unreadNotifCount > 0 && (
+              <span style={{ position: "absolute", top: "-2px", right: "-2px", width: "8px", height: "8px", borderRadius: "50%", background: "#ef4444", border: "1.5px solid #ffffff" }}></span>
+            )}
+          </button>
+
+          {/* About Modal (?) */}
           <button 
             onClick={() => setShowAboutModal && setShowAboutModal(true)}
             style={{ width: "28px", height: "28px", borderRadius: "50%", background: "#f8fafc", border: "1px solid #e2e8f0", color: "#64748b", fontWeight: 800, fontSize: "12px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
@@ -459,10 +460,9 @@ export default function HomeTab({
         </div>
       </div>
 
-      {/* ─── 2. COMPACT MASTER ENERGY OVERVIEW CARD (100% TUGMA SA GOALS AT LOG) ─── */}
+      {/* ─── 2. COMPACT MASTER ENERGY OVERVIEW CARD (0 INTAKE / 2416 LEFT) ─── */}
       <div style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "20px", padding: "14px", marginBottom: "10px", boxShadow: "0 6px 20px rgba(15, 23, 42, 0.04)" }}>
         
-        {/* Card Header & Live Date */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
           <span style={{ fontSize: "9.5px", fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.6px" }}>
             ENERGY & METABOLIC BALANCE
@@ -472,10 +472,7 @@ export default function HomeTab({
           </span>
         </div>
 
-        {/* 3-Column Energy HUD */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", gap: "6px", marginBottom: "12px" }}>
-          
-          {/* Intake (Tugmang-tugma sa 300 kcal ng Log Tab) */}
           <div>
             <span style={{ fontSize: "9.5px", fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>Intake</span>
             <div style={{ fontSize: "18px", fontWeight: 900, color: "#0f172a", lineHeight: 1.1, marginTop: "1px" }}>
@@ -484,7 +481,6 @@ export default function HomeTab({
             <span style={{ fontSize: "9.5px", color: "#94a3b8", fontWeight: 700 }}>of {calorieGoal.toLocaleString()} kcal</span>
           </div>
 
-          {/* Compact 76px Circular Ring */}
           <div style={{ position: "relative", width: "76px", height: "76px", display: "flex", alignItems: "center", justifyContent: "center" }}>
             <svg viewBox="0 0 36 36" style={{ width: "100%", height: "100%", transform: "rotate(-90deg)" }}>
               <path
@@ -496,13 +492,13 @@ export default function HomeTab({
               <path
                 d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
                 fill="none"
-                stroke="url(#calGradSync)"
+                stroke="url(#calGradCleaned)"
                 strokeWidth="3.6"
                 strokeDasharray={`${intakePercent}, 100`}
                 strokeLinecap="round"
               />
               <defs>
-                <linearGradient id="calGradSync" x1="0%" y1="0%" x2="100%" y2="100%">
+                <linearGradient id="calGradCleaned" x1="0%" y1="0%" x2="100%" y2="100%">
                   <stop offset="0%" stopColor="#6366f1" />
                   <stop offset="100%" stopColor="#8b5cf6" />
                 </linearGradient>
@@ -516,7 +512,6 @@ export default function HomeTab({
             </div>
           </div>
 
-          {/* Active Burn (400 kcal Goal) */}
           <div style={{ textAlign: "right" }}>
             <span style={{ fontSize: "9.5px", fontWeight: 700, color: "#ea580c", textTransform: "uppercase" }}>Active Burn</span>
             <div style={{ fontSize: "18px", fontWeight: 900, color: "#ea580c", lineHeight: 1.1, marginTop: "1px" }}>
@@ -526,7 +521,6 @@ export default function HomeTab({
           </div>
         </div>
 
-        {/* Burn Progress Bar */}
         <div style={{ background: "#fff7ed", padding: "6px 10px", borderRadius: "10px", border: "1px solid #ffedd5", marginBottom: "12px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "3px" }}>
             <span style={{ fontSize: "9.5px", fontWeight: 800, color: "#ea580c" }}>
@@ -539,7 +533,6 @@ export default function HomeTab({
           </div>
         </div>
 
-        {/* Macronutrients: Protein, Carbs, Fats (Naaayon sa Kanin at Pagkain) */}
         <div style={{ marginBottom: "12px" }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px" }}>
             <div>
@@ -574,7 +567,6 @@ export default function HomeTab({
           </div>
         </div>
 
-        {/* Compact Integrated Hydration Tracker */}
         <div style={{ background: "#f8fafc", padding: "8px 10px", borderRadius: "12px", border: "1px solid #f1f5f9" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "5px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
@@ -608,10 +600,8 @@ export default function HomeTab({
 
       </div>
 
-      {/* ─── 3. REAL-TIME SATELLITE GPS MOVEMENT & WAYPOINT TRACKER ─── */}
+      {/* ─── 3. SATELLITE GPS MOVEMENT & WAYPOINT ─── */}
       <div style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "20px", padding: "14px", marginBottom: "10px", boxShadow: "0 6px 20px rgba(15, 23, 42, 0.04)" }}>
-        
-        {/* Header with GPS Status */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
             <i className="fa-solid fa-satellite" style={{ color: isGpsActive ? "#10b981" : "#64748b", fontSize: "13px" }}></i>
@@ -621,9 +611,8 @@ export default function HomeTab({
           </div>
 
           {isGpsActive ? (
-            <span style={{ fontSize: "9.5px", fontWeight: 800, color: "#10b981", background: "#ecfdf5", padding: "2px 8px", borderRadius: "6px", display: "flex", alignItems: "center", gap: "4px" }}>
-              <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#10b981", animation: "pulse 1.5s infinite" }}></span>
-              GPS LOCKED {gpsAccuracy ? `(±${gpsAccuracy}m)` : ""}
+            <span style={{ fontSize: "9.5px", fontWeight: 800, color: "#10b981", background: "#ecfdf5", padding: "2px 8px", borderRadius: "6px" }}>
+              ● GPS ACTIVE {gpsAccuracy ? `(±${gpsAccuracy}m)` : ""}
             </span>
           ) : (
             <span style={{ fontSize: "9.5px", fontWeight: 800, color: "#64748b", background: "#f1f5f9", padding: "2px 7px", borderRadius: "6px" }}>
@@ -632,18 +621,17 @@ export default function HomeTab({
           )}
         </div>
 
-        {/* ACTIVE LIVE GPS HUD SCREEN (Lilitaw kapag nagta-track ka sa labas) */}
         {isGpsActive ? (
-          <div style={{ background: "linear-gradient(135deg, #0f172a 0%, #1e293b 100%)", color: "white", borderRadius: "14px", padding: "14px", marginBottom: "10px", boxShadow: "0 6px 18px rgba(15,23,42,0.18)" }}>
+          <div style={{ background: "linear-gradient(135deg, #0f172a 0%, #1e293b 100%)", color: "white", borderRadius: "14px", padding: "14px", marginBottom: "10px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "8px" }}>
               <div>
-                <span style={{ fontSize: "10px", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase" }}>Live GPS Distance</span>
+                <span style={{ fontSize: "10px", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase" }}>GPS Distance</span>
                 <div style={{ fontSize: "28px", fontWeight: 900, color: "#38bdf8", lineHeight: 1, marginTop: "2px" }}>
                   {gpsDistanceKm.toFixed(2)} <span style={{ fontSize: "14px", color: "#94a3b8" }}>km</span>
                 </div>
               </div>
               <div style={{ textAlign: "right" }}>
-                <span style={{ fontSize: "10px", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase" }}>Active Time</span>
+                <span style={{ fontSize: "10px", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase" }}>Time</span>
                 <div style={{ fontSize: "20px", fontWeight: 900, color: "#ffffff", marginTop: "2px" }}>
                   {formatTime(gpsDurationSec)}
                 </div>
@@ -652,7 +640,7 @@ export default function HomeTab({
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", background: "rgba(255,255,255,0.06)", padding: "8px", borderRadius: "10px", marginBottom: "10px" }}>
               <div>
-                <span style={{ fontSize: "9px", color: "#94a3b8", display: "block" }}>Calculated Steps:</span>
+                <span style={{ fontSize: "9px", color: "#94a3b8", display: "block" }}>Steps:</span>
                 <strong style={{ fontSize: "14px", color: "#4ade80" }}>~{Math.round(gpsDistanceKm * 1333)} steps</strong>
               </div>
               <div style={{ textAlign: "right" }}>
@@ -661,17 +649,15 @@ export default function HomeTab({
               </div>
             </div>
 
-            {/* GPS Stop & Finish Button */}
             <button
               onClick={stopAndSaveGpsSession}
-              style={{ width: "100%", background: "linear-gradient(135deg, #10b981 0%, #059669 100%)", color: "white", border: "none", padding: "10px", borderRadius: "10px", fontWeight: 800, fontSize: "12px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", boxShadow: "0 4px 12px rgba(16,185,129,0.3)" }}
+              style={{ width: "100%", background: "linear-gradient(135deg, #10b981 0%, #059669 100%)", color: "white", border: "none", padding: "10px", borderRadius: "10px", fontWeight: 800, fontSize: "12px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}
             >
               <i className="fa-solid fa-circle-check"></i>
               <span>Finish & Save Walk</span>
             </button>
           </div>
         ) : (
-          /* IDLE GPS & DAILY MOVEMENT METRICS */
           <div>
             <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: "10px", alignItems: "center", marginBottom: "10px" }}>
               <div>
@@ -697,7 +683,6 @@ export default function HomeTab({
               </div>
             </div>
 
-            {/* Main Action: START SATELLITE GPS BUTTON */}
             <button
               onClick={startGpsSession}
               style={{
@@ -722,7 +707,6 @@ export default function HomeTab({
               <span>Start Live GPS Outdoor Tracking</span>
             </button>
 
-            {/* Indoor Treadmill Manual Step Adjuster */}
             <div style={{ display: "flex", gap: "6px" }}>
               <button
                 onClick={() => handleManualAddSteps(500)}
@@ -855,7 +839,7 @@ export default function HomeTab({
 
             <form onSubmit={handleSaveWorkout}>
               <div style={{ marginBottom: "10px" }}>
-                <label style={{ fontSize: "10.5px", fontWeight: 700, color: "#64748b", display: "block", marginBottom: "3px" }}>Activity Type</label>
+                <label style={{ fontSize: "10.5px", fontWeight: 700, color: "#64748b", display: "block", marginBottom: "3px" }}>Activity</label>
                 <select
                   value={workoutType}
                   onChange={(e) => setWorkoutType(e.target.value)}
