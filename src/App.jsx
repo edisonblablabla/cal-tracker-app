@@ -1670,25 +1670,15 @@ export default function App() {
         {/* TAB 2: LOG */}
         {activeTab === "diary" && (
           <DiaryTab
-            totalCal={totalCal}
-            activeGoal={activeGoal}
-            customName={customName}
-            setCustomName={setCustomName}
-            customPortion={customPortion}
-            setCustomPortion={setCustomPortion}
-            customCal={customCal}
-            setCustomCal={setCustomCal}
-            customP={customP}
-            setCustomP={setCustomP}
-            customC={customC}
-            setCustomC={setCustomC}
-            customF={customF}
-            setCustomF={setCustomF}
-            addCustomMeal={addCustomMeal}
-            isAddingMeal={isAddingMeal}
-            todayMeals={todayMeals}
-            deleteMeal={deleteMeal}
-          />
+              user={user}
+              appData={appData}
+              saveToCloud={saveToCloud}
+              showToast={showToast}
+              totalCal={totalCal}
+              activeGoal={activeGoal}
+              todayMeals={todayMeals}
+              deleteMeal={deleteMeal}
+            />
         )}
 
         {/* TAB 3: SOCIAL TAB */}
