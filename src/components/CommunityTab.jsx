@@ -136,56 +136,62 @@ export default function CommunityTab({
   const currentAthlete = sortedAthletes[currentUserIndex] || { dist: 0, cal: 0, streak: 0 };
 
   return (
-    <div style={{ backgroundColor: "#f8fafc", minHeight: "100vh", paddingBottom: "90px", fontFamily: "sans-serif" }}>
+    <div style={{ backgroundColor: "#f8fafc", minHeight: "100vh", paddingBottom: "90px", margin: 0, padding: 0, fontFamily: "sans-serif" }}>
 
       {/* ─── 1. COMPACT SOLID BRAND HEADER ─── */}
       {/* ─── UNIFIED SOLID STICKY APP BAR (Walang agwat, walang tagos) ─── */}
+      {/* ─── 1. SOLID FLUSH STICKY APP BAR (Walang guwang sa taas at gilid) ─── */}
       <div style={{
         position: "sticky",
         top: 0,
-        zIndex: 1000,
+        left: 0,
+        right: 0,
+        width: "100%",
         backgroundColor: "#ffffff",
         borderBottom: "1px solid #e2e8f0",
         boxShadow: "0 2px 8px rgba(15, 23, 42, 0.05)",
-        width: "100%",
+        zIndex: 1000,
+        margin: 0,
+        borderRadius: 0,
         boxSizing: "border-box"
       }}>
-        {/* Row 1: Brand Logo & Right Action Cluster (Siksik: 48px) */}
         <div style={{
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          height: "48px",
-          padding: "0 12px",
+          height: "52px",
+          padding: "0 16px",
+          maxWidth: "600px",
+          margin: "0 auto",
           boxSizing: "border-box"
         }}>
-          {/* Logo & Brand Name */}
-          <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0, maxWidth: "135px" }}>
+          {/* Logo & Brand Name ONLY (Walang switcher sa ilalim nito) */}
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
             <div style={{
-              width: "28px",
-              height: "28px",
-              borderRadius: "7px",
+              width: "32px",
+              height: "32px",
+              borderRadius: "8px",
               background: "linear-gradient(135deg, #4f46e5 0%, #38bdf8 100%)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               flexShrink: 0,
-              boxShadow: "0 2px 5px rgba(79, 70, 229, 0.2)"
+              boxShadow: "0 2px 6px rgba(79, 70, 229, 0.2)"
             }}>
-              <i className="fa-solid fa-heart-pulse" style={{ color: "#ffffff", fontSize: "14px" }}></i>
+              <i className="fa-solid fa-heart-pulse" style={{ color: "#ffffff", fontSize: "15px" }}></i>
             </div>
-            <div style={{ minWidth: 0, overflow: "hidden" }}>
-              <h1 style={{ margin: 0, fontSize: "13.5px", fontWeight: 900, color: "#0f172a", letterSpacing: "-0.2px", lineHeight: 1.1, whiteSpace: "nowrap" }}>
+            <div>
+              <h1 style={{ margin: 0, fontSize: "15px", fontWeight: 900, color: "#0f172a", letterSpacing: "-0.2px", lineHeight: 1.1 }}>
                 NUTRIPULSE
               </h1>
-              <span style={{ fontSize: "8px", fontWeight: 800, color: "#0284c7", letterSpacing: "0.6px", display: "block" }}>
+              <span style={{ fontSize: "8.5px", fontWeight: 800, color: "#0284c7", letterSpacing: "0.8px", display: "block" }}>
                 COMMUNITY
               </span>
             </div>
           </div>
 
-          {/* Action Icons: Search, Message, Notif, Profile (Siksik, 30px touch) */}
-          <div style={{ display: "flex", alignItems: "center", gap: "2px", flexShrink: 0 }}>
+          {/* Action Icons: Search, Message, Notif, Profile */}
+          <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
             {/* 🔍 SEARCH */}
             <button
               type="button"
@@ -193,11 +199,11 @@ export default function CommunityTab({
                 if (typeof setShowSearchModal === "function") setShowSearchModal(true);
               }}
               style={{
-                width: "30px",
-                height: "30px",
+                width: "32px",
+                height: "32px",
                 background: "none",
                 border: "none",
-                borderRadius: "6px",
+                borderRadius: "8px",
                 cursor: "pointer",
                 color: "#334155",
                 display: "flex",
@@ -207,7 +213,7 @@ export default function CommunityTab({
               }}
               title="Search Athletes"
             >
-              <i className="fa-solid fa-magnifying-glass" style={{ fontSize: "14px" }}></i>
+              <i className="fa-solid fa-magnifying-glass" style={{ fontSize: "15px" }}></i>
             </button>
 
             {/* 💬 MESSAGES */}
@@ -218,11 +224,11 @@ export default function CommunityTab({
                 if (typeof setLastSeenMsgTime === "function") setLastSeenMsgTime(Date.now());
               }}
               style={{
-                width: "30px",
-                height: "30px",
+                width: "32px",
+                height: "32px",
                 background: "none",
                 border: "none",
-                borderRadius: "6px",
+                borderRadius: "8px",
                 cursor: "pointer",
                 color: "#334155",
                 position: "relative",
@@ -233,11 +239,11 @@ export default function CommunityTab({
               }}
               title="Huddle Messages"
             >
-              <i className="fa-regular fa-comment-dots" style={{ fontSize: "15px" }}></i>
+              <i className="fa-regular fa-comment-dots" style={{ fontSize: "16px" }}></i>
               {unreadMsgCount > 0 && (
                 <span style={{
                   position: "absolute", top: "2px", right: "2px", background: "#ef4444", color: "#ffffff",
-                  fontSize: "8px", fontWeight: 800, minWidth: "13px", height: "13px", borderRadius: "10px",
+                  fontSize: "8.5px", fontWeight: 800, minWidth: "14px", height: "14px", borderRadius: "10px",
                   display: "flex", alignItems: "center", justifyContent: "center", padding: "0 2px"
                 }}>
                   {unreadMsgCount > 9 ? "9+" : unreadMsgCount}
@@ -249,15 +255,16 @@ export default function CommunityTab({
             <button
               type="button"
               onClick={() => {
+                setShowNotifDrawer(true);
                 if (typeof setActivePanel === "function") setActivePanel("notifications");
                 if (typeof setLastSeenNotifTime === "function") setLastSeenNotifTime(Date.now());
               }}
               style={{
-                width: "30px",
-                height: "30px",
+                width: "32px",
+                height: "32px",
                 background: "none",
                 border: "none",
-                borderRadius: "6px",
+                borderRadius: "8px",
                 cursor: "pointer",
                 color: "#334155",
                 position: "relative",
@@ -268,11 +275,11 @@ export default function CommunityTab({
               }}
               title="Notifications"
             >
-              <i className="fa-regular fa-bell" style={{ fontSize: "15px" }}></i>
+              <i className="fa-regular fa-bell" style={{ fontSize: "16px" }}></i>
               {unreadNotifCount > 0 && (
                 <span style={{
                   position: "absolute", top: "3px", right: "3px", background: "#f43f5e",
-                  width: "6px", height: "6px", borderRadius: "50%", border: "1.5px solid #ffffff"
+                  width: "7px", height: "7px", borderRadius: "50%", border: "1.5px solid #ffffff"
                 }}></span>
               )}
             </button>
@@ -285,8 +292,8 @@ export default function CommunityTab({
                 if (typeof setActiveTab === "function") setActiveTab("profile");
               }}
               style={{
-                width: "30px",
-                height: "30px",
+                width: "32px",
+                height: "32px",
                 background: "none",
                 border: "none",
                 cursor: "pointer",
@@ -300,78 +307,23 @@ export default function CommunityTab({
               <img
                 src={user?.photoURL || avatarPreview || "https://i.pravatar.cc/150"}
                 alt="Profile"
-                style={{ width: "24px", height: "24px", borderRadius: "50%", objectFit: "cover", border: "1.5px solid #38bdf8" }}
+                style={{ width: "26px", height: "26px", borderRadius: "50%", objectFit: "cover", border: "1.5px solid #38bdf8" }}
               />
-            </button>
-          </div>
-        </div>
-
-        {/* Row 2: Segmented Switcher (Siksik sa ilalim ng header, walang floating gap) */}
-        <div style={{ padding: "0 12px 8px 12px", boxSizing: "border-box" }}>
-          <div style={{ display: "flex", background: "#f1f5f9", borderRadius: "10px", padding: "2.5px" }}>
-            <button
-              type="button"
-              onClick={() => setActiveSubTab("leaderboard")}
-              style={{
-                flex: 1,
-                padding: "7px 0",
-                borderRadius: "8px",
-                border: "none",
-                fontWeight: 800,
-                fontSize: "11.5px",
-                cursor: "pointer",
-                display: "flex",
-                justifyContent: "center",
-                alignItems: "center",
-                gap: "5px",
-                background: activeSubTab === "leaderboard" ? "#ffffff" : "transparent",
-                color: activeSubTab === "leaderboard" ? "#0f172a" : "#64748b",
-                boxShadow: activeSubTab === "leaderboard" ? "0 1px 4px rgba(0,0,0,0.06)" : "none",
-                transition: "all 0.15s ease"
-              }}
-            >
-              <i className="fa-solid fa-trophy" style={{ color: activeSubTab === "leaderboard" ? "#eab308" : "#94a3b8", fontSize: "11px" }}></i>
-              LEADERBOARD
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveSubTab("feed")}
-              style={{
-                flex: 1,
-                padding: "7px 0",
-                borderRadius: "8px",
-                border: "none",
-                fontWeight: 800,
-                fontSize: "11.5px",
-                cursor: "pointer",
-                display: "flex",
-                justifyContent: "center",
-                alignItems: "center",
-                gap: "5px",
-                background: activeSubTab === "feed" ? "#ffffff" : "transparent",
-                color: activeSubTab === "feed" ? "#0f172a" : "#64748b",
-                boxShadow: activeSubTab === "feed" ? "0 1px 4px rgba(0,0,0,0.06)" : "none",
-                transition: "all 0.15s ease"
-              }}
-            >
-              <i className="fa-solid fa-bolt" style={{ color: activeSubTab === "feed" ? "#0284c7" : "#94a3b8", fontSize: "11px" }}></i>
-              PULSE FEED
             </button>
           </div>
         </div>
       </div>
 
-      {/* ─── 2. TAB SWITCHER (LEADERBOARD SA KALIWA, PULSE FEED SA KANAN) ─── */}
-      <div style={{ padding: "12px 16px 8px 16px" }}>
-        <div style={{ display: "flex", background: "#e2e8f0", borderRadius: "14px", padding: "3px" }}>
+      {/* ─── 2. IISANG MALINIS NA TAB SWITCHER (Nasa ibaba ng Header) ─── */}
+      <div style={{ padding: "12px 16px 8px 16px", maxWidth: "600px", margin: "0 auto", boxSizing: "border-box" }}>
+        <div style={{ display: "flex", background: "#e2e8f0", borderRadius: "12px", padding: "3px" }}>
           <button
             type="button"
             onClick={() => setActiveSubTab("leaderboard")}
             style={{
               flex: 1,
-              padding: "9px 0",
-              borderRadius: "11px",
+              padding: "8px 0",
+              borderRadius: "10px",
               border: "none",
               fontWeight: 800,
               fontSize: "12px",
@@ -383,7 +335,7 @@ export default function CommunityTab({
               background: activeSubTab === "leaderboard" ? "#ffffff" : "transparent",
               color: activeSubTab === "leaderboard" ? "#0f172a" : "#64748b",
               boxShadow: activeSubTab === "leaderboard" ? "0 2px 6px rgba(0,0,0,0.06)" : "none",
-              transition: "all 0.2s ease"
+              transition: "all 0.15s ease"
             }}
           >
             <i className="fa-solid fa-trophy" style={{ color: activeSubTab === "leaderboard" ? "#eab308" : "#94a3b8" }}></i>
@@ -395,8 +347,8 @@ export default function CommunityTab({
             onClick={() => setActiveSubTab("feed")}
             style={{
               flex: 1,
-              padding: "9px 0",
-              borderRadius: "11px",
+              padding: "8px 0",
+              borderRadius: "10px",
               border: "none",
               fontWeight: 800,
               fontSize: "12px",
@@ -408,7 +360,7 @@ export default function CommunityTab({
               background: activeSubTab === "feed" ? "#ffffff" : "transparent",
               color: activeSubTab === "feed" ? "#0f172a" : "#64748b",
               boxShadow: activeSubTab === "feed" ? "0 2px 6px rgba(0,0,0,0.06)" : "none",
-              transition: "all 0.2s ease"
+              transition: "all 0.15s ease"
             }}
           >
             <i className="fa-solid fa-bolt" style={{ color: activeSubTab === "feed" ? "#0284c7" : "#94a3b8" }}></i>
