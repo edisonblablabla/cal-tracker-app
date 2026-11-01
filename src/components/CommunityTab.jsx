@@ -1,26 +1,8 @@
-import React from "react";
-import ExpandableText from "./ExpandableText";
-import { db } from "../services/firebase";
-import { collection, addDoc } from "firebase/firestore";
-
-function defaultFormatTime(ts) {
-  if (!ts) return "Just now";
-  let ms = null;
-  if (typeof ts === "number") ms = ts < 1e11 ? ts * 1000 : ts;
-  else if (ts && typeof ts.toDate === "function") ms = ts.toDate().getTime();
-  else if (ts && typeof ts.seconds === "number") ms = ts.seconds * 1000;
-  else if (typeof ts === "string") ms = Date.parse(ts);
-  else if (ts instanceof Date) ms = ts.getTime();
-
-  if (!ms || isNaN(ms)) return "Just now";
-  const d = Date.now() - ms;
-  if (d < 60000) return "Just now";
-  if (d < 3600000) return Math.floor(d / 60000) + "m ago";
-  if (d < 86400000) return Math.floor(d / 3600000) + "h ago";
-  return new Date(ms).toLocaleDateString();
-}
+import React, { useState, useEffect, useMemo } from "react";
 
 export default function CommunityTab({
+  draftSocialPost,
+  setDraftSocialPost,
   user,
   appData,
   avatarPreview = "",
@@ -53,334 +35,796 @@ export default function CommunityTab({
   handleLike,
   setResonatePost,
   showToast,
-  formatPostTime = defaultFormatTime
+  formatPostTime = (ts) => "Just now"
 }) {
-  const unreadChatsCount = (inboxChats || []).filter(c => c.lastSenderUid !== user?.uid && (c.updatedAt || 0) > (lastSeenMsgTime || 0)).length;
-  const formatTime = formatPostTime || defaultFormatTime;
+  // ─── TABS & FILTERS ───
+  const [activeSubTab, setActiveSubTab] = useState("leaderboard"); // 'leaderboard' o 'feed'
+  const [leaderboardMetric, setLeaderboardMetric] = useState("distance"); // 'distance', 'calories', 'streak'
+  const [showComposer, setShowComposer] = useState(false);
+
+  // ─── AUTO-LOAD DRAFT POST MULA SA HOMETAB ───
+  useEffect(() => {
+    if (draftSocialPost) {
+      setActiveSubTab("feed");
+      setShowComposer(true);
+      if (typeof setPostText === "function") {
+        setPostText(draftSocialPost.caption || "");
+      }
+      if (typeof setImagePreview === "function" && draftSocialPost.image) {
+        setImagePreview(draftSocialPost.image);
+      }
+      if (typeof setDraftSocialPost === "function") {
+        setDraftSocialPost(null);
+      }
+    }
+  }, [draftSocialPost]);
+
+  // Awtomatikong buksan ang composer kung may draft text/image
+  useEffect(() => {
+    if (postText || imagePreview) {
+      setShowComposer(true);
+    }
+  }, [postText, imagePreview]);
+
+  // ─── UNREAD COUNTS PARA SA MESSAGES AT NOTIFICATIONS ───
+  const unreadMsgCount = useMemo(() => {
+    if (!Array.isArray(inboxChats)) return 0;
+    return inboxChats.filter(c => {
+      const t = c.lastMessageTime?.toMillis ? c.lastMessageTime.toMillis() : (c.updatedAt || 0);
+      return t > (lastSeenMsgTime || 0);
+    }).length;
+  }, [inboxChats, lastSeenMsgTime]);
+
+  const unreadNotifCount = useMemo(() => {
+    if (!Array.isArray(allUserNotifs)) return 0;
+    return allUserNotifs.filter(n => {
+      const t = n.createdAt?.toMillis ? n.createdAt.toMillis() : (n.timestamp || 0);
+      return t > (lastSeenNotifTime || 0);
+    }).length;
+  }, [allUserNotifs, lastSeenNotifTime]);
+
+  // ─── TUNAY NA LEADERBOARD DATA MULA SA USERLIST ───
+  const sortedAthletes = useMemo(() => {
+    let list = Array.isArray(userList) && userList.length > 0 ? [...userList] : [];
+
+    // Tiyaking kasama ang kasalukuyang user kung wala pa sa listahan
+    if (user && !list.some(u => (u.id === user.uid || u.uid === user.uid))) {
+      list.push({
+        id: user.uid,
+        uid: user.uid,
+        displayName: user.displayName || "You",
+        photoURL: user.photoURL || avatarPreview || "",
+        distanceKm: appData?.totalDistance || 0,
+        caloriesBurned: appData?.totalBurnedCalories || 0,
+        streakDays: appData?.streakDays || 1
+      });
+    }
+
+    return list.map(u => {
+      // Normalisasyon ng metrics
+      const dist = Number(u.distanceKm || u.weeklyKm || u.totalDistance || (u.steps ? u.steps * 0.0008 : 0)) || 0;
+      const cal = Number(u.caloriesBurned || u.weeklyCalories || u.burnedCal || (dist * 65)) || 0;
+      const streak = Number(u.streakDays || u.streak || 1);
+      const name = u.displayName || u.name || u.username || "Athlete";
+      const photo = u.photoURL || u.avatar || u.avatarPreview || "https://i.pravatar.cc/150?u=" + (u.id || name);
+
+      return {
+        id: u.id || u.uid,
+        name,
+        photo,
+        dist: Math.round(dist * 10) / 10,
+        cal: Math.round(cal),
+        streak,
+        isCurrent: u.id === user?.uid || u.uid === user?.uid
+      };
+    }).sort((a, b) => {
+      if (leaderboardMetric === "calories") return b.cal - a.cal;
+      if (leaderboardMetric === "streak") return b.streak - a.streak;
+      return b.dist - a.dist;
+    });
+  }, [userList, user, appData, avatarPreview, leaderboardMetric]);
+
+  const top1 = sortedAthletes[0] || { name: "No Data", dist: 0, cal: 0, streak: 0, photo: "https://i.pravatar.cc/150" };
+  const top2 = sortedAthletes[1] || { name: "No Data", dist: 0, cal: 0, streak: 0, photo: "https://i.pravatar.cc/150" };
+  const top3 = sortedAthletes[2] || { name: "No Data", dist: 0, cal: 0, streak: 0, photo: "https://i.pravatar.cc/150" };
+  const runnersUp = sortedAthletes.slice(3);
+
+  // Hanapin ang ranggo ng kasalukuyang user
+  const currentUserIndex = sortedAthletes.findIndex(u => u.isCurrent);
+  const currentUserRank = currentUserIndex !== -1 ? currentUserIndex + 1 : sortedAthletes.length;
+  const currentAthlete = sortedAthletes[currentUserIndex] || { dist: 0, cal: 0, streak: 0 };
 
   return (
-    <div className="screen active">
-      {/* FROZEN STICKY SOCIAL HEADER */}
-      <div style={{ 
-        position: "sticky", 
-        top: "-16px", 
-        marginTop: "-16px",
-        paddingTop: "24px",
-        paddingBottom: "12px",
-        paddingLeft: "16px",
-        paddingRight: "16px",
-        marginLeft: "-16px",
-        marginRight: "-16px",
-        zIndex: 900, 
-        background: "#f8fafc", 
-        boxShadow: "0 4px 12px rgba(15, 23, 42, 0.05)",
-        marginBottom: "12px", 
-        display: "flex", 
-        justifyContent: "space-between", 
+    <div style={{ backgroundColor: "#f8fafc", minHeight: "100vh", paddingBottom: "90px", fontFamily: "sans-serif" }}>
+
+      {/* ─── 1. TOP BRAND HEADER (RESPONSIVE, HINDI MATATAKPAN ANG ICONS) ─── */}
+      <div style={{
+        display: "flex",
         alignItems: "center",
-        borderBottom: "1px solid #e2e8f0"
+        justifyContent: "space-between",
+        padding: "12px 16px",
+        backgroundColor: "#ffffff",
+        borderBottom: "1px solid #f1f5f9",
+        position: "sticky",
+        top: 0,
+        zIndex: 100,
+        boxShadow: "0 1px 3px rgba(0,0,0,0.02)"
       }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <div style={{ width: "30px", height: "30px", borderRadius: "50%", background: "linear-gradient(135deg, #4f46e5, #06b6d4)", display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontSize: "13px", boxShadow: "0 2px 8px rgba(79,70,229,0.3)" }}>
-            <i className="fa-solid fa-heart-pulse"></i>
+        {/* Brand & Logo */}
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: 0, flexShrink: 1 }}>
+          <div style={{
+            width: "34px",
+            height: "34px",
+            borderRadius: "9px",
+            background: "linear-gradient(135deg, #4f46e5 0%, #38bdf8 100%)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flexShrink: 0,
+            boxShadow: "0 2px 8px rgba(79, 70, 229, 0.25)"
+          }}>
+            <i className="fa-solid fa-heart-pulse" style={{ color: "#ffffff", fontSize: "17px" }}></i>
           </div>
-          <h2 style={{ fontSize: "20px", fontWeight: 900, color: "var(--primary)", letterSpacing: "-0.5px", margin: 0 }}>NutriPulse</h2>
+          <div style={{ minWidth: 0, overflow: "hidden" }}>
+            <h1 style={{ margin: 0, fontSize: "16px", fontWeight: 900, color: "#0f172a", letterSpacing: "-0.3px", whiteSpace: "nowrap" }}>
+              NUTRIPULSE
+            </h1>
+            <span style={{ fontSize: "9px", fontWeight: 800, color: "#0284c7", letterSpacing: "0.8px", display: "block" }}>
+              COMMUNITY
+            </span>
+          </div>
         </div>
-        
-        <div style={{ display: "flex", gap: "8px" }}>
-          <button 
-            onClick={() => setShowSearchModal(true)} 
-            style={{ background: "#ffffff", border: "1px solid #e2e8f0", width: "36px", height: "36px", borderRadius: "50%", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#334155", fontSize: "15px", boxShadow: "0 2px 6px rgba(0,0,0,0.03)" }}
+
+        {/* Action Controls: Search, Messages, Notifications, Profile */}
+        <div style={{ display: "flex", alignItems: "center", gap: "14px", flexShrink: 0 }}>
+          {/* 🔍 SEARCH BUTTON */}
+          <button
+            type="button"
+            onClick={() => {
+              if (typeof setShowSearchModal === "function") setShowSearchModal(true);
+            }}
+            style={{ background: "none", border: "none", padding: "6px", cursor: "pointer", color: "#334155", display: "flex", alignItems: "center" }}
+            title="Search Athletes"
           >
-            <i className="fa-solid fa-magnifying-glass"></i>
+            <i className="fa-solid fa-magnifying-glass" style={{ fontSize: "17px" }}></i>
           </button>
 
-          <button 
-            onClick={() => { 
-              setActivePanel("notif"); 
-              const nowT = Date.now(); 
-              if (typeof setLastSeenNotifTime === "function") setLastSeenNotifTime(nowT); 
-            }} 
-            style={{ position: "relative", background: "#ffffff", border: "1px solid #e2e8f0", width: "36px", height: "36px", borderRadius: "50%", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#334155", fontSize: "15px", boxShadow: "0 2px 6px rgba(0,0,0,0.03)" }}
-          >
-            <i className="fa-regular fa-bell"></i>
-            {allUserNotifs.filter(n => (n.timestamp || 0) > lastSeenNotifTime).length > 0 && (
-              <span style={{ position: "absolute", top: "-4px", right: "-4px", background: "#ef4444", color: "#ffffff", fontSize: "10px", fontWeight: 900, minWidth: "18px", height: "18px", borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "center", padding: "0 4px", boxShadow: "0 2px 6px rgba(239, 68, 68, 0.4)", border: "2px solid #ffffff" }}>
-                  {allUserNotifs.filter(n => (n.timestamp || 0) > lastSeenNotifTime).length > 9 ? "9+" : allUserNotifs.filter(n => (n.timestamp || 0) > lastSeenNotifTime).length}
-                </span>
-            )}
-          </button>
-          {/* INBOX / MESSAGES BUTTON */}
-          <button 
+          {/* 💬 MESSAGES BUTTON (SLIDE-OVER / INBOX) */}
+          <button
+            type="button"
             onClick={() => {
+              if (typeof setActivePanel === "function") setActivePanel("inbox");
               if (typeof setLastSeenMsgTime === "function") setLastSeenMsgTime(Date.now());
-              setActivePanel("inbox");
-            }} 
-            style={{ position: "relative", background: "#ffffff", border: "1px solid #e2e8f0", width: "36px", height: "36px", borderRadius: "50%", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#334155", fontSize: "15px", boxShadow: "0 2px 6px rgba(0,0,0,0.03)" }}
-            title="Messages"
+            }}
+            style={{ background: "none", border: "none", padding: "6px", cursor: "pointer", color: "#334155", position: "relative", display: "flex", alignItems: "center" }}
+            title="Huddle Messages"
           >
-            <i className="fa-regular fa-envelope"></i>
-            {unreadChatsCount > 0 && (
-              <span style={{ position: "absolute", top: "-4px", right: "-4px", background: "#ef4444", color: "white", fontSize: "10px", fontWeight: 900, minWidth: "18px", height: "18px", borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "center", padding: "0 4px", boxShadow: "0 2px 6px rgba(239, 68, 68, 0.4)", border: "2px solid #ffffff" }}>
-                {unreadChatsCount > 9 ? "9+" : unreadChatsCount}
+            <i className="fa-regular fa-comment-dots" style={{ fontSize: "18px" }}></i>
+            {unreadMsgCount > 0 && (
+              <span style={{
+                position: "absolute", top: "1px", right: "0px", background: "#ef4444", color: "#ffffff",
+                fontSize: "9px", fontWeight: 800, minWidth: "15px", height: "15px", borderRadius: "10px",
+                display: "flex", alignItems: "center", justifyContent: "center", padding: "0 2px"
+              }}>
+                {unreadMsgCount > 9 ? "9+" : unreadMsgCount}
               </span>
             )}
           </button>
-        </div>
-      </div>
 
-      {/* CREATE POST CARD */}
-      <div className="card" style={{ padding: "12px", borderRadius: "18px", boxShadow: "0 4px 16px rgba(0,0,0,0.04)", marginBottom: "14px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-            <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: "#4f46e5", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: "12px", overflow: "hidden", flexShrink: 0 }}>
-              {appData?.avatarUrl ? (
-                <img src={appData.avatarUrl} alt="Avatar" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-              ) : (
-                (appData?.userName || "A").charAt(0).toUpperCase()
-              )}
-            </div>
-            <span style={{ fontSize: "12px", fontWeight: 800, color: "#0f172a" }}>{appData?.userName || "Athlete"}</span>
-          </div>
-
-          <div style={{ display: "flex", gap: "3px", background: "#f1f5f9", padding: "2px", borderRadius: "8px" }}>
-            <button 
-              onClick={() => setPostVisibility("public")} 
-              style={{ background: postVisibility === "public" ? "#ffffff" : "transparent", border: "none", padding: "3px 7px", borderRadius: "6px", fontSize: "9px", fontWeight: 800, color: postVisibility === "public" ? "var(--primary)" : "#64748b", cursor: "pointer" }}
-            >
-               Public
-            </button>
-            <button 
-              onClick={() => setPostVisibility("boosters")} 
-              style={{ background: postVisibility === "boosters" ? "#ffffff" : "transparent", border: "none", padding: "3px 7px", borderRadius: "6px", fontSize: "9px", fontWeight: 800, color: postVisibility === "boosters" ? "var(--primary)" : "#64748b", cursor: "pointer" }}
-            >
-               Boosters
-            </button>
-            <button 
-              onClick={() => setPostVisibility("private")} 
-              style={{ background: postVisibility === "private" ? "#ffffff" : "transparent", border: "none", padding: "3px 7px", borderRadius: "6px", fontSize: "9px", fontWeight: 800, color: postVisibility === "private" ? "var(--primary)" : "#64748b", cursor: "pointer" }}
-            >
-               Private
-            </button>
-          </div>
-        </div>
-
-        <textarea 
-          className="form-input" 
-          style={{ height: "48px", borderRadius: "12px", padding: "8px 10px", fontSize: "11px", border: "1px solid #e2e8f0", resize: "none", marginBottom: "8px" }} 
-          placeholder="Share a milestone or fitness update..."
-          value={postText}
-          onChange={e => setPostText(e.target.value)}
-        />
-
-        {imagePreview && (
-          <div style={{ position: "relative", marginBottom: "8px" }}>
-            <img src={imagePreview} alt="Preview" style={{ width: "100%", maxHeight: "140px", objectFit: "cover", borderRadius: "12px" }} />
-            <button 
-              onClick={() => setImagePreview(null)}
-              style={{ position: "absolute", top: "6px", right: "6px", background: "rgba(0,0,0,0.6)", color: "white", border: "none", borderRadius: "50%", width: "22px", height: "22px", fontSize: "10px", cursor: "pointer" }}
-            >
-              X
-            </button>
-          </div>
-        )}
-
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <label style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "11px", fontWeight: 700, color: "var(--primary)", cursor: "pointer", background: "#f0fdf4", padding: "6px 10px", borderRadius: "10px", border: "1px solid #bbf7d0" }}>
-            <i className="fa-solid fa-image" style={{ fontSize: "12px" }}></i> Photo
-            <input type="file" accept="image/*" onChange={e => handleImageChange(e, false)} style={{ display: "none" }} />
-          </label>
-
-          <button 
-            onClick={() => createPost(false)} 
-            disabled={isPublishing}
-            style={{ background: isPublishing ? "#94a3b8" : "var(--primary)", color: "white", border: "none", padding: "6px 14px", borderRadius: "10px", fontWeight: 800, fontSize: "11px", cursor: "pointer" }}
+          {/* 🔔 NOTIFICATIONS BUTTON */}
+          <button
+            type="button"
+            onClick={() => {
+              if (typeof setActivePanel === "function") setActivePanel("notifications");
+              if (typeof setLastSeenNotifTime === "function") setLastSeenNotifTime(Date.now());
+            }}
+            style={{ background: "none", border: "none", padding: "6px", cursor: "pointer", color: "#334155", position: "relative", display: "flex", alignItems: "center" }}
+            title="Notifications"
           >
-            {isPublishing ? "Publishing..." : "Publish Post"}
+            <i className="fa-regular fa-bell" style={{ fontSize: "18px" }}></i>
+            {unreadNotifCount > 0 && (
+              <span style={{
+                position: "absolute", top: "2px", right: "2px", background: "#f43f5e",
+                width: "8px", height: "8px", borderRadius: "50%", border: "2px solid #ffffff"
+              }}></span>
+            )}
+          </button>
+
+          {/* 👤 PROFILE AVATAR (BUBUKSAN ANG PROFILE TAB) */}
+          <button
+            type="button"
+            onClick={() => {
+              if (typeof setSelectedVisitor === "function") setSelectedVisitor(null);
+              if (typeof setActiveTab === "function") setActiveTab("profile");
+            }}
+            style={{ background: "none", border: "none", padding: 0, cursor: "pointer", display: "flex" }}
+            title="My Profile"
+          >
+            <img
+              src={user?.photoURL || avatarPreview || "https://i.pravatar.cc/150"}
+              alt="Profile"
+              style={{ width: "30px", height: "30px", borderRadius: "50%", objectFit: "cover", border: "2px solid #38bdf8" }}
+            />
           </button>
         </div>
       </div>
 
-      {/* COMMUNITY POSTS FEED */}
-      <div>
-        {publicCommunityPosts.length === 0 ? (
-          <div style={{ textAlign: "center", padding: "40px 20px", color: "var(--text-muted)" }}>
-            <i className="fa-regular fa-newspaper" style={{ fontSize: "32px", marginBottom: "8px", opacity: 0.5 }}></i>
-            <p style={{ fontSize: "12px", fontWeight: 600 }}>No public or booster posts in the feed yet.<br />Be the first to share your progress!</p>
+      {/* ─── 2. TAB SWITCHER (LEADERBOARD SA KALIWA, PULSE FEED SA KANAN) ─── */}
+      <div style={{ padding: "12px 16px 8px 16px" }}>
+        <div style={{ display: "flex", background: "#e2e8f0", borderRadius: "14px", padding: "3px" }}>
+          <button
+            type="button"
+            onClick={() => setActiveSubTab("leaderboard")}
+            style={{
+              flex: 1,
+              padding: "9px 0",
+              borderRadius: "11px",
+              border: "none",
+              fontWeight: 800,
+              fontSize: "12px",
+              cursor: "pointer",
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+              gap: "6px",
+              background: activeSubTab === "leaderboard" ? "#ffffff" : "transparent",
+              color: activeSubTab === "leaderboard" ? "#0f172a" : "#64748b",
+              boxShadow: activeSubTab === "leaderboard" ? "0 2px 6px rgba(0,0,0,0.06)" : "none",
+              transition: "all 0.2s ease"
+            }}
+          >
+            <i className="fa-solid fa-trophy" style={{ color: activeSubTab === "leaderboard" ? "#eab308" : "#94a3b8" }}></i>
+            LEADERBOARD
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveSubTab("feed")}
+            style={{
+              flex: 1,
+              padding: "9px 0",
+              borderRadius: "11px",
+              border: "none",
+              fontWeight: 800,
+              fontSize: "12px",
+              cursor: "pointer",
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+              gap: "6px",
+              background: activeSubTab === "feed" ? "#ffffff" : "transparent",
+              color: activeSubTab === "feed" ? "#0f172a" : "#64748b",
+              boxShadow: activeSubTab === "feed" ? "0 2px 6px rgba(0,0,0,0.06)" : "none",
+              transition: "all 0.2s ease"
+            }}
+          >
+            <i className="fa-solid fa-bolt" style={{ color: activeSubTab === "feed" ? "#0284c7" : "#94a3b8" }}></i>
+            PULSE FEED
+          </button>
+        </div>
+      </div>
+
+      {/* ============================================================== */}
+      {/* 🏆 LEADERBOARD VIEW (REAL DATA, METRIC FILTERS, PODIUM)        */}
+      {/* ============================================================== */}
+      {activeSubTab === "leaderboard" && (
+        <div style={{ padding: "0 16px" }}>
+
+          {/* Metric Selector Chips */}
+          <div style={{ display: "flex", gap: "8px", margin: "10px 0 16px 0", overflowX: "auto" }}>
+            <button
+              type="button"
+              onClick={() => setLeaderboardMetric("distance")}
+              style={{
+                background: leaderboardMetric === "distance" ? "#0f172a" : "#ffffff",
+                color: leaderboardMetric === "distance" ? "#ffffff" : "#475569",
+                border: "1px solid " + (leaderboardMetric === "distance" ? "#0f172a" : "#cbd5e1"),
+                padding: "6px 12px",
+                borderRadius: "20px",
+                fontSize: "11.5px",
+                fontWeight: 800,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: "5px"
+              }}
+            >
+              <i className="fa-solid fa-person-running" style={{ color: leaderboardMetric === "distance" ? "#38bdf8" : "#64748b" }}></i>
+              Distance (KM)
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setLeaderboardMetric("calories")}
+              style={{
+                background: leaderboardMetric === "calories" ? "#0f172a" : "#ffffff",
+                color: leaderboardMetric === "calories" ? "#ffffff" : "#475569",
+                border: "1px solid " + (leaderboardMetric === "calories" ? "#0f172a" : "#cbd5e1"),
+                padding: "6px 12px",
+                borderRadius: "20px",
+                fontSize: "11.5px",
+                fontWeight: 800,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: "5px"
+              }}
+            >
+              <i className="fa-solid fa-fire" style={{ color: leaderboardMetric === "calories" ? "#f97316" : "#64748b" }}></i>
+              Calories
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setLeaderboardMetric("streak")}
+              style={{
+                background: leaderboardMetric === "streak" ? "#0f172a" : "#ffffff",
+                color: leaderboardMetric === "streak" ? "#ffffff" : "#475569",
+                border: "1px solid " + (leaderboardMetric === "streak" ? "#0f172a" : "#cbd5e1"),
+                padding: "6px 12px",
+                borderRadius: "20px",
+                fontSize: "11.5px",
+                fontWeight: 800,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: "5px"
+              }}
+            >
+              <i className="fa-solid fa-bolt" style={{ color: leaderboardMetric === "streak" ? "#eab308" : "#64748b" }}></i>
+              Streak
+            </button>
           </div>
-        ) : (
-          publicCommunityPosts.map(p => {
-            const isLiked = p.likedBy && p.likedBy.includes(user?.uid);
-            const isOwner = p.userId === user?.uid;
-            const postAuthorObj = userList.find(u => u.uid === p.userId);
 
-            const handleOpenAuthorProfile = (e) => {
-              e.stopPropagation();
-              if (p.userId === user?.uid) {
-                setActiveTab("profile");
-              } else {
-                setSelectedVisitor(postAuthorObj || { 
-                  uid: p.userId, 
-                  userName: p.userName, 
-                  userTitle: p.userTitle, 
-                  avatarUrl: p.userAvatar 
-                });
-                setActivePanel("visitor_profile");
-              }
-            };
+          {/* 🥇 PODIUM (TOP 3 REAL USERS) */}
+          <div style={{
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "flex-end",
+            gap: "8px",
+            margin: "20px 0 24px 0",
+            padding: "10px 0"
+          }}>
+            {/* 🥈 Rank 2 */}
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", flex: 1, maxWidth: "100px" }}>
+              <img
+                src={top2.photo}
+                alt={top2.name}
+                style={{ width: "48px", height: "48px", borderRadius: "50%", border: "3px solid #94a3b8", objectFit: "cover", zIndex: 2 }}
+              />
+              <div style={{
+                background: "linear-gradient(180deg, #e2e8f0 0%, #cbd5e1 100%)",
+                width: "100%",
+                height: "75px",
+                borderTopLeftRadius: "10px",
+                borderTopRightRadius: "10px",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                marginTop: "-12px",
+                boxShadow: "0 4px 10px rgba(0,0,0,0.04)"
+              }}>
+                <span style={{ fontSize: "11px", fontWeight: 800, color: "#334155", maxWidth: "90%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {top2.name.split(" ")[0]}
+                </span>
+                <span style={{ fontSize: "13px", fontWeight: 900, color: "#0f172a" }}>
+                  {leaderboardMetric === "distance" ? top2.dist + "k" : leaderboardMetric === "calories" ? top2.cal : top2.streak + "d"}
+                </span>
+                <span style={{ fontSize: "10px", fontWeight: 800, color: "#64748b" }}>#2</span>
+              </div>
+            </div>
 
-            return (
-              <div key={p.id} className="card" style={{ padding: "14px", borderRadius: "18px", marginBottom: "14px", boxShadow: "0 4px 15px rgba(0,0,0,0.03)", position: "relative" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
-                  <div 
-                    onClick={handleOpenAuthorProfile}
-                    style={{ display: "flex", gap: "8px", alignItems: "center", cursor: "pointer" }}
-                  >
-                    <div style={{ width: "36px", height: "36px", borderRadius: "50%", background: "#4f46e5", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: "13px", overflow: "hidden", flexShrink: 0 }}>
-                      {p.userAvatar ? (
-                        <img src={p.userAvatar} alt="Avatar" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                      ) : (
-                        (p.userName || "A").charAt(0).toUpperCase()
-                      )}
-                    </div>
-                    <div>
-                      <div style={{ fontSize: "13px", fontWeight: 800, color: "#0f172a" }}>{p.userName}</div>
-                      <div style={{ fontSize: "9px", color: "var(--text-muted)" }}>
-                        {p.userTitle || "Athlete"} • {formatTime(p.createdAt)}
-                      </div>
+            {/* 🥇 Rank 1 */}
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", flex: 1.1, maxWidth: "110px" }}>
+              <i className="fa-solid fa-crown" style={{ color: "#eab308", fontSize: "18px", marginBottom: "2px", zIndex: 3 }}></i>
+              <img
+                src={top1.photo}
+                alt={top1.name}
+                style={{ width: "60px", height: "60px", borderRadius: "50%", border: "3px solid #eab308", objectFit: "cover", zIndex: 2, boxShadow: "0 0 12px rgba(234, 179, 8, 0.4)" }}
+              />
+              <div style={{
+                background: "linear-gradient(180deg, #fef08a 0%, #facc15 100%)",
+                width: "100%",
+                height: "95px",
+                borderTopLeftRadius: "12px",
+                borderTopRightRadius: "12px",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                marginTop: "-14px",
+                boxShadow: "0 4px 14px rgba(234, 179, 8, 0.25)"
+              }}>
+                <span style={{ fontSize: "12px", fontWeight: 900, color: "#713f12", maxWidth: "90%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {top1.name.split(" ")[0]}
+                </span>
+                <span style={{ fontSize: "15px", fontWeight: 900, color: "#422006" }}>
+                  {leaderboardMetric === "distance" ? top1.dist + " km" : leaderboardMetric === "calories" ? top1.cal + " cal" : top1.streak + " days"}
+                </span>
+                <span style={{ fontSize: "11px", fontWeight: 900, color: "#854d0e" }}>👑 #1</span>
+              </div>
+            </div>
+
+            {/* 🥉 Rank 3 */}
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", flex: 1, maxWidth: "100px" }}>
+              <img
+                src={top3.photo}
+                alt={top3.name}
+                style={{ width: "44px", height: "44px", borderRadius: "50%", border: "3px solid #f97316", objectFit: "cover", zIndex: 2 }}
+              />
+              <div style={{
+                background: "linear-gradient(180deg, #fed7aa 0%, #fdba74 100%)",
+                width: "100%",
+                height: "65px",
+                borderTopLeftRadius: "10px",
+                borderTopRightRadius: "10px",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                marginTop: "-12px",
+                boxShadow: "0 4px 10px rgba(0,0,0,0.04)"
+              }}>
+                <span style={{ fontSize: "11px", fontWeight: 800, color: "#7c2d12", maxWidth: "90%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {top3.name.split(" ")[0]}
+                </span>
+                <span style={{ fontSize: "13px", fontWeight: 900, color: "#431407" }}>
+                  {leaderboardMetric === "distance" ? top3.dist + "k" : leaderboardMetric === "calories" ? top3.cal : top3.streak + "d"}
+                </span>
+                <span style={{ fontSize: "10px", fontWeight: 800, color: "#9a3412" }}>#3</span>
+              </div>
+            </div>
+          </div>
+
+          {/* 🔢 RANKING LIST (#4 PABABA) */}
+          <div style={{ background: "#ffffff", borderRadius: "14px", padding: "6px 12px", border: "1px solid #f1f5f9", boxShadow: "0 2px 6px rgba(0,0,0,0.02)" }}>
+            {runnersUp.length > 0 ? (
+              runnersUp.map((athlete, idx) => (
+                <div
+                  key={athlete.id || idx}
+                  onClick={() => {
+                    if (typeof setSelectedVisitor === "function") setSelectedVisitor(athlete);
+                  }}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    padding: "10px 4px",
+                    borderBottom: idx !== runnersUp.length - 1 ? "1px solid #f1f5f9" : "none",
+                    cursor: "pointer"
+                  }}
+                >
+                  <span style={{ width: "24px", fontWeight: 800, color: "#64748b", fontSize: "13px" }}>
+                    {idx + 4}
+                  </span>
+                  <img
+                    src={athlete.photo}
+                    alt={athlete.name}
+                    style={{ width: "34px", height: "34px", borderRadius: "50%", objectFit: "cover", margin: "0 10px" }}
+                  />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: "13px", fontWeight: 800, color: "#0f172a", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {athlete.name} {athlete.isCurrent && <span style={{ color: "#0284c7", fontSize: "11px" }}>(You)</span>}
                     </div>
                   </div>
-
-                  {isOwner && (
-                    <div style={{ position: "relative" }}>
-                      <button 
-                        onClick={(e) => { 
-                          e.stopPropagation(); 
-                          setActiveMenuPostId(activeMenuPostId === p.id ? null : p.id); 
-                        }} 
-                        style={{ background: "transparent", border: "none", color: "#64748b", fontSize: "15px", cursor: "pointer", padding: "4px 8px" }}
-                      >
-                        <i className="fa-solid fa-ellipsis-vertical"></i>
-                      </button>
-
-                      {activeMenuPostId === p.id && (
-                        <div style={{ position: "absolute", right: 0, top: "24px", background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "10px", boxShadow: "0 8px 20px -4px rgba(0,0,0,0.1)", zIndex: 100, minWidth: "120px", overflow: "hidden" }}>
-                          <button 
-                            onClick={(e) => { e.stopPropagation(); setActiveMenuPostId(null); openEditModal(p); }} 
-                            style={{ width: "100%", padding: "8px 10px", background: "transparent", border: "none", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "#334155", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px" }}
-                          >
-                            <i className="fa-solid fa-pen" style={{ color: "var(--primary)" }}></i> Edit
-                          </button>
-                          <button 
-                            onClick={(e) => { e.stopPropagation(); setActiveMenuPostId(null); handleDeletePost(p.id); }} 
-                            style={{ width: "100%", padding: "8px 10px", background: "transparent", border: "none", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "#ef4444", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px", borderTop: "1px solid #f1f5f9" }}
-                          >
-                            <i className="fa-solid fa-trash"></i> Delete
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  )}
+                  <div style={{ fontWeight: 900, color: "#0f172a", fontSize: "13px" }}>
+                    {leaderboardMetric === "distance" ? athlete.dist.toFixed(1) + " km" : leaderboardMetric === "calories" ? athlete.cal + " cal" : athlete.streak + " days"}
+                  </div>
                 </div>
+              ))
+            ) : (
+              <div style={{ textAlign: "center", padding: "16px", color: "#94a3b8", fontSize: "12px" }}>
+                More athletes will appear as they log their activities!
+              </div>
+            )}
+          </div>
 
-                <div onClick={() => { setSelectedPost(p); setActivePanel("post_detail"); }} style={{ cursor: "pointer" }}>
-                  <ExpandableText text={p.text} />
-                </div>
-
-                {p.imageUrl && (
-            <div 
-              onClick={() => {
-                if (typeof setSelectedPost === "function") setSelectedPost(p);
-                if (typeof setActivePanel === "function") setActivePanel("post_detail");
-              }}
-              style={{ 
-                marginTop: "10px", 
-                marginBottom: "12px", 
-                width: "100%", 
-                height: "320px", 
-                borderRadius: "16px", 
-                overflow: "hidden", 
-                background: "#0f172a", 
-                display: "flex", 
-                alignItems: "center", 
-                justifyContent: "center",
-                boxShadow: "inset 0 0 20px rgba(0,0,0,0.25)",
-                cursor: "pointer"
-              }}
-              title="Tap to view post details & comments"
-            >
-              <img 
-                src={p.imageUrl} 
-                alt="Post content" 
-                style={{ 
-                  width: "100%", 
-                  height: "100%", 
-                  objectFit: "contain", 
-                  display: "block",
-                  pointerEvents: "none"
-                }} 
-              />
+          {/* 📌 STICKY YOUR RANK BAR SA ILALIM */}
+          <div style={{
+            position: "fixed",
+            bottom: "65px",
+            left: "14px",
+            right: "14px",
+            background: "linear-gradient(90deg, #f0f9ff 0%, #e0f2fe 100%)",
+            borderRadius: "12px",
+            padding: "10px 14px",
+            display: "flex",
+            alignItems: "center",
+            border: "1px solid #bae6fd",
+            boxShadow: "0 4px 14px rgba(56, 189, 248, 0.2)",
+            zIndex: 90
+          }}>
+            <img
+              src={user?.photoURL || avatarPreview || "https://i.pravatar.cc/150"}
+              alt="You"
+              style={{ width: "36px", height: "36px", borderRadius: "50%", objectFit: "cover", border: "2px solid #38bdf8", marginRight: "10px" }}
+            />
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: "13px", fontWeight: 900, color: "#0369a1" }}>
+                Your Rank: #{currentUserRank}
+              </div>
+              <div style={{ fontSize: "10.5px", fontWeight: 700, color: "#0284c7" }}>
+                Keep pushing your limits! ⚡
+              </div>
             </div>
-          )}
+            <div style={{ textAlign: "right" }}>
+              <div style={{ fontSize: "14px", fontWeight: 900, color: "#0f172a" }}>
+                {leaderboardMetric === "distance" ? currentAthlete.dist + " km" : leaderboardMetric === "calories" ? currentAthlete.cal + " cal" : currentAthlete.streak + " days"}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
-                <div style={{ display: "flex", alignItems: "center", gap: "10px", borderTop: "1px solid #f1f5f9", paddingTop: "8px", marginTop: "4px" }}>
-                  <button 
-                    onClick={() => handleLike(p.id, p.likes || 0, p.likedBy || [])} 
-                    style={{ 
-                      background: isLiked ? "#fef2f2" : "transparent", 
-                      border: "none", 
-                      color: isLiked ? "#ef4444" : "#64748b", 
-                      padding: "4px 8px", 
-                      fontSize: "11px", 
-                      fontWeight: 800, 
-                      cursor: "pointer", 
-                      display: "flex", 
-                      alignItems: "center", 
-                      gap: "5px", 
-                      borderRadius: "10px" 
-                    }}
-                  >
-                    <i className={isLiked ? "fa-solid fa-heart" : "fa-regular fa-heart"} style={{ fontSize: "13px", color: isLiked ? "#ef4444" : "#64748b" }}></i>
-                    {p.likes || 0} {(p.likes === 1) ? "Pulse" : "Pulses"}
-                  </button>
+      {/* ============================================================== */}
+      {/* ⚡ PULSE FEED VIEW (TUNAY NA POSTS, BOOST, EDIT, DELETE, COMMENTS) */}
+      {/* ============================================================== */}
+      {activeSubTab === "feed" && (
+        <div style={{ padding: "0 16px" }}>
 
-                  <button 
-                    onClick={() => { setSelectedPost(p); setActivePanel("post_detail"); }}
-                    style={{ background: "transparent", border: "none", color: "#64748b", padding: "4px 8px", fontSize: "11px", fontWeight: 800, cursor: "pointer", display: "flex", alignItems: "center", gap: "5px" }}
-                  >
-                    <i className="fa-regular fa-comment" style={{ fontSize: "12px" }}></i> {p.commentsCount || 0}
-                  </button>
+          {/* Post Composer Card */}
+          <div style={{ background: "#ffffff", borderRadius: "14px", padding: "14px", border: "1px solid #f1f5f9", boxShadow: "0 2px 6px rgba(0,0,0,0.02)", marginBottom: "16px" }}>
+            <h3 style={{ margin: "0 0 8px 0", fontSize: "13.5px", fontWeight: 800, color: "#0f172a" }}>
+              Share Athletic Activity
+            </h3>
 
-                  <button 
-                    onClick={() => {
-                      setResonatePost(p);
-                      navigator.clipboard.writeText(window.location.href);
-                      showToast("Link copied & post resonated!");
-                      if (p.userId !== user?.uid) {
-                        try {
-                          addDoc(collection(db, "notifications"), {
-                            recipientUid: p.userId,
-                            senderUid: user?.uid || "",
-                            senderName: appData?.userName || user?.displayName || "Athlete",
-                            senderAvatar: appData?.avatarUrl || avatarPreview || "",
-                            type: "resonate",
-                            text: `resonated your post: "${(p.text || "photo post").slice(0, 20)}..."`,
-                            postId: p.id,
-                            timestamp: Date.now()
-                          });
-                        } catch (e) { console.error(e); }
-                      }
-                    }}
-                    style={{ background: "transparent", border: "none", color: "#64748b", padding: "4px 8px", fontSize: "11px", fontWeight: 800, cursor: "pointer", display: "flex", alignItems: "center", gap: "5px" }}
-                  >
-                    <i className="fa-solid fa-share-nodes" style={{ fontSize: "12px" }}></i> Resonate
-                  </button>
+            {!showComposer ? (
+              <div
+                onClick={() => setShowComposer(true)}
+                style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer", background: "#f8fafc", padding: "10px 12px", borderRadius: "10px", border: "1px dashed #cbd5e1" }}
+              >
+                <img
+                  src={user?.photoURL || avatarPreview || "https://i.pravatar.cc/150"}
+                  alt="You"
+                  style={{ width: "28px", height: "28px", borderRadius: "50%", objectFit: "cover" }}
+                />
+                <span style={{ color: "#94a3b8", fontSize: "12.5px", flex: 1 }}>
+                  Share your latest sweat session... 🏃🚴
+                </span>
+                <i className="fa-solid fa-camera" style={{ color: "#4f46e5", fontSize: "16px" }}></i>
+              </div>
+            ) : (
+              <div>
+                <textarea
+                  autoFocus
+                  value={postText || ""}
+                  onChange={(e) => setPostText && setPostText(e.target.value)}
+                  placeholder="Tell the squad about your run or workout..."
+                  style={{
+                    width: "100%",
+                    minHeight: "75px",
+                    border: "1px solid #cbd5e1",
+                    borderRadius: "10px",
+                    padding: "10px",
+                    fontSize: "13px",
+                    outline: "none",
+                    resize: "none",
+                    fontFamily: "inherit",
+                    boxSizing: "border-box"
+                  }}
+                />
+
+                {imagePreview && (
+                  <div style={{ position: "relative", marginTop: "8px", borderRadius: "10px", overflow: "hidden", border: "1px solid #e2e8f0" }}>
+                    <img src={imagePreview} alt="Attached" style={{ width: "100%", maxHeight: "220px", objectFit: "cover", display: "block" }} />
+                    <button
+                      type="button"
+                      onClick={() => setImagePreview && setImagePreview(null)}
+                      style={{
+                        position: "absolute", top: "6px", right: "6px", background: "rgba(15,23,42,0.75)",
+                        color: "#ffffff", border: "none", borderRadius: "50%", width: "24px", height: "24px",
+                        cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center"
+                      }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                )}
+
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "10px" }}>
+                  <label style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: "5px", color: "#64748b", fontSize: "12px", fontWeight: 700 }}>
+                    <i className="fa-solid fa-image" style={{ color: "#4f46e5", fontSize: "15px" }}></i>
+                    <span>Photo</span>
+                    <input type="file" accept="image/*" onChange={handleImageChange} style={{ display: "none" }} />
+                  </label>
+
+                  <div style={{ display: "flex", gap: "8px" }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowComposer(false);
+                        if (setPostText) setPostText("");
+                        if (setImagePreview) setImagePreview(null);
+                      }}
+                      style={{ padding: "6px 12px", background: "transparent", color: "#64748b", border: "none", fontWeight: 700, borderRadius: "6px", cursor: "pointer", fontSize: "12px" }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={createPost}
+                      disabled={isPublishing}
+                      style={{
+                        padding: "7px 16px",
+                        background: "linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)",
+                        color: "#ffffff",
+                        border: "none",
+                        fontWeight: 800,
+                        borderRadius: "8px",
+                        cursor: isPublishing ? "not-allowed" : "pointer",
+                        fontSize: "12px",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "5px",
+                        boxShadow: "0 2px 6px rgba(99,102,241,0.25)"
+                      }}
+                    >
+                      {isPublishing ? "Publishing..." : "Post ⚡"}
+                    </button>
+                  </div>
                 </div>
               </div>
-            );
-          })
-        )}
-      </div>
+            )}
+          </div>
+
+          {/* TUNAY NA POSTS LIST MULA SA FIRESTORE (publicCommunityPosts) */}
+          {Array.isArray(publicCommunityPosts) && publicCommunityPosts.length > 0 ? (
+            publicCommunityPosts.map((post) => {
+              const isOwner = post.userId === user?.uid || post.authorId === user?.uid;
+              const hasBoosted = Array.isArray(post.likes) ? post.likes.includes(user?.uid) : false;
+              const boostCount = Array.isArray(post.likes) ? post.likes.length : (post.boosts || 0);
+
+              return (
+                <div
+                  key={post.id}
+                  style={{
+                    background: "#ffffff",
+                    borderRadius: "14px",
+                    padding: "14px",
+                    border: "1px solid #f1f5f9",
+                    boxShadow: "0 2px 6px rgba(0,0,0,0.02)",
+                    marginBottom: "16px"
+                  }}
+                >
+                  {/* Athlete Card Header */}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "10px" }}>
+                    <div
+                      style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer" }}
+                      onClick={() => {
+                        if (typeof setSelectedVisitor === "function") setSelectedVisitor(post);
+                      }}
+                    >
+                      <img
+                        src={post.userPhoto || post.authorPhoto || "https://i.pravatar.cc/150"}
+                        alt="Author"
+                        style={{ width: "38px", height: "38px", borderRadius: "50%", objectFit: "cover", border: "2px solid #e2e8f0" }}
+                      />
+                      <div>
+                        <div style={{ fontSize: "14px", fontWeight: 800, color: "#0f172a" }}>
+                          {post.userName || post.authorName || "NutriPulse Athlete"}
+                        </div>
+                        <div style={{ fontSize: "10.5px", color: "#94a3b8", fontWeight: 600 }}>
+                          {formatPostTime(post.createdAt || post.timestamp)}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 3-Dot Menu para sa Edit / Delete */}
+                    {isOwner && (
+                      <div style={{ position: "relative" }}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (typeof setActiveMenuPostId === "function") {
+                              setActiveMenuPostId(activeMenuPostId === post.id ? null : post.id);
+                            }
+                          }}
+                          style={{ background: "none", border: "none", color: "#94a3b8", padding: "4px 8px", cursor: "pointer", fontSize: "14px" }}
+                        >
+                          <i className="fa-solid fa-ellipsis-vertical"></i>
+                        </button>
+                        {activeMenuPostId === post.id && (
+                          <div style={{
+                            position: "absolute", right: 0, top: "24px", background: "#ffffff",
+                            borderRadius: "8px", border: "1px solid #e2e8f0", boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                            zIndex: 10, minWidth: "100px", overflow: "hidden"
+                          }}>
+                            {typeof openEditModal === "function" && (
+                              <button
+                                type="button"
+                                onClick={() => openEditModal(post)}
+                                style={{ width: "100%", padding: "8px 12px", border: "none", background: "none", textAlign: "left", fontSize: "12px", fontWeight: 700, color: "#334155", cursor: "pointer" }}
+                              >
+                                Edit Post
+                              </button>
+                            )}
+                            {typeof handleDeletePost === "function" && (
+                              <button
+                                type="button"
+                                onClick={() => handleDeletePost(post.id)}
+                                style={{ width: "100%", padding: "8px 12px", border: "none", background: "none", textAlign: "left", fontSize: "12px", fontWeight: 700, color: "#ef4444", cursor: "pointer" }}
+                              >
+                                Delete
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Caption / Kwento */}
+                  {(post.text || post.caption) && (
+                    <p style={{ fontSize: "13.5px", color: "#334155", lineHeight: "1.5", margin: "0 0 10px 0", whiteSpace: "pre-wrap" }}>
+                      {post.text || post.caption}
+                    </p>
+                  )}
+
+                  {/* Route Canvas / Activity Image */}
+                  {(post.image || post.imageUrl) && (
+                    <div style={{ borderRadius: "10px", overflow: "hidden", marginBottom: "10px", border: "1px solid #f1f5f9" }}>
+                      <img src={post.image || post.imageUrl} alt="Activity" style={{ width: "100%", display: "block" }} />
+                    </div>
+                  )}
+
+                  {/* Interaction Bar: ⚡ Pulse Boost, 💬 Comments/Huddle */}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid #f8fafc", paddingTop: "10px" }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (typeof handleLike === "function") handleLike(post.id);
+                      }}
+                      style={{
+                        background: hasBoosted ? "rgba(56, 189, 248, 0.12)" : "transparent",
+                        border: "none",
+                        color: hasBoosted ? "#0284c7" : "#64748b",
+                        fontSize: "12.5px",
+                        fontWeight: 800,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "5px",
+                        cursor: "pointer",
+                        padding: "5px 10px",
+                        borderRadius: "8px"
+                      }}
+                    >
+                      <i className="fa-solid fa-bolt" style={{ color: hasBoosted ? "#0284c7" : "#94a3b8" }}></i>
+                      <span>Pulse Boost ({boostCount})</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (typeof setSelectedPost === "function") setSelectedPost(post);
+                      }}
+                      style={{
+                        background: "transparent",
+                        border: "none",
+                        color: "#64748b",
+                        fontSize: "12.5px",
+                        fontWeight: 700,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "5px",
+                        cursor: "pointer",
+                        padding: "5px 10px"
+                      }}
+                    >
+                      <i className="fa-regular fa-comment-dots"></i>
+                      <span>Huddle ({Array.isArray(post.comments) ? post.comments.length : 0})</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })
+          ) : (
+            <div style={{ textAlign: "center", padding: "40px 20px", color: "#94a3b8" }}>
+              <i className="fa-solid fa-shoe-prints" style={{ fontSize: "36px", marginBottom: "8px", color: "#cbd5e1" }}></i>
+              <p style={{ fontWeight: 700, fontSize: "13px" }}>No community activities logged yet. Be the first to share!</p>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
