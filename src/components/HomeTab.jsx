@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
+import { db } from "../services/firebase";
+import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 
 // Default 5 Verified Quick Staples
 const DEFAULT_STAPLES = [
@@ -182,6 +184,10 @@ export default function HomeTab({
   const [routeCoordinates, setRouteCoordinates] = useState([]);
   const [selectedViewingActivity, setSelectedViewingActivity] = useState(null);
 
+  // Preview & Social Sharing State
+  const [previewImageUrl, setPreviewImageUrl] = useState(null);
+  const [isSharingToSocial, setIsSharingToSocial] = useState(false);
+
   const watchIdRef = useRef(null);
   const lastCoordsRef = useRef(null);
   const timerRef = useRef(null);
@@ -245,7 +251,6 @@ export default function HomeTab({
         const { latitude, longitude, accuracy } = pos.coords;
         setGpsAccuracy(Math.round(accuracy));
 
-        // Accept accuracy up to 75m for indoor testing/city canyons
         if (accuracy > 75) return;
 
         const newPoint = {
@@ -288,7 +293,6 @@ export default function HomeTab({
     if (showToast) showToast("🛰️ Connected to Satellite GPS! Tracking walk...");
   };
 
-  // FINISH & SAVE HANDLER - GUARANTEED TO OPEN MODAL & SAVE
   const stopAndSaveGpsSession = () => {
     if (watchIdRef.current !== null) {
       navigator.geolocation.clearWatch(watchIdRef.current);
@@ -321,7 +325,6 @@ export default function HomeTab({
       timestamp: Date.now()
     };
 
-    // Save to Cloud & Local State
     if (saveToCloud) {
       const existingWorkouts = appData?.workoutLogs || [];
       const updatedWorkouts = [completedActivity, ...existingWorkouts];
@@ -344,7 +347,6 @@ export default function HomeTab({
       });
     }
 
-    // ALWAYS OPEN SUMMARY MODAL SO USER CAN VIEW ROUTE, EXPORT PNG & GPX
     setSelectedViewingActivity(completedActivity);
     setIsGpsActive(false);
 
@@ -362,7 +364,6 @@ export default function HomeTab({
     lastTapRef.current = now;
   };
 
-  // EXPORT GPX FILE
   const downloadGpxFile = (activity) => {
     const coords = activity?.route || [];
     if (coords.length === 0) {
@@ -404,30 +405,28 @@ ${trkpts}
     if (showToast) showToast("💾 GPX File downloaded successfully!");
   };
 
-  // 🖼️ GENERATE & EXPORT STRAVA-STYLE ATHLETIC CARD IMAGE (PNG)
-  const exportActivityAsImage = (activity) => {
-    if (!activity) return;
-
+  // HELPER: Lumikha ng Canvas Image DataURL
+  const generateCanvasDataUrl = (activity) => {
     const canvas = document.createElement("canvas");
     canvas.width = 900;
     canvas.height = 1100;
     const ctx = canvas.getContext("2d");
 
-    // 1. Background Athletic Dark Gradient
+    // 1. Athletic Dark Background
     const bgGrad = ctx.createLinearGradient(0, 0, 0, canvas.height);
     bgGrad.addColorStop(0, "#090d16");
     bgGrad.addColorStop(1, "#111827");
     ctx.fillStyle = bgGrad;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Decorative glow
+    // Decorative Glow
     const radial = ctx.createRadialGradient(canvas.width / 2, 400, 50, canvas.width / 2, 400, 450);
     radial.addColorStop(0, "rgba(56, 189, 248, 0.08)");
     radial.addColorStop(1, "transparent");
     ctx.fillStyle = radial;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // 2. Header Brand
+    // 2. Brand Header
     ctx.fillStyle = "#ffffff";
     ctx.font = "900 36px sans-serif";
     ctx.fillText("NUTRIPULSE", 60, 80);
@@ -442,7 +441,7 @@ ${trkpts}
     ctx.fillText(activity.dateLogged || new Date().toLocaleDateString("en-US"), canvas.width - 60, 85);
     ctx.textAlign = "left";
 
-    // 3. Draw Route Map Box
+    // 3. Map Box
     const boxX = 60;
     const boxY = 140;
     const boxW = canvas.width - 120;
@@ -473,7 +472,6 @@ ${trkpts}
       const mapX = (lon) => boxX + pad + ((lon - minLon) / lonSpan) * (boxW - pad * 2);
       const mapY = (lat) => boxY + boxH - pad - ((lat - minLat) / latSpan) * (boxH - pad * 2);
 
-      // Glowing Neon Track
       ctx.save();
       ctx.strokeStyle = "#38bdf8";
       ctx.lineWidth = 7;
@@ -511,7 +509,6 @@ ${trkpts}
       ctx.fillText("● START", mapX(coords[0].lon) + 14, mapY(coords[0].lat) + 5);
       ctx.fillText("■ FINISH", mapX(lastPt.lon) + 14, mapY(lastPt.lat) + 5);
     } else {
-      // Single Point / Indoor Session Marker
       ctx.fillStyle = "#38bdf8";
       ctx.beginPath();
       ctx.arc(boxX + boxW / 2, boxY + boxH / 2, 16, 0, Math.PI * 2);
@@ -527,27 +524,32 @@ ${trkpts}
       ctx.textAlign = "left";
     }
 
-    // 4. Metrics Grid Section
+    // 4. Metrics Grid Section (Naayos na ang Text Spacing ng KM!)
     const statsY = 690;
     
     // Distance
     ctx.fillStyle = "#64748b";
     ctx.font = "800 15px sans-serif";
     ctx.fillText("DISTANCE", 60, statsY);
+    
     ctx.fillStyle = "#ffffff";
-    ctx.font = "900 68px sans-serif";
-    ctx.fillText(`${activity.distanceKm.toFixed(2)}`, 60, statsY + 68);
+    ctx.font = "900 64px sans-serif";
+    const distStr = activity.distanceKm.toFixed(2);
+    ctx.fillText(distStr, 60, statsY + 65);
+    
+    // Sukatin gamit ang 64px font para hindi pumatong ang KM
+    const distMetrics = ctx.measureText(distStr);
     ctx.fillStyle = "#38bdf8";
     ctx.font = "900 24px sans-serif";
-    ctx.fillText("KM", 60 + ctx.measureText(`${activity.distanceKm.toFixed(2)} `).width, statsY + 65);
+    ctx.fillText("KM", 60 + distMetrics.width + 12, statsY + 60);
 
     // Duration
     ctx.fillStyle = "#64748b";
     ctx.font = "800 15px sans-serif";
     ctx.fillText("ACTIVE TIME", 520, statsY);
     ctx.fillStyle = "#ffffff";
-    ctx.font = "900 68px sans-serif";
-    ctx.fillText(formatTime(activity.durationSec || activity.durationMin * 60), 520, statsY + 68);
+    ctx.font = "900 64px sans-serif";
+    ctx.fillText(formatTime(activity.durationSec || activity.durationMin * 60), 520, statsY + 65);
 
     // Pace & Burn
     const row2Y = statsY + 140;
@@ -571,36 +573,68 @@ ${trkpts}
     ctx.font = "800 14px sans-serif";
     ctx.fillText("⚡ TRACKED LIVE WITH NUTRIPULSE ATHLETICS ENGINE", 60, canvas.height - 45);
 
-    // Trigger Native Share or Direct PNG Download
-    canvas.toBlob((blob) => {
-      if (!blob) return;
-      const file = new File([blob], `NutriPulse-Run-${activity.distanceKm}km.png`, { type: "image/png" });
-
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        navigator
-          .share({
-            files: [file],
-            title: `NutriPulse ${activity.distanceKm}km Run`,
-            text: `Completed a ${activity.distanceKm}km outdoor session tracked with NutriPulse!`
-          })
-          .catch(() => triggerDirectDownload(blob, activity));
-      } else {
-        triggerDirectDownload(blob, activity);
-      }
-    });
+    return canvas.toDataURL("image/png");
   };
 
-  const triggerDirectDownload = (blob, activity) => {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `NutriPulse-${activity.dateLogged}-${activity.distanceKm}km-route.png`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(link => {});
-    a.remove();
-    URL.revokeObjectURL(url);
-    if (showToast) showToast("🖼️ Route Card Image saved to your device!");
+  // DIRECT DOWNLOAD SA TELEPONO O PC (Walang Messenger Popup)
+  const handleDirectDownloadImage = (activity) => {
+    if (!activity) return;
+    try {
+      const dataUrl = generateCanvasDataUrl(activity);
+      const link = document.createElement("a");
+      link.href = dataUrl;
+      link.download = `NutriPulse-${activity.dateLogged || "track"}-${activity.distanceKm}km.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      if (showToast) showToast("📥 Download started! Saved directly to your device.");
+    } catch (err) {
+      console.error("Direct download error:", err);
+      if (showToast) showToast("⚠️ Error generating file. Use Preview & Save below.");
+    }
+  };
+
+  // BUKSAN ANG PHOTO VIEWER MODAL PARA SA LONG-PRESS SAVE
+  const handleOpenImagePreview = (activity) => {
+    if (!activity) return;
+    const dataUrl = generateCanvasDataUrl(activity);
+    setPreviewImageUrl(dataUrl);
+  };
+
+  // 🚀 DIRECT SHARE TO SOCIAL TAB (COMMUNITY PULSE FEED)
+  const handleShareToSocialTab = async (activity) => {
+    if (!activity) return;
+    setIsSharingToSocial(true);
+    if (showToast) showToast("⏳ Publishing route to Pulse Community...");
+
+    try {
+      const dataUrl = generateCanvasDataUrl(activity);
+      const captionText = `🏃 Outdoor Activity: ${activity.distanceKm.toFixed(2)} km in ${formatTime(activity.durationSec || activity.durationMin * 60)}! Pace: ${activity.avgPaceMinKm || "0.00"}/km • Burned +${activity.burnedCal} kcal. Tracked with NutriPulse GPS ⚡`;
+
+      await addDoc(collection(db, "notifications"), {
+        authorUid: user?.uid || "athlete",
+        authorName: user?.displayName || appData?.name || "Pulse Athlete",
+        authorHandle: `@${(user?.displayName || appData?.name || "athlete").toLowerCase().replace(/\s+/g, '')}`,
+        authorAvatar: user?.photoURL || appData?.avatarUrl || "",
+        authorBadge: "Outdoor Runner",
+        category: "Workout",
+        caption: captionText,
+        image: dataUrl,
+        likesCount: 0,
+        likedBy: [],
+        commentsCount: 0,
+        createdAt: serverTimestamp()
+      });
+
+      if (showToast) {
+        showToast("🎉 Posted! Your route is now live on the Social Tab!");
+      }
+    } catch (err) {
+      console.error("Share to community error:", err);
+      if (showToast) showToast("❌ Failed to share post. Check connection.");
+    } finally {
+      setIsSharingToSocial(false);
+    }
   };
 
   useEffect(() => {
@@ -1219,7 +1253,7 @@ ${trkpts}
               </button>
             </div>
 
-            {/* COMPLETED GPS SESSIONS (ALWAYS TAP TO VIEW MODAL AGAIN) */}
+            {/* COMPLETED GPS SESSIONS LIST */}
             {recordedGpsActivities.length > 0 && (
               <div style={{ borderTop: "1px solid #f1f5f9", paddingTop: "8px" }}>
                 <span style={{ fontSize: "9.5px", fontWeight: 800, color: "#64748b", textTransform: "uppercase", display: "block", marginBottom: "5px" }}>
@@ -1556,19 +1590,20 @@ ${trkpts}
               </div>
             </div>
 
-            {/* Action Buttons: Save Image Card & Download GPX */}
+            {/* Action Buttons: Social Share, Direct Download, Image Preview, GPX */}
             <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginTop: "4px" }}>
               
-              {/* 🖼️ SAVE MAP CARD AS IMAGE BUTTON */}
+              {/* 🚀 1. SHARE DIRECTLY TO SOCIAL TAB FEED */}
               <button
                 type="button"
-                onClick={() => exportActivityAsImage(selectedViewingActivity)}
+                disabled={isSharingToSocial}
+                onClick={() => handleShareToSocialTab(selectedViewingActivity)}
                 style={{
                   width: "100%",
-                  background: "linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)",
+                  background: "linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)",
                   color: "white",
                   border: "none",
-                  padding: "11px",
+                  padding: "10px",
                   borderRadius: "10px",
                   fontWeight: 800,
                   fontSize: "12px",
@@ -1577,26 +1612,74 @@ ${trkpts}
                   alignItems: "center",
                   justifyContent: "center",
                   gap: "7px",
-                  boxShadow: "0 4px 12px rgba(14, 165, 233, 0.25)"
+                  boxShadow: "0 4px 12px rgba(99, 102, 241, 0.28)"
                 }}
               >
-                <i className="fa-solid fa-camera-retro"></i>
-                <span>Save Route Card as Image (PNG / Gallery)</span>
+                <i className="fa-solid fa-paper-plane"></i>
+                <span>{isSharingToSocial ? "Posting to Social Feed..." : "Share to Social Tab (Pulse Feed)"}</span>
               </button>
 
-              {/* 💾 DOWNLOAD GPX BUTTON */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px" }}>
+                {/* 📥 2. DIRECT DOWNLOAD TO GALLERY / STORAGE */}
+                <button
+                  type="button"
+                  onClick={() => handleDirectDownloadImage(selectedViewingActivity)}
+                  style={{
+                    background: "linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)",
+                    color: "white",
+                    border: "none",
+                    padding: "9px 6px",
+                    borderRadius: "10px",
+                    fontWeight: 800,
+                    fontSize: "11px",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "5px"
+                  }}
+                >
+                  <i className="fa-solid fa-download"></i>
+                  <span>Direct Download</span>
+                </button>
+
+                {/* 🖼️ 3. PREVIEW & LONG-PRESS SAVE MODAL */}
+                <button
+                  type="button"
+                  onClick={() => handleOpenImagePreview(selectedViewingActivity)}
+                  style={{
+                    background: "#f1f5f9",
+                    color: "#0f172a",
+                    border: "1px solid #cbd5e1",
+                    padding: "9px 6px",
+                    borderRadius: "10px",
+                    fontWeight: 800,
+                    fontSize: "11px",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "5px"
+                  }}
+                >
+                  <i className="fa-solid fa-eye"></i>
+                  <span>Preview & Save</span>
+                </button>
+              </div>
+
+              {/* 💾 4. DOWNLOAD GPX */}
               <button
                 type="button"
                 onClick={() => downloadGpxFile(selectedViewingActivity)}
                 style={{
                   width: "100%",
-                  background: "#f8fafc",
-                  color: "#334155",
-                  border: "1px solid #cbd5e1",
-                  padding: "9px",
-                  borderRadius: "10px",
+                  background: "transparent",
+                  color: "#64748b",
+                  border: "1px solid #e2e8f0",
+                  padding: "7px",
+                  borderRadius: "8px",
                   fontWeight: 800,
-                  fontSize: "11px",
+                  fontSize: "10.5px",
                   cursor: "pointer",
                   display: "flex",
                   alignItems: "center",
@@ -1616,7 +1699,7 @@ ${trkpts}
                   background: "transparent",
                   color: "#94a3b8",
                   border: "none",
-                  padding: "6px",
+                  padding: "5px",
                   borderRadius: "10px",
                   fontWeight: 700,
                   fontSize: "11px",
@@ -1630,7 +1713,91 @@ ${trkpts}
         </div>
       )}
 
-      {/* ─── 8. QUICK LOG FOOD STAPLES MODAL ─── */}
+      {/* ─── 8. IMAGE PREVIEW & LONG-PRESS SAVE MODAL ─── */}
+      {previewImageUrl && (
+        <div
+          onClick={() => setPreviewImageUrl(null)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0, 0, 0, 0.88)",
+            backdropFilter: "blur(8px)",
+            zIndex: 20000,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "20px"
+          }}
+        >
+          <div style={{ textAlign: "center", marginBottom: "12px", color: "#f8fafc" }}>
+            <span style={{ fontSize: "13px", fontWeight: 800, display: "block" }}>
+              📸 Tap and Hold (Long-Press) Image
+            </span>
+            <span style={{ fontSize: "11px", color: "#94a3b8" }}>
+              Piliin ang "Save Image / Download" para direktang pumasok sa Photos/Gallery
+            </span>
+          </div>
+
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              maxWidth: "340px",
+              width: "100%",
+              borderRadius: "16px",
+              overflow: "hidden",
+              boxShadow: "0 10px 40px rgba(0,0,0,0.5)",
+              border: "1px solid rgba(255,255,255,0.2)"
+            }}
+          >
+            <img
+              src={previewImageUrl}
+              alt="NutriPulse Route Card"
+              style={{ width: "100%", height: "auto", display: "block" }}
+            />
+          </div>
+
+          <div style={{ display: "flex", gap: "10px", marginTop: "14px", width: "100%", maxWidth: "340px" }}>
+            <a
+              href={previewImageUrl}
+              download="NutriPulse-Track.png"
+              style={{
+                flex: 1,
+                background: "#0284c7",
+                color: "white",
+                textAlign: "center",
+                padding: "10px 0",
+                borderRadius: "10px",
+                fontSize: "12px",
+                fontWeight: 800,
+                textDecoration: "none"
+              }}
+            >
+              <i className="fa-solid fa-download" style={{ marginRight: "6px" }}></i>
+              Save File
+            </a>
+
+            <button
+              onClick={() => setPreviewImageUrl(null)}
+              style={{
+                flex: 1,
+                background: "rgba(255,255,255,0.15)",
+                color: "#ffffff",
+                border: "none",
+                padding: "10px 0",
+                borderRadius: "10px",
+                fontSize: "12px",
+                fontWeight: 800,
+                cursor: "pointer"
+              }}
+            >
+              Close Preview
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ─── 9. QUICK LOG FOOD STAPLES MODAL ─── */}
       {activeSheet === "food" && (
         <div 
           onClick={() => {
@@ -1888,7 +2055,7 @@ ${trkpts}
         </div>
       )}
 
-      {/* ─── 9. LOG WORKOUT MODAL ─── */}
+      {/* ─── 10. LOG WORKOUT MODAL ─── */}
       {activeSheet === "workout" && (
         <div onClick={() => setActiveSheet(null)} style={{ position: "fixed", inset: 0, background: "rgba(15, 23, 42, 0.45)", backdropFilter: "blur(3px)", zIndex: 9999, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
           <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: "420px", background: "#ffffff", borderTopLeftRadius: "22px", borderTopRightRadius: "22px", padding: "18px", boxShadow: "0 -10px 30px rgba(0,0,0,0.15)", animation: "slideUp 0.2s ease-out" }}>
