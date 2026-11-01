@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
+import { db } from "../services/firebase";
+import { doc, updateDoc, arrayUnion, arrayRemove, increment, collection, addDoc, serverTimestamp, onSnapshot } from "firebase/firestore";
 
 export default function CommunityTab({
   draftSocialPost,
@@ -48,7 +50,11 @@ export default function CommunityTab({
   const [showInboxDrawer, setShowInboxDrawer] = useState(false);
   const [showSearchDrawer, setShowSearchDrawer] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+
+  // COMMENTS & REAL-TIME STATE
   const [newCommentText, setNewCommentText] = useState("");
+  const [isSubmittingComment, setIsSubmittingComment] = useState(false);
+  const [liveSelectedPost, setLiveSelectedPost] = useState(null);
 
   // ─── AUTO-LOAD DRAFT POST MULA SA HOMETAB ───
   useEffect(() => {
@@ -73,6 +79,23 @@ export default function CommunityTab({
     }
   }, [postText, imagePreview]);
 
+  // ─── REAL-TIME LISTENER PARA SA BUKAS NA POST HUDDLE (COMMENTS) ───
+  useEffect(() => {
+    if (!selectedPost?.id) {
+      setLiveSelectedPost(null);
+      return;
+    }
+    const unsub = onSnapshot(doc(db, "communityPosts", selectedPost.id), (docSnap) => {
+      if (docSnap.exists()) {
+        setLiveSelectedPost({ id: docSnap.id, ...docSnap.data() });
+      }
+    }, (err) => console.error("Error listening to post:", err));
+
+    return () => unsub();
+  }, [selectedPost?.id]);
+
+  const activeHuddlePost = liveSelectedPost || selectedPost;
+
   // ─── UNREAD COUNTS PARA SA MESSAGES AT NOTIFICATIONS ───
   const unreadMsgCount = useMemo(() => {
     if (!Array.isArray(inboxChats)) return 0;
@@ -90,9 +113,26 @@ export default function CommunityTab({
     }).length;
   }, [allUserNotifs, lastSeenNotifTime]);
 
+  // ─── TELEMETRY AGGREGATOR MULA SA COMMUNITY POSTS ───
+  const telemetryStatsByUser = useMemo(() => {
+    const stats = {};
+    if (Array.isArray(publicCommunityPosts)) {
+      publicCommunityPosts.forEach(p => {
+        const uid = p.userId || p.authorId;
+        if (!uid) return;
+        if (!stats[uid]) stats[uid] = { dist: 0, cal: 0 };
+        const d = Number(p.telemetry?.distanceKm || p.distanceKm || p.distance || 0);
+        const c = Number(p.telemetry?.calories || p.caloriesBurned || p.calories || p.kcal || 0);
+        stats[uid].dist += d;
+        stats[uid].cal += c;
+      });
+    }
+    return stats;
+  }, [publicCommunityPosts]);
+
   // ─── FILTERED ATHLETES PARA SA SEARCH DRAWER ───
   const searchResults = useMemo(() => {
-    if (!searchQuery.trim()) return userList.slice(0, 10);
+    if (!searchQuery.trim()) return userList.slice(0, 15);
     const q = searchQuery.toLowerCase();
     return userList.filter(u => {
       const name = (u.displayName || u.name || u.username || "").toLowerCase();
@@ -100,7 +140,7 @@ export default function CommunityTab({
     });
   }, [userList, searchQuery]);
 
-  // ─── TUNAY NA LEADERBOARD DATA MULA SA USERLIST ───
+  // ─── TUNAY NA LEADERBOARD DATA (WITH TELEMETRY AGGREGATION) ───
   const sortedAthletes = useMemo(() => {
     let list = Array.isArray(userList) && userList.length > 0 ? [...userList] : [];
 
@@ -117,27 +157,35 @@ export default function CommunityTab({
     }
 
     return list.map(u => {
-      const dist = Number(u.distanceKm || u.weeklyKm || u.totalDistance || (u.steps ? u.steps * 0.0008 : 0)) || 0;
-      const cal = Number(u.caloriesBurned || u.weeklyCalories || u.burnedCal || (dist * 65)) || 0;
-      const streak = Number(u.streakDays || u.streak || 1);
+      const uid = u.id || u.uid;
+      const userTelemetry = telemetryStatsByUser[uid] || { dist: 0, cal: 0 };
+
+      // Kumuha mula sa user doc o mula sa aggregated post telemetry
+      const rawDist = Number(u.distanceKm || u.totalDistance || u.totalDistanceKm || u.distance || u.weeklyKm || u.totalKm || (u.steps ? u.steps * 0.0008 : 0)) || 0;
+      const dist = rawDist > 0 ? rawDist : userTelemetry.dist;
+
+      const rawCal = Number(u.caloriesBurned || u.totalBurnedCalories || u.burnedCal || u.calories || u.totalCalories) || 0;
+      const cal = rawCal > 0 ? rawCal : (userTelemetry.cal > 0 ? userTelemetry.cal : (dist > 0 ? dist * 65 : 0));
+
+      const streak = Number(u.streakDays || u.streak || u.currentStreak || 1);
       const name = u.displayName || u.name || u.username || "Athlete";
-      const photo = u.photoURL || u.avatar || u.avatarPreview || "https://i.pravatar.cc/150?u=" + (u.id || name);
+      const photo = u.photoURL || u.avatar || u.avatarPreview || "https://i.pravatar.cc/150?u=" + (uid || name);
 
       return {
-        id: u.id || u.uid,
+        id: uid,
         name,
         photo,
         dist: Math.round(dist * 10) / 10,
         cal: Math.round(cal),
         streak,
-        isCurrent: u.id === user?.uid || u.uid === user?.uid
+        isCurrent: uid === user?.uid
       };
     }).sort((a, b) => {
       if (leaderboardMetric === "calories") return b.cal - a.cal;
       if (leaderboardMetric === "streak") return b.streak - a.streak;
       return b.dist - a.dist;
     });
-  }, [userList, user, appData, avatarPreview, leaderboardMetric]);
+  }, [userList, user, appData, avatarPreview, leaderboardMetric, telemetryStatsByUser]);
 
   const top1 = sortedAthletes[0] || { name: "No Data", dist: 0, cal: 0, streak: 0, photo: "https://i.pravatar.cc/150" };
   const top2 = sortedAthletes[1] || { name: "No Data", dist: 0, cal: 0, streak: 0, photo: "https://i.pravatar.cc/150" };
@@ -147,6 +195,98 @@ export default function CommunityTab({
   const currentUserIndex = sortedAthletes.findIndex(u => u.isCurrent);
   const currentUserRank = currentUserIndex !== -1 ? currentUserIndex + 1 : sortedAthletes.length;
   const currentAthlete = sortedAthletes[currentUserIndex] || { dist: 0, cal: 0, streak: 0 };
+
+  // ─── FIRESTORE ACTION: ADD COMMENT SA ACTIVITY HUDDLE ───
+  const handleAddComment = async (e) => {
+    if (e) e.preventDefault();
+    if (!newCommentText.trim() || !activeHuddlePost?.id || !user) return;
+
+    setIsSubmittingComment(true);
+    const commentContent = newCommentText.trim();
+
+    try {
+      const postRef = doc(db, "communityPosts", activeHuddlePost.id);
+      const commentPayload = {
+        id: Date.now().toString(),
+        userId: user.uid,
+        userName: user.displayName || "NutriPulse Athlete",
+        userPhoto: user.photoURL || avatarPreview || "https://i.pravatar.cc/150",
+        text: commentContent,
+        createdAt: new Date().toISOString()
+      };
+
+      await updateDoc(postRef, {
+        comments: arrayUnion(commentPayload)
+      });
+
+      // Magpadala ng notification sa may-ari ng post
+      const targetAuthorId = activeHuddlePost.userId || activeHuddlePost.authorId;
+      if (targetAuthorId && targetAuthorId !== user.uid) {
+        await addDoc(collection(db, "notifications"), {
+          recipientId: targetAuthorId,
+          userId: targetAuthorId,
+          senderId: user.uid,
+          senderName: user.displayName || "NutriPulse Athlete",
+          senderPhoto: user.photoURL || avatarPreview || "https://i.pravatar.cc/150",
+          type: "comment",
+          message: 'commented on your huddle: "' + commentContent.slice(0, 30) + '..."',
+          postId: activeHuddlePost.id,
+          createdAt: serverTimestamp()
+        });
+      }
+
+      setNewCommentText("");
+      if (showToast) showToast("Comment added to huddle! ⚡");
+    } catch (err) {
+      console.error("Comment submit error:", err);
+      if (showToast) showToast("Failed to post comment.");
+    } finally {
+      setIsSubmittingComment(false);
+    }
+  };
+
+  // ─── FIRESTORE ACTION: PULSE BOOST TOGGLE ───
+  const handlePulseBoost = async (post) => {
+    if (!user) {
+      if (showToast) showToast("Please log in to boost!");
+      return;
+    }
+
+    if (typeof handleLike === "function") {
+      handleLike(post.id);
+      return;
+    }
+
+    try {
+      const postRef = doc(db, "communityPosts", post.id);
+      const likesList = Array.isArray(post.likes) ? post.likes : [];
+      const hasBoosted = likesList.includes(user.uid);
+
+      await updateDoc(postRef, {
+        likes: hasBoosted ? arrayRemove(user.uid) : arrayUnion(user.uid),
+        boosts: increment(hasBoosted ? -1 : 1)
+      });
+
+      if (!hasBoosted) {
+        const targetAuthorId = post.userId || post.authorId;
+        if (targetAuthorId && targetAuthorId !== user.uid) {
+          await addDoc(collection(db, "notifications"), {
+            recipientId: targetAuthorId,
+            userId: targetAuthorId,
+            senderId: user.uid,
+            senderName: user.displayName || "NutriPulse Athlete",
+            senderPhoto: user.photoURL || avatarPreview || "https://i.pravatar.cc/150",
+            type: "boost",
+            message: "pulsed your athletic activity! ⚡",
+            postId: post.id,
+            createdAt: serverTimestamp()
+          });
+        }
+      }
+    } catch (err) {
+      console.error("Pulse Boost error:", err);
+    }
+  };
 
   const closeAllDrawers = () => {
     setShowNotifDrawer(false);
@@ -179,7 +319,6 @@ export default function CommunityTab({
         justifyContent: "space-between",
         boxSizing: "border-box"
       }}>
-        {/* Brand & Logo */}
         <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
           <div style={{
             width: "32px",
@@ -206,92 +345,47 @@ export default function CommunityTab({
 
         {/* Action Controls */}
         <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
-          {/* 🔍 SEARCH BUTTON (BUBUKSAN ANG UNIFORM SEARCH DRAWER) */}
+          {/* 🔍 SEARCH */}
           <button
             type="button"
             onClick={() => setShowSearchDrawer(true)}
-            style={{
-              width: "32px",
-              height: "32px",
-              background: "none",
-              border: "none",
-              borderRadius: "8px",
-              cursor: "pointer",
-              color: "#334155",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: 0
-            }}
+            style={{ width: "32px", height: "32px", background: "none", border: "none", borderRadius: "8px", cursor: "pointer", color: "#334155", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}
             title="Search Athletes"
           >
             <i className="fa-solid fa-magnifying-glass" style={{ fontSize: "15px" }}></i>
           </button>
 
-          {/* 💬 MESSAGES BUTTON (BUBUKSAN ANG UNIFORM INBOX DRAWER) */}
+          {/* 💬 MESSAGES */}
           <button
             type="button"
             onClick={() => {
               setShowInboxDrawer(true);
               if (typeof setLastSeenMsgTime === "function") setLastSeenMsgTime(Date.now());
             }}
-            style={{
-              width: "32px",
-              height: "32px",
-              background: "none",
-              border: "none",
-              borderRadius: "8px",
-              cursor: "pointer",
-              color: "#334155",
-              position: "relative",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: 0
-            }}
+            style={{ width: "32px", height: "32px", background: "none", border: "none", borderRadius: "8px", cursor: "pointer", color: "#334155", position: "relative", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}
             title="Huddle Messages"
           >
             <i className="fa-regular fa-comment-dots" style={{ fontSize: "16px" }}></i>
             {unreadMsgCount > 0 && (
-              <span style={{
-                position: "absolute", top: "2px", right: "2px", background: "#ef4444", color: "#ffffff",
-                fontSize: "8.5px", fontWeight: 800, minWidth: "14px", height: "14px", borderRadius: "10px",
-                display: "flex", alignItems: "center", justifyContent: "center", padding: "0 2px"
-              }}>
+              <span style={{ position: "absolute", top: "2px", right: "2px", background: "#ef4444", color: "#ffffff", fontSize: "8.5px", fontWeight: 800, minWidth: "14px", height: "14px", borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "center", padding: "0 2px" }}>
                 {unreadMsgCount > 9 ? "9+" : unreadMsgCount}
               </span>
             )}
           </button>
 
-          {/* 🔔 NOTIFICATIONS BUTTON */}
+          {/* 🔔 NOTIFICATIONS */}
           <button
             type="button"
             onClick={() => {
               setShowNotifDrawer(true);
               if (typeof setLastSeenNotifTime === "function") setLastSeenNotifTime(Date.now());
             }}
-            style={{
-              width: "32px",
-              height: "32px",
-              background: "none",
-              border: "none",
-              borderRadius: "8px",
-              cursor: "pointer",
-              color: "#334155",
-              position: "relative",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: 0
-            }}
+            style={{ width: "32px", height: "32px", background: "none", border: "none", borderRadius: "8px", cursor: "pointer", color: "#334155", position: "relative", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}
             title="Notifications"
           >
             <i className="fa-regular fa-bell" style={{ fontSize: "16px" }}></i>
             {unreadNotifCount > 0 && (
-              <span style={{
-                position: "absolute", top: "3px", right: "3px", background: "#f43f5e",
-                width: "7px", height: "7px", borderRadius: "50%", border: "1.5px solid #ffffff"
-              }}></span>
+              <span style={{ position: "absolute", top: "3px", right: "3px", background: "#f43f5e", width: "7px", height: "7px", borderRadius: "50%", border: "1.5px solid #ffffff" }}></span>
             )}
           </button>
 
@@ -302,17 +396,7 @@ export default function CommunityTab({
               if (typeof setSelectedVisitor === "function") setSelectedVisitor(null);
               if (typeof setActiveTab === "function") setActiveTab("profile");
             }}
-            style={{
-              width: "32px",
-              height: "32px",
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: 0
-            }}
+            style={{ width: "32px", height: "32px", background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}
             title="My Profile"
           >
             <img
@@ -327,7 +411,7 @@ export default function CommunityTab({
       {/* ─── 2. CONTENT WRAPPER ─── */}
       <div style={{ paddingTop: "64px" }}>
 
-        {/* ─── IISANG MALINIS NA SEGMENTED TAB SWITCHER ─── */}
+        {/* ─── SEGMENTED TAB SWITCHER ─── */}
         <div style={{ padding: "10px 16px 8px 16px", maxWidth: "560px", margin: "0 auto", boxSizing: "border-box" }}>
           <div style={{ display: "flex", background: "#e2e8f0", borderRadius: "12px", padding: "3px" }}>
             <button
@@ -561,6 +645,7 @@ export default function CommunityTab({
                     key={athlete.id || idx}
                     onClick={() => {
                       if (typeof setSelectedVisitor === "function") setSelectedVisitor(athlete);
+                      if (typeof setActiveTab === "function") setActiveTab("profile");
                     }}
                     style={{
                       display: "flex",
@@ -747,6 +832,7 @@ export default function CommunityTab({
                 const isOwner = post.userId === user?.uid || post.authorId === user?.uid;
                 const hasBoosted = Array.isArray(post.likes) ? post.likes.includes(user?.uid) : false;
                 const boostCount = Array.isArray(post.likes) ? post.likes.length : (post.boosts || 0);
+                const commentsCount = Array.isArray(post.comments) ? post.comments.length : 0;
 
                 return (
                   <div
@@ -766,6 +852,7 @@ export default function CommunityTab({
                         style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer" }}
                         onClick={() => {
                           if (typeof setSelectedVisitor === "function") setSelectedVisitor(post);
+                          if (typeof setActiveTab === "function") setActiveTab("profile");
                         }}
                       >
                         <img
@@ -845,9 +932,7 @@ export default function CommunityTab({
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid #f8fafc", paddingTop: "10px" }}>
                       <button
                         type="button"
-                        onClick={() => {
-                          if (typeof handleLike === "function") handleLike(post.id);
-                        }}
+                        onClick={() => handlePulseBoost(post)}
                         style={{
                           background: hasBoosted ? "rgba(56, 189, 248, 0.12)" : "transparent",
                           border: "none",
@@ -866,7 +951,7 @@ export default function CommunityTab({
                         <span>Pulse Boost ({boostCount})</span>
                       </button>
 
-                      {/* 💬 HUDDLE COMMENTS BUTTON (BUBUKSAN ANG UNIFORM COMMENTS DRAWER) */}
+                      {/* 💬 HUDDLE COMMENTS BUTTON */}
                       <button
                         type="button"
                         onClick={() => {
@@ -886,7 +971,7 @@ export default function CommunityTab({
                         }}
                       >
                         <i className="fa-regular fa-comment-dots"></i>
-                        <span>Huddle ({Array.isArray(post.comments) ? post.comments.length : 0})</span>
+                        <span>Huddle ({commentsCount})</span>
                       </button>
                     </div>
                   </div>
@@ -922,60 +1007,23 @@ export default function CommunityTab({
           flexDirection: "column"
         }}
       >
-        <div style={{
-          padding: "16px 18px",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          borderBottom: "1px solid #f1f5f9",
-          backgroundColor: "#ffffff"
-        }}>
+        <div style={{ padding: "16px 18px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #f1f5f9", backgroundColor: "#ffffff" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <div style={{
-              width: "28px",
-              height: "28px",
-              borderRadius: "7px",
-              background: "rgba(239, 68, 68, 0.1)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center"
-            }}>
+            <div style={{ width: "28px", height: "28px", borderRadius: "7px", background: "rgba(239, 68, 68, 0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <i className="fa-solid fa-bell" style={{ color: "#ef4444", fontSize: "13px" }}></i>
             </div>
-            <h3 style={{ margin: 0, color: "#0f172a", fontSize: "15px", fontWeight: 900 }}>
-              Notifications
-            </h3>
+            <h3 style={{ margin: 0, color: "#0f172a", fontSize: "15px", fontWeight: 900 }}>Notifications</h3>
           </div>
           <button
             type="button"
             onClick={() => setShowNotifDrawer(false)}
-            style={{
-              background: "#f1f5f9",
-              border: "none",
-              width: "28px",
-              height: "28px",
-              borderRadius: "50%",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              cursor: "pointer",
-              color: "#64748b",
-              fontSize: "14px",
-              fontWeight: 800
-            }}
+            style={{ background: "#f1f5f9", border: "none", width: "28px", height: "28px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#64748b", fontSize: "14px", fontWeight: 800 }}
           >
             ✕
           </button>
         </div>
 
-        <div style={{
-          padding: "8px 18px",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          background: "#f8fafc",
-          borderBottom: "1px solid #f1f5f9"
-        }}>
+        <div style={{ padding: "8px 18px", display: "flex", justifyContent: "space-between", alignItems: "center", background: "#f8fafc", borderBottom: "1px solid #f1f5f9" }}>
           <span style={{ fontSize: "11px", fontWeight: 700, color: "#64748b" }}>Recent Activity & Boosts</span>
           <button
             type="button"
@@ -999,17 +1047,7 @@ export default function CommunityTab({
               return (
                 <div
                   key={notif.id || idx}
-                  style={{
-                    display: "flex",
-                    alignItems: "flex-start",
-                    gap: "10px",
-                    padding: "11px 12px",
-                    borderRadius: "12px",
-                    background: isUnread ? "#f0f9ff" : "#ffffff",
-                    border: "1px solid " + (isUnread ? "#bae6fd" : "#f1f5f9"),
-                    marginBottom: "8px",
-                    boxShadow: "0 1px 3px rgba(0,0,0,0.02)"
-                  }}
+                  style={{ display: "flex", alignItems: "flex-start", gap: "10px", padding: "11px 12px", borderRadius: "12px", background: isUnread ? "#f0f9ff" : "#ffffff", border: "1px solid " + (isUnread ? "#bae6fd" : "#f1f5f9"), marginBottom: "8px", boxShadow: "0 1px 3px rgba(0,0,0,0.02)" }}
                 >
                   <img
                     src={notif.senderPhoto || notif.authorPhoto || "https://i.pravatar.cc/150?u=" + (notif.id || idx)}
@@ -1058,48 +1096,17 @@ export default function CommunityTab({
           flexDirection: "column"
         }}
       >
-        <div style={{
-          padding: "16px 18px",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          borderBottom: "1px solid #f1f5f9",
-          backgroundColor: "#ffffff"
-        }}>
+        <div style={{ padding: "16px 18px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #f1f5f9", backgroundColor: "#ffffff" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <div style={{
-              width: "28px",
-              height: "28px",
-              borderRadius: "7px",
-              background: "rgba(99, 102, 241, 0.1)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center"
-            }}>
+            <div style={{ width: "28px", height: "28px", borderRadius: "7px", background: "rgba(99, 102, 241, 0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <i className="fa-solid fa-comment-dots" style={{ color: "#6366f1", fontSize: "13px" }}></i>
             </div>
-            <h3 style={{ margin: 0, color: "#0f172a", fontSize: "15px", fontWeight: 900 }}>
-              Huddle Messages
-            </h3>
+            <h3 style={{ margin: 0, color: "#0f172a", fontSize: "15px", fontWeight: 900 }}>Huddle Messages</h3>
           </div>
-          {/* KAPAREHAS NA BILOG NA ✕ BUTTON */}
           <button
             type="button"
             onClick={() => setShowInboxDrawer(false)}
-            style={{
-              background: "#f1f5f9",
-              border: "none",
-              width: "28px",
-              height: "28px",
-              borderRadius: "50%",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              cursor: "pointer",
-              color: "#64748b",
-              fontSize: "14px",
-              fontWeight: 800
-            }}
+            style={{ background: "#f1f5f9", border: "none", width: "28px", height: "28px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#64748b", fontSize: "14px", fontWeight: 800 }}
           >
             ✕
           </button>
@@ -1110,17 +1117,7 @@ export default function CommunityTab({
             inboxChats.map((chat, idx) => (
               <div
                 key={chat.id || idx}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "10px",
-                  padding: "12px",
-                  borderRadius: "12px",
-                  background: "#ffffff",
-                  border: "1px solid #f1f5f9",
-                  marginBottom: "8px",
-                  cursor: "pointer"
-                }}
+                style={{ display: "flex", alignItems: "center", gap: "10px", padding: "12px", borderRadius: "12px", background: "#ffffff", border: "1px solid #f1f5f9", marginBottom: "8px", cursor: "pointer" }}
               >
                 <img
                   src={chat.participantPhoto || "https://i.pravatar.cc/150?u=" + idx}
@@ -1168,78 +1165,31 @@ export default function CommunityTab({
           flexDirection: "column"
         }}
       >
-        <div style={{
-          padding: "16px 18px",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          borderBottom: "1px solid #f1f5f9",
-          backgroundColor: "#ffffff"
-        }}>
+        <div style={{ padding: "16px 18px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #f1f5f9", backgroundColor: "#ffffff" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <div style={{
-              width: "28px",
-              height: "28px",
-              borderRadius: "7px",
-              background: "rgba(56, 189, 248, 0.15)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center"
-            }}>
+            <div style={{ width: "28px", height: "28px", borderRadius: "7px", background: "rgba(56, 189, 248, 0.15)", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <i className="fa-solid fa-magnifying-glass" style={{ color: "#0284c7", fontSize: "13px" }}></i>
             </div>
-            <h3 style={{ margin: 0, color: "#0f172a", fontSize: "15px", fontWeight: 900 }}>
-              Search Athletes
-            </h3>
+            <h3 style={{ margin: 0, color: "#0f172a", fontSize: "15px", fontWeight: 900 }}>Search Athletes</h3>
           </div>
-          {/* KAPAREHAS NA BILOG NA ✕ BUTTON */}
           <button
             type="button"
             onClick={() => { setShowSearchDrawer(false); setSearchQuery(""); }}
-            style={{
-              background: "#f1f5f9",
-              border: "none",
-              width: "28px",
-              height: "28px",
-              borderRadius: "50%",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              cursor: "pointer",
-              color: "#64748b",
-              fontSize: "14px",
-              fontWeight: 800
-            }}
+            style={{ background: "#f1f5f9", border: "none", width: "28px", height: "28px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#64748b", fontSize: "14px", fontWeight: 800 }}
           >
             ✕
           </button>
         </div>
 
-        {/* Search Input Box */}
         <div style={{ padding: "12px 16px", borderBottom: "1px solid #f1f5f9" }}>
-          <div style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "8px",
-            background: "#f8fafc",
-            borderRadius: "10px",
-            padding: "8px 12px",
-            border: "1px solid #e2e8f0"
-          }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", background: "#f8fafc", borderRadius: "10px", padding: "8px 12px", border: "1px solid #e2e8f0" }}>
             <i className="fa-solid fa-magnifying-glass" style={{ color: "#94a3b8", fontSize: "13px" }}></i>
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search runners by name..."
-              style={{
-                border: "none",
-                background: "transparent",
-                outline: "none",
-                width: "100%",
-                fontSize: "13px",
-                fontFamily: "inherit"
-              }}
+              style={{ border: "none", background: "transparent", outline: "none", width: "100%", fontSize: "13px", fontFamily: "inherit" }}
             />
             {searchQuery && (
               <button
@@ -1253,27 +1203,17 @@ export default function CommunityTab({
           </div>
         </div>
 
-        {/* Search Results List */}
         <div style={{ flex: 1, overflowY: "auto", padding: "12px 14px" }}>
           {searchResults.length > 0 ? (
             searchResults.map((athlete, idx) => (
               <div
-                key={athlete.id || idx}
+                key={athlete.id || athlete.uid || idx}
                 onClick={() => {
                   if (typeof setSelectedVisitor === "function") setSelectedVisitor(athlete);
+                  if (typeof setActiveTab === "function") setActiveTab("profile");
                   setShowSearchDrawer(false);
                 }}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "10px",
-                  padding: "10px 12px",
-                  borderRadius: "12px",
-                  background: "#ffffff",
-                  border: "1px solid #f1f5f9",
-                  marginBottom: "8px",
-                  cursor: "pointer"
-                }}
+                style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 12px", borderRadius: "12px", background: "#ffffff", border: "1px solid #f1f5f9", marginBottom: "8px", cursor: "pointer" }}
               >
                 <img
                   src={athlete.photoURL || athlete.avatar || "https://i.pravatar.cc/150?u=" + (athlete.id || idx)}
@@ -1300,103 +1240,75 @@ export default function CommunityTab({
       </div>
 
       {/* ============================================================== */}
-      {/* 💬 4. UNIFORM SLIDE-OVER POST HUDDLE (COMMENTS) DRAWER         */}
+      {/* 💬 4. UNIFORM SLIDE-OVER POST HUDDLE (LIVE FIRESTORE COMMENTS) */}
       {/* ============================================================== */}
       <div
         style={{
           position: "fixed",
           top: 0,
-          right: selectedPost ? "0" : "-100%",
+          right: activeHuddlePost ? "0" : "-100%",
           width: "100%",
           maxWidth: "360px",
           height: "100vh",
           backgroundColor: "#ffffff",
           zIndex: 4000,
           transition: "right 0.28s cubic-bezier(0.4, 0, 0.2, 1)",
-          boxShadow: selectedPost ? "-6px 0 24px rgba(15, 23, 42, 0.15)" : "none",
+          boxShadow: activeHuddlePost ? "-6px 0 24px rgba(15, 23, 42, 0.15)" : "none",
           display: "flex",
           flexDirection: "column"
         }}
       >
-        <div style={{
-          padding: "16px 18px",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          borderBottom: "1px solid #f1f5f9",
-          backgroundColor: "#ffffff"
-        }}>
+        <div style={{ padding: "16px 18px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #f1f5f9", backgroundColor: "#ffffff" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <div style={{
-              width: "28px",
-              height: "28px",
-              borderRadius: "7px",
-              background: "rgba(16, 185, 129, 0.1)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center"
-            }}>
+            <div style={{ width: "28px", height: "28px", borderRadius: "7px", background: "rgba(16, 185, 129, 0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <i className="fa-solid fa-comments" style={{ color: "#10b981", fontSize: "13px" }}></i>
             </div>
-            <h3 style={{ margin: 0, color: "#0f172a", fontSize: "15px", fontWeight: 900 }}>
-              Activity Huddle
-            </h3>
+            <h3 style={{ margin: 0, color: "#0f172a", fontSize: "15px", fontWeight: 900 }}>Activity Huddle</h3>
           </div>
-          {/* KAPAREHAS NA BILOG NA ✕ BUTTON */}
           <button
             type="button"
-            onClick={() => { if (typeof setSelectedPost === "function") setSelectedPost(null); }}
-            style={{
-              background: "#f1f5f9",
-              border: "none",
-              width: "28px",
-              height: "28px",
-              borderRadius: "50%",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              cursor: "pointer",
-              color: "#64748b",
-              fontSize: "14px",
-              fontWeight: 800
+            onClick={() => {
+              if (typeof setSelectedPost === "function") setSelectedPost(null);
+              setLiveSelectedPost(null);
             }}
+            style={{ background: "#f1f5f9", border: "none", width: "28px", height: "28px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#64748b", fontSize: "14px", fontWeight: 800 }}
           >
             ✕
           </button>
         </div>
 
         {/* Selected Post Summary */}
-        {selectedPost && (
+        {activeHuddlePost && (
           <div style={{ padding: "12px 16px", background: "#f8fafc", borderBottom: "1px solid #f1f5f9" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px" }}>
               <img
-                src={selectedPost.userPhoto || selectedPost.authorPhoto || "https://i.pravatar.cc/150"}
+                src={activeHuddlePost.userPhoto || activeHuddlePost.authorPhoto || "https://i.pravatar.cc/150"}
                 alt="Author"
                 style={{ width: "26px", height: "26px", borderRadius: "50%", objectFit: "cover" }}
               />
               <span style={{ fontSize: "12.5px", fontWeight: 800, color: "#0f172a" }}>
-                {selectedPost.userName || selectedPost.authorName || "Athlete"}
+                {activeHuddlePost.userName || activeHuddlePost.authorName || "Athlete"}
               </span>
             </div>
             <p style={{ margin: 0, fontSize: "12px", color: "#475569", lineHeight: 1.4 }}>
-              {selectedPost.text || selectedPost.caption || "Shared a workout."}
+              {activeHuddlePost.text || activeHuddlePost.caption || "Shared a workout."}
             </p>
           </div>
         )}
 
-        {/* Comments List */}
+        {/* Real-time Comments List */}
         <div style={{ flex: 1, overflowY: "auto", padding: "14px" }}>
-          {selectedPost && Array.isArray(selectedPost.comments) && selectedPost.comments.length > 0 ? (
-            selectedPost.comments.map((c, i) => (
-              <div key={i} style={{ display: "flex", gap: "8px", marginBottom: "12px" }}>
+          {activeHuddlePost && Array.isArray(activeHuddlePost.comments) && activeHuddlePost.comments.length > 0 ? (
+            activeHuddlePost.comments.map((c, i) => (
+              <div key={c.id || i} style={{ display: "flex", gap: "8px", marginBottom: "12px" }}>
                 <img
-                  src={c.userPhoto || "https://i.pravatar.cc/150?u=" + i}
+                  src={c.userPhoto || "https://i.pravatar.cc/150?u=" + (c.userId || i)}
                   alt="Commenter"
-                  style={{ width: "28px", height: "28px", borderRadius: "50%", objectFit: "cover", flexShrink: 0 }}
+                  style={{ width: "28px", height: "28px", borderRadius: "50%", objectFit: "cover", flexShrink: 0, marginTop: "2px" }}
                 />
                 <div style={{ background: "#f8fafc", padding: "8px 12px", borderRadius: "10px", flex: 1, border: "1px solid #f1f5f9" }}>
                   <div style={{ fontSize: "11.5px", fontWeight: 800, color: "#0f172a" }}>{c.userName || "Athlete"}</div>
-                  <div style={{ fontSize: "12px", color: "#334155", marginTop: "2px" }}>{c.text || c.comment}</div>
+                  <div style={{ fontSize: "12px", color: "#334155", marginTop: "2px", lineHeight: 1.4 }}>{c.text || c.comment}</div>
                 </div>
               </div>
             ))
@@ -1406,11 +1318,43 @@ export default function CommunityTab({
             </div>
           )}
         </div>
+
+        {/* Live Comment Input Box */}
+        <form
+          onSubmit={handleAddComment}
+          style={{ padding: "12px 14px", borderTop: "1px solid #f1f5f9", backgroundColor: "#ffffff", display: "flex", gap: "8px", alignItems: "center" }}
+        >
+          <input
+            type="text"
+            value={newCommentText}
+            onChange={(e) => setNewCommentText(e.target.value)}
+            placeholder="Cheer or reply to huddle..."
+            style={{ flex: 1, padding: "9px 12px", borderRadius: "20px", border: "1px solid #cbd5e1", fontSize: "12.5px", outline: "none", backgroundColor: "#f8fafc", fontFamily: "inherit" }}
+          />
+          <button
+            type="submit"
+            disabled={!newCommentText.trim() || isSubmittingComment}
+            style={{
+              padding: "8px 14px",
+              borderRadius: "20px",
+              border: "none",
+              background: newCommentText.trim() ? "linear-gradient(135deg, #10b981 0%, #059669 100%)" : "#e2e8f0",
+              color: newCommentText.trim() ? "#ffffff" : "#94a3b8",
+              fontSize: "12px",
+              fontWeight: 800,
+              cursor: newCommentText.trim() ? "pointer" : "default",
+              display: "flex",
+              alignItems: "center",
+              gap: "4px"
+            }}
+          >
+            <span>{isSubmittingComment ? "..." : "Send"}</span>
+            <i className="fa-solid fa-paper-plane" style={{ fontSize: "10.5px" }}></i>
+          </button>
+        </form>
       </div>
 
-      {/* ============================================================== */}
-      {/* 🌑 IISANG UNIVERSAL BACKDROP OVERLAY PARA SA LAHAT NG PANELS    */}
-      {/* ============================================================== */}
+      {/* 🌑 UNIVERSAL BACKDROP OVERLAY */}
       {isAnyDrawerOpen && (
         <div
           onClick={closeAllDrawers}
