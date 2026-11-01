@@ -1631,7 +1631,10 @@ export default function App() {
         {/* TAB 1: HOME */}
         {activeTab === "home" && (
           <HomeTab
-            appData={appData}
+              setActivePanel={setActivePanel}
+              allUserNotifs={allUserNotifs}
+              lastSeenNotifTime={lastSeenNotifTime}
+              appData={appData}
             activeTab={activeTab}
             setShowAboutModal={setShowAboutModal}
             quote={quote}
