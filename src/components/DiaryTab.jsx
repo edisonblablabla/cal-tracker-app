@@ -581,12 +581,7 @@ export default function DiaryTab({
               </div>
             </div>
 
-            <button
-              onClick={closeModal}
-              style={{ background: "none", border: "none", color: "#94a3b8", fontSize: "18px", cursor: "pointer", padding: "4px 8px" }}
-            >
-              ✕
-            </button>
+            
           </div>
 
           {/* SCROLLABLE PANEL BODY */}
