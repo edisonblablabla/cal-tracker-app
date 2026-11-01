@@ -1,13 +1,19 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 
 export default function HomeTab({
   user,
   appData,
   saveToCloud,
   showToast,
-  setShowAboutModal
+  setShowAboutModal,
+  totalCal = 0,
+  activeGoal = 2200,
+  totalP = 0,
+  totalC = 0,
+  totalF = 0,
+  todayMeals = []
 }) {
-  // ─── 1. DYNAMIC LOCAL DATE & MIDNIGHT HEARTBEAT ───
+  // ─── 1. DYNAMIC DATE & MIDNIGHT AUTO-RESET ───
   const getTodayISO = () => new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD
   const [currentDateStr, setCurrentDateStr] = useState(getTodayISO());
 
@@ -60,7 +66,6 @@ export default function HomeTab({
     yesterday.setDate(today.getDate() - 1);
     const yesterdayISO = yesterday.toLocaleDateString("en-CA");
 
-    // Kung nakapag-log ngayong araw o kahapon, tuloy ang streak
     let checkDate = activeDates.has(todayISO) 
       ? new Date() 
       : activeDates.has(yesterdayISO) 
@@ -81,45 +86,48 @@ export default function HomeTab({
     return Math.max(streak, storedStreak);
   }, [appData, currentDateStr]);
 
-  // ─── 3. DATA CONSISTENCY WITH OTHER TABS (PROGRESS & PROFILE) ───
-  const currentWeight = Number(appData?.currentWeight || appData?.weight || 68.2);
-  const calorieGoal = Number(appData?.dailyCalorieTarget || appData?.baseGoal || 2200);
-  const burnTarget = Number(appData?.dailyBurnTarget || 400);
-  // EFSA water standard: 35ml bawat kg ng timbang (e.g. 68.2kg * 35 ≈ 2,400 - 2,500 ml)
-  const waterTarget = Number(appData?.dailyWaterTarget || Math.round((currentWeight * 35) / 100) * 100 || 2400);
-  const stepGoal = Number(appData?.dailyStepsTarget || 10000);
+  // ─── 3. SYNCHRONIZED METRICS WITH GOALS & DIARY TAB ───
+  // Calorie Goal (Tugmang-tugma sa 2416 ng Goals & Diary)
+  const calorieGoal = Number(activeGoal || appData?.dailyCalorieTarget || appData?.baseGoal || 2416);
 
-  // Filtered Today's Metrics
-  const todayMeals = useMemo(() => {
-    return (appData?.meals || []).filter(
-      (m) => (m.dateLogged || m.date) === currentDateStr
-    );
-  }, [appData?.meals, currentDateStr]);
-
+  // Filtered Today's Workouts
   const todayWorkouts = useMemo(() => {
     return (appData?.workoutLogs || []).filter(
       (w) => (w.dateLogged || w.date) === currentDateStr
     );
   }, [appData?.workoutLogs, currentDateStr]);
 
-  const consumedCalories = useMemo(() => {
-    return todayMeals.reduce((acc, m) => acc + (Number(m.calories || m.cal) || 0), 0);
-  }, [todayMeals]);
-
   const burnedCalories = useMemo(() => {
     return todayWorkouts.reduce((acc, w) => acc + (Number(w.burnedCal || w.calories) || 0), 0);
   }, [todayWorkouts]);
 
+  // Consumed Calories (Tugma sa 300 ng Diary Tab)
+  const consumedCalories = useMemo(() => {
+    if (typeof totalCal === "number" && totalCal > 0) return totalCal;
+    const meals = todayMeals.length > 0 ? todayMeals : (appData?.meals || []);
+    return meals.reduce((acc, m) => acc + (Number(m.cal ?? m.calories) || 0), 0);
+  }, [totalCal, todayMeals, appData?.meals]);
+
+  // Macronutrients (Tugma sa Kanin: P:10g, C:10g, F:10g)
   const { proteinG, carbsG, fatG } = useMemo(() => {
-    return todayMeals.reduce(
+    if (totalP > 0 || totalC > 0 || totalF > 0) {
+      return { proteinG: totalP, carbsG: totalC, fatG: totalF };
+    }
+    const meals = todayMeals.length > 0 ? todayMeals : (appData?.meals || []);
+    return meals.reduce(
       (acc, m) => ({
-        proteinG: acc.proteinG + (Number(m.protein) || 0),
-        carbsG: acc.carbsG + (Number(m.carbs) || 0),
-        fatG: acc.fatG + (Number(m.fats || m.fat) || 0)
+        proteinG: acc.proteinG + (Number(m.p ?? m.protein) || 0),
+        carbsG: acc.carbsG + (Number(m.c ?? m.carbs) || 0),
+        fatG: acc.fatG + (Number(m.f ?? m.fats ?? m.fat) || 0)
       }),
       { proteinG: 0, carbsG: 0, fatG: 0 }
     );
-  }, [todayMeals]);
+  }, [totalP, totalC, totalF, todayMeals, appData?.meals]);
+
+  const burnTarget = Number(appData?.dailyBurnTarget || 400);
+  const currentWeight = Number(appData?.currentWeight || appData?.weight || 68.2);
+  const waterTarget = Number(appData?.dailyWaterTarget || 2400);
+  const stepGoal = Number(appData?.dailyStepsTarget || 10000);
 
   // Hydration Calculation
   const todayWaterMl = useMemo(() => {
@@ -135,7 +143,174 @@ export default function HomeTab({
     return 0;
   }, [appData?.waterLogs, appData?.todayWaterMl, appData?.lastWaterDate, currentDateStr]);
 
-  // Steps & Waypoint Calculation
+  // Calories Remaining
+  const caloriesRemaining = Math.max(calorieGoal - consumedCalories + burnedCalories, 0);
+  const intakePercent = Math.min(Math.round((consumedCalories / calorieGoal) * 100), 100);
+  const burnPercent = Math.min(Math.round((burnedCalories / burnTarget) * 100), 100);
+  const waterPercent = Math.min(Math.round((todayWaterMl / waterTarget) * 100), 100);
+
+  // Macro Targets (Scientific standard: 30% P / 45% C / 25% F)
+  const targetProtein = Math.round((calorieGoal * 0.3) / 4);
+  const targetCarbs = Math.round((calorieGoal * 0.45) / 4);
+  const targetFat = Math.round((calorieGoal * 0.25) / 9);
+
+  // ─── 4. REAL-TIME SATELLITE GPS TRACKING ENGINE ───
+  const [isGpsActive, setIsGpsActive] = useState(false);
+  const [isGpsPaused, setIsGpsPaused] = useState(false);
+  const [gpsDistanceKm, setGpsDistanceKm] = useState(0);
+  const [gpsDurationSec, setGpsDurationSec] = useState(0);
+  const [gpsAccuracy, setGpsAccuracy] = useState(null);
+  const [gpsError, setGpsError] = useState(null);
+
+  const watchIdRef = useRef(null);
+  const lastCoordsRef = useRef(null);
+  const timerRef = useRef(null);
+
+  // Haversine Geodesic Distance Formula (Sukat sa pagitan ng 2 GPS coordinates)
+  const calcHaversine = (lat1, lon1, lat2, lon2) => {
+    const R = 6371; // Radius ng mundo sa km
+    const dLat = ((lat2 - lat1) * Math.PI) / 180;
+    const dLon = ((lon2 - lon1) * Math.PI) / 180;
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos((lat1 * Math.PI) / 180) *
+        Math.cos((lat2 * Math.PI) / 180) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  };
+
+  const startGpsSession = () => {
+    if (!navigator.geolocation) {
+      if (showToast) showToast("❌ GPS is not supported on your browser or device.");
+      return;
+    }
+
+    setGpsError(null);
+    setGpsDistanceKm(0);
+    setGpsDurationSec(0);
+    lastCoordsRef.current = null;
+    setIsGpsActive(true);
+    setIsGpsPaused(false);
+
+    // Magsimula ng GPS Satellite Watcher
+    const id = navigator.geolocation.watchPosition(
+      (pos) => {
+        const { latitude, longitude, accuracy } = pos.coords;
+        setGpsAccuracy(Math.round(accuracy));
+
+        if (lastCoordsRef.current) {
+          const deltaKm = calcHaversine(
+            lastCoordsRef.current.lat,
+            lastCoordsRef.current.lon,
+            latitude,
+            longitude
+          );
+
+          // Salain ang jitter/noise (dagdag distansya lamang kung higit sa 3 metro at hindi kotse/eroplano)
+          if (deltaKm > 0.003 && deltaKm < 0.2) {
+            setGpsDistanceKm((prev) => Number((prev + deltaKm).toFixed(3)));
+          }
+        }
+        lastCoordsRef.current = { lat: latitude, lon: longitude };
+      },
+      (err) => {
+        console.error("GPS Error:", err);
+        setGpsError(err.message || "Failed to acquire GPS lock");
+        if (showToast) showToast("⚠️ Turn on Device Location / Allow GPS permission.");
+      },
+      {
+        enableHighAccuracy: true,
+        maximumAge: 1000,
+        timeout: 10000
+      }
+    );
+
+    watchIdRef.current = id;
+
+    // Timer para sa duration
+    if (timerRef.current) clearInterval(timerRef.current);
+    timerRef.current = setInterval(() => {
+      setGpsDurationSec((sec) => sec + 1);
+    }, 1000);
+
+    if (showToast) showToast("🛰️ Connected to Satellite GPS! Tracking walk...");
+  };
+
+  const stopAndSaveGpsSession = () => {
+    if (watchIdRef.current !== null) {
+      navigator.geolocation.clearWatch(watchIdRef.current);
+      watchIdRef.current = null;
+    }
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+
+    // Kalkulahin ang aktwal na hakbang at calories burned
+    const stepsAdded = Math.round(gpsDistanceKm * 1333); // 1 km ≈ 1,333 steps
+    const calBurned = Math.round(gpsDistanceKm * 60); // ~60 kcal/km para sa 68kg adult
+
+    if (gpsDistanceKm > 0.01) {
+      const newWorkout = {
+        id: Date.now(),
+        type: "GPS Outdoor Walk",
+        distanceKm: gpsDistanceKm,
+        durationMin: Math.max(1, Math.round(gpsDurationSec / 60)),
+        burnedCal: calBurned,
+        steps: stepsAdded,
+        dateLogged: currentDateStr,
+        timestamp: Date.now()
+      };
+
+      const newStepRecord = {
+        id: Date.now(),
+        steps: stepsAdded,
+        distanceKm: gpsDistanceKm,
+        dateLogged: currentDateStr,
+        timestamp: Date.now()
+      };
+
+      if (saveToCloud) {
+        saveToCloud({
+          ...appData,
+          todaySteps: (Number(appData?.todaySteps) || 0) + stepsAdded,
+          lastStepDate: currentDateStr,
+          stepLogs: [...(appData?.stepLogs || []), newStepRecord],
+          workoutLogs: [...(appData?.workoutLogs || []), newWorkout]
+        });
+      }
+
+      if (showToast) {
+        showToast(`🎉 GPS Saved: ${gpsDistanceKm.toFixed(2)} km (+${stepsAdded} steps, +${calBurned} kcal)!`);
+      }
+    } else {
+      if (showToast) showToast("GPS session stopped (Distance was too short to record).");
+    }
+
+    setIsGpsActive(false);
+    setIsGpsPaused(false);
+    setGpsDistanceKm(0);
+    setGpsDurationSec(0);
+  };
+
+  // Linisin ang GPS watcher kapag umalis sa tab
+  useEffect(() => {
+    return () => {
+      if (watchIdRef.current !== null) navigator.geolocation.clearWatch(watchIdRef.current);
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, []);
+
+  // Format Duration (MM:SS)
+  const formatTime = (secs) => {
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return `${m}:${s < 10 ? "0" : ""}${s}`;
+  };
+
+  // Cumulative Steps Mula sa Logs
   const todaySteps = useMemo(() => {
     const logs = (appData?.stepLogs || []).filter(
       (s) => (s.dateLogged || s.date) === currentDateStr
@@ -146,25 +321,13 @@ export default function HomeTab({
     if (appData?.lastStepDate === currentDateStr && appData?.todaySteps) {
       return Number(appData.todaySteps);
     }
-    return 6420; // Baseline initial demo activity
+    return 0; // Magsisimula sa 0 sa bagong araw sa halip na pekeng demo number
   }, [appData?.stepLogs, appData?.todaySteps, appData?.lastStepDate, currentDateStr]);
 
-  // Waypoint Distance: 1 step ≈ 0.00075 km (75cm average stride length)
-  const waypointKm = (todaySteps * 0.00075).toFixed(2);
+  // Kasalukuyang distansya sa araw na ito
+  const todayWaypointKm = (todaySteps * 0.00075).toFixed(2);
   const waypointTargetKm = (stepGoal * 0.00075).toFixed(2);
-  const stepsBurnedCal = Math.round(todaySteps * 0.04); // ~0.04 kcal kada hakbang
-
-  // Percentages & Remainders
-  const caloriesRemaining = Math.max(calorieGoal - consumedCalories + burnedCalories, 0);
-  const intakePercent = Math.min(Math.round((consumedCalories / calorieGoal) * 100), 100);
-  const burnPercent = Math.min(Math.round((burnedCalories / burnTarget) * 100), 100);
-  const waterPercent = Math.min(Math.round((todayWaterMl / waterTarget) * 100), 100);
   const stepPercent = Math.min(Math.round((todaySteps / stepGoal) * 100), 100);
-
-  // Macro Targets (Scientific 30% P / 45% C / 25% F distribution)
-  const targetProtein = Math.round((calorieGoal * 0.3) / 4);
-  const targetCarbs = Math.round((calorieGoal * 0.45) / 4);
-  const targetFat = Math.round((calorieGoal * 0.25) / 9);
 
   // Quick Action Handlers
   const handleQuickAddWater = (amount) => {
@@ -186,7 +349,7 @@ export default function HomeTab({
     if (showToast) showToast(`💧 Added ${amount} ml of water!`);
   };
 
-  const handleQuickAddSteps = (added) => {
+  const handleManualAddSteps = (added) => {
     const newRecord = {
       id: Date.now(),
       steps: added,
@@ -206,7 +369,7 @@ export default function HomeTab({
     if (showToast) showToast(`👟 Added +${added.toLocaleString()} steps!`);
   };
 
-  // Slide-over modals
+  // Slide-over states para sa Quick Logs
   const [activeSheet, setActiveSheet] = useState(null);
   const [foodName, setFoodName] = useState("");
   const [foodCal, setFoodCal] = useState("");
@@ -223,7 +386,11 @@ export default function HomeTab({
     const newMeal = {
       id: Date.now(),
       name: foodName.trim(),
+      cal: calNum,
       calories: calNum,
+      p: 0,
+      c: 0,
+      f: 0,
       dateLogged: currentDateStr,
       timestamp: Date.now()
     };
@@ -260,7 +427,6 @@ export default function HomeTab({
       
       {/* ─── 1. TOP BRAND HEADER & DYNAMIC STREAK ─── */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px", paddingTop: "4px" }}>
-        {/* NutriPulse Authentic Logo */}
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
           <div style={{ width: "30px", height: "30px", borderRadius: "10px", background: "linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)", display: "flex", alignItems: "center", justifyContent: "center", color: "#ffffff", boxShadow: "0 4px 10px rgba(99, 102, 241, 0.3)" }}>
             <i className="fa-solid fa-heart-pulse" style={{ fontSize: "14px" }}></i>
@@ -275,7 +441,6 @@ export default function HomeTab({
           </div>
         </div>
 
-        {/* Dynamic Functional Streak Pill */}
         <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
           <div style={{ background: "#fff7ed", border: "1px solid #ffedd5", padding: "4px 10px", borderRadius: "12px", display: "flex", alignItems: "center", gap: "5px" }}>
             <i className="fa-solid fa-fire" style={{ color: "#ea580c", fontSize: "12px" }}></i>
@@ -294,7 +459,7 @@ export default function HomeTab({
         </div>
       </div>
 
-      {/* ─── 2. COMPACT MASTER ENERGY OVERVIEW CARD ─── */}
+      {/* ─── 2. COMPACT MASTER ENERGY OVERVIEW CARD (100% TUGMA SA GOALS AT LOG) ─── */}
       <div style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "20px", padding: "14px", marginBottom: "10px", boxShadow: "0 6px 20px rgba(15, 23, 42, 0.04)" }}>
         
         {/* Card Header & Live Date */}
@@ -307,16 +472,16 @@ export default function HomeTab({
           </span>
         </div>
 
-        {/* 3-Column Compact Energy HUD */}
+        {/* 3-Column Energy HUD */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", gap: "6px", marginBottom: "12px" }}>
           
-          {/* Intake */}
+          {/* Intake (Tugmang-tugma sa 300 kcal ng Log Tab) */}
           <div>
             <span style={{ fontSize: "9.5px", fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>Intake</span>
             <div style={{ fontSize: "18px", fontWeight: 900, color: "#0f172a", lineHeight: 1.1, marginTop: "1px" }}>
               {consumedCalories.toLocaleString()}
             </div>
-            <span style={{ fontSize: "9.5px", color: "#94a3b8", fontWeight: 700 }}>of {calorieGoal} kcal</span>
+            <span style={{ fontSize: "9.5px", color: "#94a3b8", fontWeight: 700 }}>of {calorieGoal.toLocaleString()} kcal</span>
           </div>
 
           {/* Compact 76px Circular Ring */}
@@ -331,13 +496,13 @@ export default function HomeTab({
               <path
                 d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
                 fill="none"
-                stroke="url(#calGradCompact)"
+                stroke="url(#calGradSync)"
                 strokeWidth="3.6"
                 strokeDasharray={`${intakePercent}, 100`}
                 strokeLinecap="round"
               />
               <defs>
-                <linearGradient id="calGradCompact" x1="0%" y1="0%" x2="100%" y2="100%">
+                <linearGradient id="calGradSync" x1="0%" y1="0%" x2="100%" y2="100%">
                   <stop offset="0%" stopColor="#6366f1" />
                   <stop offset="100%" stopColor="#8b5cf6" />
                 </linearGradient>
@@ -361,7 +526,7 @@ export default function HomeTab({
           </div>
         </div>
 
-        {/* Compact Burn Progress Line */}
+        {/* Burn Progress Bar */}
         <div style={{ background: "#fff7ed", padding: "6px 10px", borderRadius: "10px", border: "1px solid #ffedd5", marginBottom: "12px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "3px" }}>
             <span style={{ fontSize: "9.5px", fontWeight: 800, color: "#ea580c" }}>
@@ -374,7 +539,7 @@ export default function HomeTab({
           </div>
         </div>
 
-        {/* Compact Macronutrients */}
+        {/* Macronutrients: Protein, Carbs, Fats (Naaayon sa Kanin at Pagkain) */}
         <div style={{ marginBottom: "12px" }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px" }}>
             <div>
@@ -443,61 +608,137 @@ export default function HomeTab({
 
       </div>
 
-      {/* ─── 3. NEW COMPACT STEPS & WAYPOINT CARD (IPINALIT SA LOGGED MEALS) ─── */}
+      {/* ─── 3. REAL-TIME SATELLITE GPS MOVEMENT & WAYPOINT TRACKER ─── */}
       <div style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "20px", padding: "14px", marginBottom: "10px", boxShadow: "0 6px 20px rgba(15, 23, 42, 0.04)" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
+        
+        {/* Header with GPS Status */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-            <i className="fa-solid fa-person-walking" style={{ color: "#10b981", fontSize: "13px" }}></i>
+            <i className="fa-solid fa-satellite" style={{ color: isGpsActive ? "#10b981" : "#64748b", fontSize: "13px" }}></i>
             <span style={{ fontSize: "9.5px", fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.6px" }}>
-              DAILY MOVEMENT & WAYPOINT
+              SATELLITE GPS MOVEMENT & WAYPOINT
             </span>
           </div>
-          <span style={{ fontSize: "9.5px", fontWeight: 800, color: "#10b981", background: "#ecfdf5", padding: "2px 7px", borderRadius: "6px" }}>
-            Goal: {stepGoal.toLocaleString()}
-          </span>
+
+          {isGpsActive ? (
+            <span style={{ fontSize: "9.5px", fontWeight: 800, color: "#10b981", background: "#ecfdf5", padding: "2px 8px", borderRadius: "6px", display: "flex", alignItems: "center", gap: "4px" }}>
+              <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#10b981", animation: "pulse 1.5s infinite" }}></span>
+              GPS LOCKED {gpsAccuracy ? `(±${gpsAccuracy}m)` : ""}
+            </span>
+          ) : (
+            <span style={{ fontSize: "9.5px", fontWeight: 800, color: "#64748b", background: "#f1f5f9", padding: "2px 7px", borderRadius: "6px" }}>
+              Target: {stepGoal.toLocaleString()} Steps
+            </span>
+          )}
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: "10px", alignItems: "center" }}>
-          {/* Column A: Steps */}
+        {/* ACTIVE LIVE GPS HUD SCREEN (Lilitaw kapag nagta-track ka sa labas) */}
+        {isGpsActive ? (
+          <div style={{ background: "linear-gradient(135deg, #0f172a 0%, #1e293b 100%)", color: "white", borderRadius: "14px", padding: "14px", marginBottom: "10px", boxShadow: "0 6px 18px rgba(15,23,42,0.18)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "8px" }}>
+              <div>
+                <span style={{ fontSize: "10px", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase" }}>Live GPS Distance</span>
+                <div style={{ fontSize: "28px", fontWeight: 900, color: "#38bdf8", lineHeight: 1, marginTop: "2px" }}>
+                  {gpsDistanceKm.toFixed(2)} <span style={{ fontSize: "14px", color: "#94a3b8" }}>km</span>
+                </div>
+              </div>
+              <div style={{ textAlign: "right" }}>
+                <span style={{ fontSize: "10px", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase" }}>Active Time</span>
+                <div style={{ fontSize: "20px", fontWeight: 900, color: "#ffffff", marginTop: "2px" }}>
+                  {formatTime(gpsDurationSec)}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", background: "rgba(255,255,255,0.06)", padding: "8px", borderRadius: "10px", marginBottom: "10px" }}>
+              <div>
+                <span style={{ fontSize: "9px", color: "#94a3b8", display: "block" }}>Calculated Steps:</span>
+                <strong style={{ fontSize: "14px", color: "#4ade80" }}>~{Math.round(gpsDistanceKm * 1333)} steps</strong>
+              </div>
+              <div style={{ textAlign: "right" }}>
+                <span style={{ fontSize: "9px", color: "#94a3b8", display: "block" }}>Active Burn:</span>
+                <strong style={{ fontSize: "14px", color: "#fb923c" }}>+{Math.round(gpsDistanceKm * 60)} kcal</strong>
+              </div>
+            </div>
+
+            {/* GPS Stop & Finish Button */}
+            <button
+              onClick={stopAndSaveGpsSession}
+              style={{ width: "100%", background: "linear-gradient(135deg, #10b981 0%, #059669 100%)", color: "white", border: "none", padding: "10px", borderRadius: "10px", fontWeight: 800, fontSize: "12px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", boxShadow: "0 4px 12px rgba(16,185,129,0.3)" }}
+            >
+              <i className="fa-solid fa-circle-check"></i>
+              <span>Finish & Save Walk</span>
+            </button>
+          </div>
+        ) : (
+          /* IDLE GPS & DAILY MOVEMENT METRICS */
           <div>
-            <div style={{ fontSize: "22px", fontWeight: 900, color: "#0f172a", lineHeight: 1 }}>
-              {todaySteps.toLocaleString()} <span style={{ fontSize: "12px", color: "#64748b", fontWeight: 700 }}>steps</span>
-            </div>
-            <div style={{ height: "5px", background: "#e2e8f0", borderRadius: "999px", overflow: "hidden", margin: "6px 0 4px 0" }}>
-              <div style={{ width: `${stepPercent}%`, height: "100%", background: "linear-gradient(90deg, #10b981 0%, #059669 100%)", borderRadius: "999px" }}></div>
-            </div>
-            <span style={{ fontSize: "9.5px", color: "#64748b", fontWeight: 700 }}>
-              {stepPercent}% completed (~{stepsBurnedCal} kcal)
-            </span>
-          </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: "10px", alignItems: "center", marginBottom: "10px" }}>
+              <div>
+                <div style={{ fontSize: "22px", fontWeight: 900, color: "#0f172a", lineHeight: 1 }}>
+                  {todaySteps.toLocaleString()} <span style={{ fontSize: "12px", color: "#64748b", fontWeight: 700 }}>steps</span>
+                </div>
+                <div style={{ height: "5px", background: "#e2e8f0", borderRadius: "999px", overflow: "hidden", margin: "6px 0 4px 0" }}>
+                  <div style={{ width: `${stepPercent}%`, height: "100%", background: "linear-gradient(90deg, #10b981 0%, #059669 100%)", borderRadius: "999px" }}></div>
+                </div>
+                <span style={{ fontSize: "9.5px", color: "#64748b", fontWeight: 700 }}>
+                  {stepPercent}% of 10k goal
+                </span>
+              </div>
 
-          {/* Column B: Waypoint Distance */}
-          <div style={{ background: "#f8fafc", padding: "8px 10px", borderRadius: "12px", border: "1px solid #f1f5f9", textAlign: "right" }}>
-            <span style={{ fontSize: "9px", fontWeight: 800, color: "#64748b", textTransform: "uppercase", display: "block" }}>
-              Waypoint Covered
-            </span>
-            <div style={{ fontSize: "17px", fontWeight: 900, color: "#059669", marginTop: "1px" }}>
-              {waypointKm} <span style={{ fontSize: "10px", color: "#64748b", fontWeight: 700 }}>km</span>
+              <div style={{ background: "#f8fafc", padding: "8px 10px", borderRadius: "12px", border: "1px solid #f1f5f9", textAlign: "right" }}>
+                <span style={{ fontSize: "9px", fontWeight: 800, color: "#64748b", textTransform: "uppercase", display: "block" }}>
+                  Waypoint Covered
+                </span>
+                <div style={{ fontSize: "17px", fontWeight: 900, color: "#059669", marginTop: "1px" }}>
+                  {todayWaypointKm} <span style={{ fontSize: "10px", color: "#64748b", fontWeight: 700 }}>km</span>
+                </div>
+                <span style={{ fontSize: "9px", color: "#94a3b8", fontWeight: 700 }}>Target: {waypointTargetKm} km</span>
+              </div>
             </div>
-            <span style={{ fontSize: "9px", color: "#94a3b8", fontWeight: 700 }}>Target: {waypointTargetKm} km</span>
-          </div>
-        </div>
 
-        {/* Quick Add Step Pills */}
-        <div style={{ display: "flex", gap: "6px", marginTop: "10px" }}>
-          <button
-            onClick={() => handleQuickAddSteps(500)}
-            style={{ flex: 1, background: "#f0fdf4", border: "1px solid #bbf7d0", color: "#16a34a", padding: "5px 0", borderRadius: "8px", fontSize: "10px", fontWeight: 800, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "4px" }}
-          >
-            <i className="fa-solid fa-plus" style={{ fontSize: "8px" }}></i> 500 Steps
-          </button>
-          <button
-            onClick={() => handleQuickAddSteps(1000)}
-            style={{ flex: 1, background: "#f0fdf4", border: "1px solid #bbf7d0", color: "#16a34a", padding: "5px 0", borderRadius: "8px", fontSize: "10px", fontWeight: 800, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "4px" }}
-          >
-            <i className="fa-solid fa-plus" style={{ fontSize: "8px" }}></i> 1,000 Steps
-          </button>
-        </div>
+            {/* Main Action: START SATELLITE GPS BUTTON */}
+            <button
+              onClick={startGpsSession}
+              style={{
+                width: "100%",
+                background: "linear-gradient(135deg, #059669 0%, #10b981 100%)",
+                color: "white",
+                border: "none",
+                borderRadius: "12px",
+                padding: "10px",
+                fontWeight: 800,
+                fontSize: "12px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "7px",
+                cursor: "pointer",
+                boxShadow: "0 4px 12px rgba(16, 185, 129, 0.25)",
+                marginBottom: "8px"
+              }}
+            >
+              <i className="fa-solid fa-location-crosshairs"></i>
+              <span>Start Live GPS Outdoor Tracking</span>
+            </button>
+
+            {/* Indoor Treadmill Manual Step Adjuster */}
+            <div style={{ display: "flex", gap: "6px" }}>
+              <button
+                onClick={() => handleManualAddSteps(500)}
+                style={{ flex: 1, background: "#f8fafc", border: "1px solid #e2e8f0", color: "#475569", padding: "5px 0", borderRadius: "8px", fontSize: "10px", fontWeight: 800, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "4px" }}
+              >
+                <i className="fa-solid fa-plus" style={{ fontSize: "8px" }}></i> 500 Steps (Indoor)
+              </button>
+              <button
+                onClick={() => handleManualAddSteps(1000)}
+                style={{ flex: 1, background: "#f8fafc", border: "1px solid #e2e8f0", color: "#475569", padding: "5px 0", borderRadius: "8px", fontSize: "10px", fontWeight: 800, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "4px" }}
+              >
+                <i className="fa-solid fa-plus" style={{ fontSize: "8px" }}></i> 1,000 Steps (Indoor)
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ─── 4. QUICK ACTION LOG BUTTONS ─── */}
@@ -546,7 +787,7 @@ export default function HomeTab({
         </button>
       </div>
 
-      {/* ─── 5. SLIDE-OVER LOG FOOD MODAL ─── */}
+      {/* ─── 5. SLIDE-OVER QUICK LOG FOOD MODAL ─── */}
       {activeSheet === "food" && (
         <div onClick={() => setActiveSheet(null)} style={{ position: "fixed", inset: 0, background: "rgba(15, 23, 42, 0.45)", backdropFilter: "blur(3px)", zIndex: 9999, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
           <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: "420px", background: "#ffffff", borderTopLeftRadius: "22px", borderTopRightRadius: "22px", padding: "18px", boxShadow: "0 -10px 30px rgba(0,0,0,0.15)", animation: "slideUp 0.2s ease-out" }}>
@@ -564,7 +805,7 @@ export default function HomeTab({
 
             <form onSubmit={handleSaveMeal}>
               <div style={{ marginBottom: "10px" }}>
-                <label style={{ fontSize: "10.5px", fontWeight: 700, color: "#64748b", display: "block", marginBottom: "3px" }}>Food or Meal Name</label>
+                <label style={{ fontSize: "10.5px", fontWeight: 700, color: "#64748b", display: "block", marginBottom: "3px" }}>Food / Meal Name</label>
                 <input
                   type="text"
                   placeholder="e.g., Grilled Chicken Breast (150g)"
@@ -577,10 +818,10 @@ export default function HomeTab({
               </div>
 
               <div style={{ marginBottom: "14px" }}>
-                <label style={{ fontSize: "10.5px", fontWeight: 700, color: "#64748b", display: "block", marginBottom: "3px" }}>Estimated Calories (kcal)</label>
+                <label style={{ fontSize: "10.5px", fontWeight: 700, color: "#64748b", display: "block", marginBottom: "3px" }}>Calories (kcal)</label>
                 <input
                   type="number"
-                  placeholder="e.g., 247"
+                  placeholder="e.g., 250"
                   required
                   value={foodCal}
                   onChange={(e) => setFoodCal(e.target.value)}
@@ -596,7 +837,7 @@ export default function HomeTab({
         </div>
       )}
 
-      {/* ─── 6. SLIDE-OVER LOG WORKOUT MODAL ─── */}
+      {/* ─── 6. SLIDE-OVER QUICK LOG WORKOUT MODAL ─── */}
       {activeSheet === "workout" && (
         <div onClick={() => setActiveSheet(null)} style={{ position: "fixed", inset: 0, background: "rgba(15, 23, 42, 0.45)", backdropFilter: "blur(3px)", zIndex: 9999, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
           <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: "420px", background: "#ffffff", borderTopLeftRadius: "22px", borderTopRightRadius: "22px", padding: "18px", boxShadow: "0 -10px 30px rgba(0,0,0,0.15)", animation: "slideUp 0.2s ease-out" }}>
@@ -614,7 +855,7 @@ export default function HomeTab({
 
             <form onSubmit={handleSaveWorkout}>
               <div style={{ marginBottom: "10px" }}>
-                <label style={{ fontSize: "10.5px", fontWeight: 700, color: "#64748b", display: "block", marginBottom: "3px" }}>Activity</label>
+                <label style={{ fontSize: "10.5px", fontWeight: 700, color: "#64748b", display: "block", marginBottom: "3px" }}>Activity Type</label>
                 <select
                   value={workoutType}
                   onChange={(e) => setWorkoutType(e.target.value)}
