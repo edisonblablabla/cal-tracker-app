@@ -21,8 +21,6 @@ function defaultFormatTime(ts) {
 }
 
 export default function CommunityTab({
-  draftSocialPost,
-  setDraftSocialPost,
   user,
   appData,
   avatarPreview = "",
@@ -57,34 +55,6 @@ export default function CommunityTab({
   showToast,
   formatPostTime = defaultFormatTime
 }) {
-  // ─── GPS ROUTE AUTO-LOAD DRAFT STATE ───
-  const [gpsDraftImage, setGpsDraftImage] = useState(null);
-
-  useEffect(() => {
-    if (draftSocialPost) {
-      try {
-        if (typeof setPostText === "function") {
-          setPostText(draftSocialPost.caption || "");
-        }
-        if (draftSocialPost.image) {
-          setGpsDraftImage(draftSocialPost.image);
-        }
-        if (typeof setShowCreateModal === "function") {
-          setShowCreateModal(true);
-        } else if (typeof setShowCreatePost === "function") {
-          setShowCreatePost(true);
-        } else if (typeof setIsCreateOpen === "function") {
-          setIsCreateOpen(true);
-        }
-      } catch (err) {
-        console.warn("Draft post load warning:", err);
-      }
-      if (typeof setDraftSocialPost === "function") {
-        setDraftSocialPost(null);
-      }
-    }
-  }, [draftSocialPost]);
-
   const unreadChatsCount = (inboxChats || []).filter(c => c.lastSenderUid !== user?.uid && (c.updatedAt || 0) > (lastSeenMsgTime || 0)).length;
   const formatTime = formatPostTime || defaultFormatTime;
 

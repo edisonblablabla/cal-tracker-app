@@ -437,7 +437,7 @@ ${trkpts}
     ctx.fillStyle = bgGrad;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Glow
+    // Decorative Glow
     try {
       const radial = ctx.createRadialGradient(canvas.width / 2, 400, 50, canvas.width / 2, 400, 450);
       radial.addColorStop(0, "rgba(56, 189, 248, 0.08)");
@@ -645,9 +645,9 @@ ${trkpts}
         setImagePreview(dataUrl);
       }
 
-      // 3. Ilipat ang tab sa community (Pulse Feed)
+      // 3. Ilipat ang tab sa social nang direkta
       if (typeof setActiveTab === "function") {
-        setActiveTab("community");
+        setActiveTab("social");
       }
 
       if (showToast) {

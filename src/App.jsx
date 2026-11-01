@@ -54,7 +54,6 @@ export default function App() {
 
   const [appData, setAppData] = useState(null);
   const [activeTab, setActiveTab] = useState("home");
-  const [draftSocialPost, setDraftSocialPost] = useState(null);
 
   // AUTO-SCROLL TO TOP ON TAB SWITCH
   React.useEffect(() => {
@@ -1637,8 +1636,6 @@ export default function App() {
         {/* TAB 1: HOME */}
         {activeTab === "home" && (
           <HomeTab
-              setActiveTab={setActiveTab}
-              setDraftSocialPost={setDraftSocialPost}
               setActivePanel={setActivePanel}
               allUserNotifs={allUserNotifs}
               lastSeenNotifTime={lastSeenNotifTime}
@@ -1685,10 +1682,8 @@ export default function App() {
         )}
 
         {/* TAB 3: SOCIAL TAB */}
-        {(((activeTab === "community" || activeTab === "social") || (activeTab === "community" || activeTab === "social")) || ((activeTab === "community" || activeTab === "social") || (activeTab === "community" || activeTab === "social"))) && (
+        {(activeTab === "community" || activeTab === "social") && (
           <CommunityTab
-              draftSocialPost={draftSocialPost}
-              setDraftSocialPost={setDraftSocialPost}
             lastSeenMsgTime={lastSeenMsgTime}
             setLastSeenMsgTime={setLastSeenMsgTime}
             user={user}
@@ -1886,7 +1881,7 @@ export default function App() {
       <div className="bottom-nav" style={{ boxSizing: "border-box", margin: "0 auto", position: "fixed", bottom: 0, left: 0, right: 0, display: "flex", justifyContent: "center", maxWidth: "480px", width: "100%", background: "#ffffff", borderTop: "1px solid #e2e8f0", zIndex: 1000 }}>
         <div className={"nav-item " + (activeTab === "home" ? "active" : "")} onClick={() => handleTabChange("home")}><i className="fa-solid fa-house"></i><span>Home</span></div>
         <div className={"nav-item " + (activeTab === "diary" ? "active" : "")} onClick={() => handleTabChange("diary")}><i className="fa-regular fa-calendar-check"></i><span>Log</span></div>
-        <div className={"nav-item " + ((((activeTab === "community" || activeTab === "social") || (activeTab === "community" || activeTab === "social")) || ((activeTab === "community" || activeTab === "social") || (activeTab === "community" || activeTab === "social"))) ? "active" : "")} onClick={() => handleTabChange("community")} style={{ position: "relative" }}>
+        <div className={"nav-item " + ((activeTab === "community" || activeTab === "social") ? "active" : "")} onClick={() => handleTabChange("community")} style={{ position: "relative" }}>
             <div style={{ position: "relative", display: "inline-block" }}>
               <i className="fa-solid fa-users"></i>
               {totalSocialAlerts > 0 && (
