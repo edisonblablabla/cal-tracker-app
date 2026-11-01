@@ -41,6 +41,7 @@ export default function CommunityTab({
   const [activeSubTab, setActiveSubTab] = useState("leaderboard"); // 'leaderboard' o 'feed'
   const [leaderboardMetric, setLeaderboardMetric] = useState("distance"); // 'distance', 'calories', 'streak'
   const [showComposer, setShowComposer] = useState(false);
+  const [showNotifDrawer, setShowNotifDrawer] = useState(false);
 
   // ─── AUTO-LOAD DRAFT POST MULA SA HOMETAB ───
   useEffect(() => {
@@ -937,6 +938,208 @@ export default function CommunityTab({
           )}
         </div>
       )}
-    </div>
+    
+      {/* ─── SLIDE-OVER NOTIFICATIONS DRAWER ─── */}
+      <div
+        style={{
+          position: "fixed",
+          top: 0,
+          right: showNotifDrawer ? "0" : "-100%",
+          width: "100%",
+          maxWidth: "360px",
+          height: "100vh",
+          backgroundColor: "#ffffff",
+          zIndex: 4000,
+          transition: "right 0.28s cubic-bezier(0.4, 0, 0.2, 1)",
+          boxShadow: showNotifDrawer ? "-6px 0 24px rgba(15, 23, 42, 0.15)" : "none",
+          display: "flex",
+          flexDirection: "column"
+        }}
+      >
+        {/* Drawer Header */}
+        <div style={{
+          padding: "16px 18px",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          borderBottom: "1px solid #f1f5f9",
+          backgroundColor: "#ffffff"
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <div style={{
+              width: "28px",
+              height: "28px",
+              borderRadius: "7px",
+              background: "rgba(239, 68, 68, 0.1)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center"
+            }}>
+              <i className="fa-solid fa-bell" style={{ color: "#ef4444", fontSize: "13px" }}></i>
+            </div>
+            <h3 style={{ margin: 0, color: "#0f172a", fontSize: "15px", fontWeight: 900 }}>
+              Notifications
+            </h3>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowNotifDrawer(false)}
+            style={{
+              background: "#f1f5f9",
+              border: "none",
+              width: "28px",
+              height: "28px",
+              borderRadius: "50%",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: "pointer",
+              color: "#64748b",
+              fontSize: "14px",
+              fontWeight: 800
+            }}
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* Action Bar (Mark All as Read) */}
+        <div style={{
+          padding: "8px 18px",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          background: "#f8fafc",
+          borderBottom: "1px solid #f1f5f9"
+        }}>
+          <span style={{ fontSize: "11px", fontWeight: 700, color: "#64748b" }}>
+            Recent Activity & Boosts
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              if (typeof setLastSeenNotifTime === "function") setLastSeenNotifTime(Date.now());
+              if (showToast) showToast("All notifications marked as read!");
+            }}
+            style={{
+              background: "none",
+              border: "none",
+              color: "#0284c7",
+              fontSize: "11px",
+              fontWeight: 800,
+              cursor: "pointer",
+              padding: 0
+            }}
+          >
+            Mark all read
+          </button>
+        </div>
+
+        {/* Notifications List Body */}
+        <div style={{ flex: 1, overflowY: "auto", padding: "12px 14px" }}>
+          {Array.isArray(allUserNotifs) && allUserNotifs.length > 0 ? (
+            allUserNotifs.map((notif, idx) => {
+              const isUnread = notif.createdAt?.toMillis
+                ? notif.createdAt.toMillis() > (lastSeenNotifTime || 0)
+                : (notif.timestamp || 0) > (lastSeenNotifTime || 0);
+
+              return (
+                <div
+                  key={notif.id || idx}
+                  style={{
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: "10px",
+                    padding: "11px 12px",
+                    borderRadius: "12px",
+                    background: isUnread ? "#f0f9ff" : "#ffffff",
+                    border: "1px solid " + (isUnread ? "#bae6fd" : "#f1f5f9"),
+                    marginBottom: "8px",
+                    boxShadow: "0 1px 3px rgba(0,0,0,0.02)"
+                  }}
+                >
+                  <img
+                    src={notif.senderPhoto || notif.authorPhoto || "https://i.pravatar.cc/150?u=" + (notif.id || idx)}
+                    alt="User"
+                    style={{ width: "34px", height: "34px", borderRadius: "50%", objectFit: "cover", flexShrink: 0, marginTop: "2px" }}
+                  />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ margin: "0 0 4px 0", fontSize: "12.5px", color: "#0f172a", lineHeight: 1.4, fontWeight: isUnread ? 700 : 500 }}>
+                      <span style={{ fontWeight: 800 }}>{notif.senderName || notif.authorName || "An athlete"}</span>{" "}
+                      {notif.message || notif.text || "boosted your workout!"}
+                    </p>
+                    <span style={{ fontSize: "10.5px", color: "#94a3b8", fontWeight: 600 }}>
+                      {formatPostTime(notif.createdAt || notif.timestamp)}
+                    </span>
+                  </div>
+                  {isUnread && (
+                    <div style={{ width: "7px", height: "7px", borderRadius: "50%", background: "#0284c7", flexShrink: 0, marginTop: "6px" }}></div>
+                  )}
+                </div>
+              );
+            })
+          ) : (
+            /* Fallback Alerts kapag wala pang user-to-user interactions */
+            <div>
+              <div style={{
+                display: "flex",
+                alignItems: "flex-start",
+                gap: "10px",
+                padding: "12px",
+                borderRadius: "12px",
+                background: "#f8fafc",
+                border: "1px solid #e2e8f0",
+                marginBottom: "8px"
+              }}>
+                <div style={{ width: "32px", height: "32px", borderRadius: "8px", background: "rgba(56, 189, 248, 0.15)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <i className="fa-solid fa-bolt" style={{ color: "#0284c7", fontSize: "14px" }}></i>
+                </div>
+                <div>
+                  <div style={{ fontSize: "12.5px", fontWeight: 800, color: "#0f172a" }}>Welcome to NutriPulse Pulse Feed!</div>
+                  <div style={{ fontSize: "11px", color: "#64748b", marginTop: "2px" }}>Share your GPS runs or gym workouts to receive Pulse Boosts from fellow athletes.</div>
+                </div>
+              </div>
+
+              <div style={{
+                display: "flex",
+                alignItems: "flex-start",
+                gap: "10px",
+                padding: "12px",
+                borderRadius: "12px",
+                background: "#f8fafc",
+                border: "1px solid #e2e8f0",
+                marginBottom: "8px"
+              }}>
+                <div style={{ width: "32px", height: "32px", borderRadius: "8px", background: "rgba(234, 179, 8, 0.15)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <i className="fa-solid fa-trophy" style={{ color: "#eab308", fontSize: "14px" }}></i>
+                </div>
+                <div>
+                  <div style={{ fontSize: "12.5px", fontWeight: 800, color: "#0f172a" }}>Weekly Leaderboard Active</div>
+                  <div style={{ fontSize: "11px", color: "#64748b", marginTop: "2px" }}>Climb up the rankings this week by logging your daily distance and burned calories!</div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Backdrop overlay kapag bukas ang drawer */}
+      {showNotifDrawer && (
+        <div
+          onClick={() => setShowNotifDrawer(false)}
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            width: "100vw",
+            height: "100vh",
+            backgroundColor: "rgba(15, 23, 42, 0.4)",
+            zIndex: 3999,
+            backdropFilter: "blur(2px)"
+          }}
+        />
+      )}
+
+</div>
   );
 }
