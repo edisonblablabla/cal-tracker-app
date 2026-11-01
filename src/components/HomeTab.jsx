@@ -437,17 +437,7 @@ export default function HomeTab({
             </span>
           </div>
 
-          {/* NOTIFICATION BELL BUTTON */}
-          <button 
-            onClick={() => setActivePanel && setActivePanel("notif")}
-            style={{ position: "relative", width: "28px", height: "28px", borderRadius: "50%", background: "#f8fafc", border: "1px solid #e2e8f0", color: "#64748b", fontSize: "12px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
-            title="Notifications"
-          >
-            <i className="fa-regular fa-bell"></i>
-            {unreadNotifCount > 0 && (
-              <span style={{ position: "absolute", top: "-2px", right: "-2px", width: "8px", height: "8px", borderRadius: "50%", background: "#ef4444", border: "1.5px solid #ffffff" }}></span>
-            )}
-          </button>
+          
 
           {/* About Modal (?) */}
           <button 
