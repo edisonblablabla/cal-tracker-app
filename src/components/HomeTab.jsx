@@ -180,7 +180,7 @@ export default function HomeTab({
   const [gpsDurationSec, setGpsDurationSec] = useState(0);
   const [gpsAccuracy, setGpsAccuracy] = useState(null);
   const [routeCoordinates, setRouteCoordinates] = useState([]);
-  const [lastFinishedActivity, setLastFinishedActivity] = useState(null);
+  const [selectedViewingActivity, setSelectedViewingActivity] = useState(null);
 
   const watchIdRef = useRef(null);
   const lastCoordsRef = useRef(null);
@@ -202,7 +202,6 @@ export default function HomeTab({
     return R * c;
   };
 
-  // Screen Wake Lock API handler
   const requestWakeLock = async () => {
     if ("wakeLock" in navigator) {
       try {
@@ -222,7 +221,6 @@ export default function HomeTab({
     }
   };
 
-  // Initiate Tracking
   const executeStartGps = (startWithPocketLock = false) => {
     if (!navigator.geolocation) {
       if (showToast) showToast("❌ GPS is not supported on this device.");
@@ -247,7 +245,6 @@ export default function HomeTab({
         const { latitude, longitude, accuracy } = pos.coords;
         setGpsAccuracy(Math.round(accuracy));
 
-        // Filter: Only accept accurate fixes (< 25m)
         if (accuracy > 30) return;
 
         const newPoint = {
@@ -264,7 +261,6 @@ export default function HomeTab({
             longitude
           );
 
-          // Ignore noise (< 3m) or supersonic jumps (> 250m/s)
           if (deltaKm > 0.003 && deltaKm < 0.25) {
             setGpsDistanceKm((prev) => Number((prev + deltaKm).toFixed(3)));
             setRouteCoordinates((prev) => [...prev, newPoint]);
@@ -339,7 +335,7 @@ export default function HomeTab({
           workoutLogs: [...(appData?.workoutLogs || []), completedActivity]
         });
       }
-      setLastFinishedActivity(completedActivity);
+      setSelectedViewingActivity(completedActivity);
       if (showToast) showToast(`🎉 Activity Finished: ${gpsDistanceKm.toFixed(2)} km (+${stepsAdded} steps)!`);
     } else {
       if (showToast) showToast("Activity stopped (Too short to log).");
@@ -348,7 +344,6 @@ export default function HomeTab({
     setIsGpsActive(false);
   };
 
-  // Double-tap handler to unlock Pocket Mode
   const handlePocketTouch = () => {
     const now = Date.now();
     if (now - lastTapRef.current < 400) {
@@ -358,7 +353,7 @@ export default function HomeTab({
     lastTapRef.current = now;
   };
 
-  // Export GPX File
+  // EXPORT GPX FILE
   const downloadGpxFile = (activity) => {
     if (!activity || !activity.route || activity.route.length === 0) {
       if (showToast) showToast("No GPS coordinate track available for this run.");
@@ -397,6 +392,191 @@ ${trkpts}
     URL.revokeObjectURL(url);
 
     if (showToast) showToast("💾 GPX File downloaded successfully!");
+  };
+
+  // 🖼️ GENERATE & EXPORT STRAVA-STYLE ATHLETIC CARD IMAGE (PNG)
+  const exportActivityAsImage = (activity) => {
+    if (!activity || !activity.route || activity.route.length === 0) {
+      if (showToast) showToast("Need at least 2 GPS points to generate route card.");
+      return;
+    }
+
+    const canvas = document.createElement("canvas");
+    canvas.width = 900;
+    canvas.height = 1100;
+    const ctx = canvas.getContext("2d");
+
+    // 1. Background Athletic Dark Gradient
+    const bgGrad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+    bgGrad.addColorStop(0, "#090d16");
+    bgGrad.addColorStop(1, "#111827");
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Decorative background glow
+    const radial = ctx.createRadialGradient(canvas.width / 2, 400, 50, canvas.width / 2, 400, 450);
+    radial.addColorStop(0, "rgba(56, 189, 248, 0.08)");
+    radial.addColorStop(1, "transparent");
+    ctx.fillStyle = radial;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // 2. Header Brand
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "900 36px sans-serif";
+    ctx.fillText("NUTRIPULSE", 60, 80);
+
+    ctx.fillStyle = "#38bdf8";
+    ctx.font = "800 16px sans-serif";
+    ctx.fillText("METABOLIC INTELLIGENCE • GPS OUTDOOR TRACK", 60, 110);
+
+    ctx.fillStyle = "#64748b";
+    ctx.font = "700 16px sans-serif";
+    ctx.textAlign = "right";
+    ctx.fillText(activity.dateLogged || new Date().toLocaleDateString("en-US"), canvas.width - 60, 85);
+    ctx.textAlign = "left";
+
+    // 3. Draw Route Map Box
+    const boxX = 60;
+    const boxY = 140;
+    const boxW = canvas.width - 120;
+    const boxH = 500;
+
+    ctx.fillStyle = "#030712";
+    ctx.strokeStyle = "#1e293b";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(boxX, boxY, boxW, boxH, 20);
+    ctx.fill();
+    ctx.stroke();
+
+    // Route points normalization
+    const coords = activity.route;
+    const lats = coords.map((c) => c.lat);
+    const lons = coords.map((c) => c.lon);
+    const minLat = Math.min(...lats);
+    const maxLat = Math.max(...lats);
+    const minLon = Math.min(...lons);
+    const maxLon = Math.max(...lons);
+
+    const latSpan = maxLat - minLat || 0.0001;
+    const lonSpan = maxLon - minLon || 0.0001;
+    const pad = 60;
+
+    const mapX = (lon) => boxX + pad + ((lon - minLon) / lonSpan) * (boxW - pad * 2);
+    const mapY = (lat) => boxY + boxH - pad - ((lat - minLat) / latSpan) * (boxH - pad * 2);
+
+    // Draw glowing neon track
+    ctx.save();
+    ctx.strokeStyle = "#38bdf8";
+    ctx.lineWidth = 7;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.shadowColor = "#0284c7";
+    ctx.shadowBlur = 20;
+
+    ctx.beginPath();
+    ctx.moveTo(mapX(coords[0].lon), mapY(coords[0].lat));
+    for (let i = 1; i < coords.length; i++) {
+      ctx.lineTo(mapX(coords[i].lon), mapY(coords[i].lat));
+    }
+    ctx.stroke();
+    ctx.restore();
+
+    // Start circle (Green)
+    ctx.fillStyle = "#10b981";
+    ctx.beginPath();
+    ctx.arc(mapX(coords[0].lon), mapY(coords[0].lat), 9, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Finish circle (Red/Coral)
+    const lastPt = coords[coords.length - 1];
+    ctx.fillStyle = "#f43f5e";
+    ctx.beginPath();
+    ctx.arc(mapX(lastPt.lon), mapY(lastPt.lat), 10, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    // Map labels inside box
+    ctx.fillStyle = "#94a3b8";
+    ctx.font = "800 13px sans-serif";
+    ctx.fillText("● START", mapX(coords[0].lon) + 14, mapY(coords[0].lat) + 5);
+    ctx.fillText("■ FINISH", mapX(lastPt.lon) + 14, mapY(lastPt.lat) + 5);
+
+    // 4. Metrics Grid Section
+    const statsY = 690;
+    
+    // Distance
+    ctx.fillStyle = "#64748b";
+    ctx.font = "800 15px sans-serif";
+    ctx.fillText("DISTANCE", 60, statsY);
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "900 68px sans-serif";
+    ctx.fillText(`${activity.distanceKm.toFixed(2)}`, 60, statsY + 68);
+    ctx.fillStyle = "#38bdf8";
+    ctx.font = "900 24px sans-serif";
+    ctx.fillText("KM", 60 + ctx.measureText(`${activity.distanceKm.toFixed(2)} `).width, statsY + 65);
+
+    // Duration
+    ctx.fillStyle = "#64748b";
+    ctx.font = "800 15px sans-serif";
+    ctx.fillText("ACTIVE TIME", 520, statsY);
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "900 68px sans-serif";
+    ctx.fillText(formatTime(activity.durationSec || activity.durationMin * 60), 520, statsY + 68);
+
+    // Pace & Burn
+    const row2Y = statsY + 140;
+    
+    ctx.fillStyle = "#64748b";
+    ctx.font = "800 15px sans-serif";
+    ctx.fillText("AVG PACE", 60, row2Y);
+    ctx.fillStyle = "#4ade80";
+    ctx.font = "900 48px sans-serif";
+    ctx.fillText(`${activity.avgPaceMinKm || "0.00"} /km`, 60, row2Y + 52);
+
+    ctx.fillStyle = "#64748b";
+    ctx.font = "800 15px sans-serif";
+    ctx.fillText("CALORIES BURNED", 520, row2Y);
+    ctx.fillStyle = "#ea580c";
+    ctx.font = "900 48px sans-serif";
+    ctx.fillText(`+${activity.burnedCal} kcal`, 520, row2Y + 52);
+
+    // 5. Watermark Footer
+    ctx.fillStyle = "#334155";
+    ctx.font = "800 14px sans-serif";
+    ctx.fillText("⚡ TRACKED LIVE WITH NUTRIPULSE ATHLETICS ENGINE", 60, canvas.height - 45);
+
+    // Trigger Native Share or Direct PNG Download
+    canvas.toBlob((blob) => {
+      if (!blob) return;
+      const file = new File([blob], `NutriPulse-Run-${activity.distanceKm}km.png`, { type: "image/png" });
+
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        navigator
+          .share({
+            files: [file],
+            title: `NutriPulse ${activity.distanceKm}km Run`,
+            text: `Completed a ${activity.distanceKm}km outdoor session tracked with NutriPulse!`
+          })
+          .catch(() => triggerDirectDownload(blob, activity));
+      } else {
+        triggerDirectDownload(blob, activity);
+      }
+    });
+  };
+
+  const triggerDirectDownload = (blob, activity) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `NutriPulse-${activity.dateLogged}-${activity.distanceKm}km-route.png`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    if (showToast) showToast("🖼️ Route Card Image saved to your device!");
   };
 
   useEffect(() => {
@@ -480,7 +660,7 @@ ${trkpts}
     if (showToast) showToast(`👟 Added +${added.toLocaleString()} steps!`);
   };
 
-  // ─── QUICK FOOD & WORKOUT MODAL STATES ───
+  // Quick Food & Workout Modal States
   const [activeSheet, setActiveSheet] = useState(null);
   const [foodSearchQuery, setFoodSearchQuery] = useState("");
   const [isAddingCustomPreset, setIsAddingCustomPreset] = useState(false);
@@ -526,10 +706,7 @@ ${trkpts}
       timestamp: Date.now()
     };
     if (saveToCloud) {
-      saveToCloud({
-        ...appData,
-        meals: [...(appData?.meals || []), newMeal]
-      });
+      saveToCloud({ ...appData, meals: [...(appData?.meals || []), newMeal] });
     }
     if (showToast) showToast(`🍽️ Logged: ${item.name} (+${item.cal} kcal)!`);
     setActiveSheet(null);
@@ -555,10 +732,7 @@ ${trkpts}
     };
     const updated = [...(appData?.customQuickStaples || []), newPreset];
     if (saveToCloud) {
-      saveToCloud({
-        ...appData,
-        customQuickStaples: updated
-      });
+      saveToCloud({ ...appData, customQuickStaples: updated });
     }
     if (showToast) showToast(`⭐ Saved "${newPreset.name}" to Quick Staples!`);
     setNewPresetName("");
@@ -573,10 +747,7 @@ ${trkpts}
   const handleDeleteCustomPreset = (idToDelete) => {
     const updated = (appData?.customQuickStaples || []).filter((p) => p.id !== idToDelete);
     if (saveToCloud) {
-      saveToCloud({
-        ...appData,
-        customQuickStaples: updated
-      });
+      saveToCloud({ ...appData, customQuickStaples: updated });
     }
     if (showToast) showToast("Removed custom quick staple.");
   };
@@ -627,7 +798,6 @@ ${trkpts}
     setActiveSheet(null);
   };
 
-  // Helper to render live dynamic route polyline on canvas
   const renderRouteSvg = (coords) => {
     if (!coords || coords.length < 2) {
       return (
@@ -665,14 +835,17 @@ ${trkpts}
     return (
       <svg viewBox={`0 0 ${width} ${height}`} style={{ width: "100%", height: "100%", overflow: "visible" }}>
         <path d={pathData} fill="none" stroke="#38bdf8" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />
-        {/* Start dot */}
         <circle cx={points[0].split(",")[0]} cy={points[0].split(",")[1]} r="4.5" fill="#10b981" />
-        {/* Current position pulsing dot */}
         <circle cx={endPointX} cy={endPointY} r="5" fill="#f43f5e" />
         <circle cx={endPointX} cy={endPointY} r="9" fill="none" stroke="#f43f5e" strokeWidth="1.5" opacity="0.6" />
       </svg>
     );
   };
+
+  // Find all GPS activities with recorded routes from today
+  const recordedGpsActivities = useMemo(() => {
+    return (todayWorkouts || []).filter((w) => w.route && Array.isArray(w.route) && w.route.length > 0);
+  }, [todayWorkouts]);
 
   return (
     <div className="screen active" style={{ maxWidth: "420px", margin: "0 auto", padding: "0 10px 24px 10px" }}>
@@ -875,7 +1048,6 @@ ${trkpts}
         {isGpsActive ? (
           <div style={{ background: "linear-gradient(135deg, #0f172a 0%, #1e293b 100%)", color: "white", borderRadius: "14px", padding: "14px", marginBottom: "10px" }}>
             
-            {/* Live Metrics Header */}
             <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr 1fr", gap: "8px", alignItems: "flex-start", marginBottom: "10px" }}>
               <div>
                 <span style={{ fontSize: "9px", color: "#94a3b8", fontWeight: 800, textTransform: "uppercase" }}>Distance</span>
@@ -897,7 +1069,6 @@ ${trkpts}
               </div>
             </div>
 
-            {/* Live Dynamic Route Trace Canvas */}
             <div style={{ background: "rgba(0,0,0,0.35)", borderRadius: "10px", height: "130px", padding: "8px", border: "1px solid rgba(255,255,255,0.08)", marginBottom: "10px", position: "relative" }}>
               <div style={{ position: "absolute", top: "6px", left: "8px", fontSize: "8px", fontWeight: 800, color: "#94a3b8", textTransform: "uppercase" }}>
                 Live GPS Vector Trace ({routeCoordinates.length} points)
@@ -905,7 +1076,6 @@ ${trkpts}
               {renderRouteSvg(routeCoordinates)}
             </div>
 
-            {/* Controls: Pocket Lock & Finish */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1.3fr", gap: "8px" }}>
               <button
                 type="button"
@@ -1002,7 +1172,7 @@ ${trkpts}
               <span>Start Live GPS Outdoor Tracking</span>
             </button>
 
-            <div style={{ display: "flex", gap: "6px" }}>
+            <div style={{ display: "flex", gap: "6px", marginBottom: recordedGpsActivities.length > 0 ? "10px" : "0" }}>
               <button
                 onClick={() => handleManualAddSteps(500)}
                 style={{ flex: 1, background: "#f8fafc", border: "1px solid #e2e8f0", color: "#475569", padding: "5px 0", borderRadius: "8px", fontSize: "10px", fontWeight: 800, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "4px" }}
@@ -1016,6 +1186,51 @@ ${trkpts}
                 <i className="fa-solid fa-plus" style={{ fontSize: "8px" }}></i> 1,000 Steps (Indoor)
               </button>
             </div>
+
+            {/* ─── COMPLETED GPS SESSIONS FOR TODAY (TAP TO VIEW MAP AGAIN) ─── */}
+            {recordedGpsActivities.length > 0 && (
+              <div style={{ borderTop: "1px solid #f1f5f9", paddingTop: "8px" }}>
+                <span style={{ fontSize: "9.5px", fontWeight: 800, color: "#64748b", textTransform: "uppercase", display: "block", marginBottom: "5px" }}>
+                  Today's Recorded GPS Routes ({recordedGpsActivities.length})
+                </span>
+                <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
+                  {recordedGpsActivities.map((act) => (
+                    <div
+                      key={act.id}
+                      onClick={() => setSelectedViewingActivity(act)}
+                      style={{
+                        background: "#f8fafc",
+                        border: "1px solid #e2e8f0",
+                        borderRadius: "10px",
+                        padding: "7px 10px",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        cursor: "pointer"
+                      }}
+                      title="Tap to view route map and export"
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                        <i className="fa-solid fa-map-location-dot" style={{ color: "#0ea5e9", fontSize: "12px" }}></i>
+                        <div>
+                          <span style={{ fontSize: "11px", fontWeight: 800, color: "#0f172a" }}>
+                            {act.distanceKm.toFixed(2)} km Walk & Run
+                          </span>
+                          <span style={{ fontSize: "9.5px", color: "#64748b", display: "block" }}>
+                            {formatTime(act.durationSec || act.durationMin * 60)} • {act.avgPaceMinKm || "0.00"}/km • +{act.burnedCal} kcal
+                          </span>
+                        </div>
+                      </div>
+
+                      <span style={{ fontSize: "10px", fontWeight: 800, color: "#0284c7", background: "#e0f2fe", padding: "3px 7px", borderRadius: "6px" }}>
+                        View Map →
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
           </div>
         )}
       </div>
@@ -1066,7 +1281,7 @@ ${trkpts}
         </button>
       </div>
 
-      {/* ─── 5. PRE-RUN ACTION MODAL (CHOICE: POCKET LOCK VS LIVE MAP) ─── */}
+      {/* ─── 5. PRE-RUN ACTION MODAL ─── */}
       {showPreRunModal && (
         <div
           onClick={() => setShowPreRunModal(false)}
@@ -1109,7 +1324,7 @@ ${trkpts}
 
             <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "12px", padding: "10px 12px", marginBottom: "14px" }}>
               <span style={{ fontSize: "11px", color: "#475569", lineHeight: 1.4, display: "block" }}>
-                💡 <strong>Important:</strong> Mobile browsers pause GPS if the phone is turned off with the physical power button. Keep the screen active or use <strong>Pocket Lock</strong> to place the phone in your pocket safely.
+                💡 <strong>Notice:</strong> Keep screen awake or engage <strong>Pocket Lock</strong> before putting your phone into your running shorts or pouch.
               </span>
             </div>
 
@@ -1202,7 +1417,6 @@ ${trkpts}
             touchAction: "manipulation"
           }}
         >
-          {/* Subtle Dim HUD */}
           <div style={{ textAlign: "center", opacity: 0.35 }}>
             <span style={{ fontSize: "10px", color: "#64748b", fontWeight: 800, letterSpacing: "1px", textTransform: "uppercase" }}>
               🔒 POCKET LOCK ENGAGED
@@ -1233,15 +1447,15 @@ ${trkpts}
         </div>
       )}
 
-      {/* ─── 7. POST-ACTIVITY SUMMARY & GPX DOWNLOAD MODAL ─── */}
-      {lastFinishedActivity && (
+      {/* ─── 7. FULL ROUTE MAP & IMAGE CARD EXPORT MODAL ─── */}
+      {selectedViewingActivity && (
         <div
-          onClick={() => setLastFinishedActivity(null)}
+          onClick={() => setSelectedViewingActivity(null)}
           style={{
             position: "fixed",
             inset: 0,
-            background: "rgba(15, 23, 42, 0.7)",
-            backdropFilter: "blur(4px)",
+            background: "rgba(15, 23, 42, 0.75)",
+            backdropFilter: "blur(5px)",
             zIndex: 10000,
             display: "flex",
             alignItems: "center",
@@ -1255,68 +1469,102 @@ ${trkpts}
               width: "100%",
               maxWidth: "380px",
               background: "#ffffff",
-              borderRadius: "20px",
+              borderRadius: "22px",
               padding: "18px",
-              boxShadow: "0 10px 30px rgba(0,0,0,0.25)"
+              boxShadow: "0 10px 30px rgba(0,0,0,0.3)",
+              display: "flex",
+              flexDirection: "column",
+              gap: "10px"
             }}
           >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                <i className="fa-solid fa-trophy" style={{ color: "#f59e0b", fontSize: "15px" }}></i>
+                <i className="fa-solid fa-map" style={{ color: "#0ea5e9", fontSize: "15px" }}></i>
                 <h3 style={{ fontSize: "15px", fontWeight: 900, margin: 0, color: "#0f172a" }}>
-                  Activity Completed!
+                  Route & Activity Summary
                 </h3>
               </div>
               <button
-                onClick={() => setLastFinishedActivity(null)}
-                style={{ background: "none", border: "none", color: "#94a3b8", fontSize: "16px", cursor: "pointer" }}
+                onClick={() => setSelectedViewingActivity(null)}
+                style={{ background: "none", border: "none", color: "#94a3b8", fontSize: "18px", cursor: "pointer" }}
               >
                 ✕
               </button>
             </div>
 
             {/* Route Map Preview */}
-            <div style={{ background: "#0f172a", borderRadius: "12px", height: "130px", padding: "10px", marginBottom: "12px" }}>
-              {renderRouteSvg(lastFinishedActivity.route)}
+            <div style={{ background: "#0f172a", borderRadius: "14px", height: "140px", padding: "10px", position: "relative" }}>
+              <div style={{ position: "absolute", top: "6px", left: "8px", fontSize: "8px", fontWeight: 800, color: "#94a3b8", textTransform: "uppercase" }}>
+                Recorded Route Vector ({selectedViewingActivity.route?.length || 0} pts)
+              </div>
+              {renderRouteSvg(selectedViewingActivity.route)}
             </div>
 
             {/* Metrics Breakdown */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "6px", textAlign: "center", marginBottom: "12px" }}>
-              <div style={{ background: "#f8fafc", padding: "8px", borderRadius: "10px", border: "1px solid #f1f5f9" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "6px", textAlign: "center" }}>
+              <div style={{ background: "#f8fafc", padding: "8px 4px", borderRadius: "10px", border: "1px solid #f1f5f9" }}>
                 <span style={{ fontSize: "9px", color: "#64748b", fontWeight: 700, textTransform: "uppercase" }}>Distance</span>
                 <div style={{ fontSize: "15px", fontWeight: 900, color: "#0284c7" }}>
-                  {lastFinishedActivity.distanceKm.toFixed(2)} km
+                  {selectedViewingActivity.distanceKm.toFixed(2)} km
                 </div>
               </div>
 
-              <div style={{ background: "#f8fafc", padding: "8px", borderRadius: "10px", border: "1px solid #f1f5f9" }}>
+              <div style={{ background: "#f8fafc", padding: "8px 4px", borderRadius: "10px", border: "1px solid #f1f5f9" }}>
                 <span style={{ fontSize: "9px", color: "#64748b", fontWeight: 700, textTransform: "uppercase" }}>Time</span>
                 <div style={{ fontSize: "15px", fontWeight: 900, color: "#0f172a" }}>
-                  {formatTime(lastFinishedActivity.durationSec)}
+                  {formatTime(selectedViewingActivity.durationSec || selectedViewingActivity.durationMin * 60)}
                 </div>
               </div>
 
-              <div style={{ background: "#f8fafc", padding: "8px", borderRadius: "10px", border: "1px solid #f1f5f9" }}>
+              <div style={{ background: "#f8fafc", padding: "8px 4px", borderRadius: "10px", border: "1px solid #f1f5f9" }}>
                 <span style={{ fontSize: "9px", color: "#64748b", fontWeight: 700, textTransform: "uppercase" }}>Burn</span>
                 <div style={{ fontSize: "15px", fontWeight: 900, color: "#ea580c" }}>
-                  +{lastFinishedActivity.burnedCal} kcal
+                  +{selectedViewingActivity.burnedCal} kcal
                 </div>
               </div>
             </div>
 
-            {/* Action Buttons */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+            {/* Action Buttons: Save Image Card & Download GPX */}
+            <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginTop: "4px" }}>
+              
+              {/* 🖼️ SAVE MAP CARD AS IMAGE BUTTON */}
               <button
-                onClick={() => downloadGpxFile(lastFinishedActivity)}
+                type="button"
+                onClick={() => exportActivityAsImage(selectedViewingActivity)}
                 style={{
                   width: "100%",
-                  background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)",
+                  background: "linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)",
                   color: "white",
                   border: "none",
-                  padding: "10px",
+                  padding: "11px",
                   borderRadius: "10px",
                   fontWeight: 800,
-                  fontSize: "11.5px",
+                  fontSize: "12px",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "7px",
+                  boxShadow: "0 4px 12px rgba(14, 165, 233, 0.25)"
+                }}
+              >
+                <i className="fa-solid fa-camera-retro"></i>
+                <span>Save Route Card as Image (PNG / Gallery)</span>
+              </button>
+
+              {/* 💾 DOWNLOAD GPX BUTTON */}
+              <button
+                type="button"
+                onClick={() => downloadGpxFile(selectedViewingActivity)}
+                style={{
+                  width: "100%",
+                  background: "#f8fafc",
+                  color: "#334155",
+                  border: "1px solid #cbd5e1",
+                  padding: "9px",
+                  borderRadius: "10px",
+                  fontWeight: 800,
+                  fontSize: "11px",
                   cursor: "pointer",
                   display: "flex",
                   alignItems: "center",
@@ -1324,25 +1572,26 @@ ${trkpts}
                   gap: "6px"
                 }}
               >
-                <i className="fa-solid fa-file-arrow-down"></i>
+                <i className="fa-solid fa-file-arrow-down" style={{ color: "#0284c7" }}></i>
                 <span>Download GPX File (Strava / Garmin)</span>
               </button>
 
               <button
-                onClick={() => setLastFinishedActivity(null)}
+                type="button"
+                onClick={() => setSelectedViewingActivity(null)}
                 style={{
                   width: "100%",
-                  background: "#f1f5f9",
-                  color: "#475569",
+                  background: "transparent",
+                  color: "#94a3b8",
                   border: "none",
-                  padding: "9px",
+                  padding: "6px",
                   borderRadius: "10px",
-                  fontWeight: 800,
+                  fontWeight: 700,
                   fontSize: "11px",
                   cursor: "pointer"
                 }}
               >
-                Done & Close
+                Close
               </button>
             </div>
           </div>
