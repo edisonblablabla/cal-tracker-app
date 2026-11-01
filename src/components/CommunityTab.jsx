@@ -138,165 +138,226 @@ export default function CommunityTab({
     <div style={{ backgroundColor: "#f8fafc", minHeight: "100vh", paddingBottom: "90px", fontFamily: "sans-serif" }}>
 
       {/* ─── 1. COMPACT SOLID BRAND HEADER ─── */}
+      {/* ─── UNIFIED SOLID STICKY APP BAR (Walang agwat, walang tagos) ─── */}
       <div style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        height: "56px",
-        padding: "0 12px",
-        backgroundColor: "#ffffff",
-        borderBottom: "1px solid #e2e8f0",
         position: "sticky",
         top: 0,
         zIndex: 1000,
-        boxShadow: "0 2px 8px rgba(15, 23, 42, 0.04)",
-        boxSizing: "border-box",
-        width: "100%"
+        backgroundColor: "#ffffff",
+        borderBottom: "1px solid #e2e8f0",
+        boxShadow: "0 2px 8px rgba(15, 23, 42, 0.05)",
+        width: "100%",
+        boxSizing: "border-box"
       }}>
-        {/* Brand & Logo (Naka-lock ang sukat, hindi aabot sa kanan) */}
-        <div style={{ display: "flex", alignItems: "center", gap: "7px", flexShrink: 0, maxWidth: "145px" }}>
-          <div style={{
-            width: "30px",
-            height: "30px",
-            borderRadius: "8px",
-            background: "linear-gradient(135deg, #4f46e5 0%, #38bdf8 100%)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            flexShrink: 0,
-            boxShadow: "0 2px 6px rgba(79, 70, 229, 0.2)"
-          }}>
-            <i className="fa-solid fa-heart-pulse" style={{ color: "#ffffff", fontSize: "15px" }}></i>
+        {/* Row 1: Brand Logo & Right Action Cluster (Siksik: 48px) */}
+        <div style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          height: "48px",
+          padding: "0 12px",
+          boxSizing: "border-box"
+        }}>
+          {/* Logo & Brand Name */}
+          <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0, maxWidth: "135px" }}>
+            <div style={{
+              width: "28px",
+              height: "28px",
+              borderRadius: "7px",
+              background: "linear-gradient(135deg, #4f46e5 0%, #38bdf8 100%)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+              boxShadow: "0 2px 5px rgba(79, 70, 229, 0.2)"
+            }}>
+              <i className="fa-solid fa-heart-pulse" style={{ color: "#ffffff", fontSize: "14px" }}></i>
+            </div>
+            <div style={{ minWidth: 0, overflow: "hidden" }}>
+              <h1 style={{ margin: 0, fontSize: "13.5px", fontWeight: 900, color: "#0f172a", letterSpacing: "-0.2px", lineHeight: 1.1, whiteSpace: "nowrap" }}>
+                NUTRIPULSE
+              </h1>
+              <span style={{ fontSize: "8px", fontWeight: 800, color: "#0284c7", letterSpacing: "0.6px", display: "block" }}>
+                COMMUNITY
+              </span>
+            </div>
           </div>
-          <div style={{ minWidth: 0, overflow: "hidden" }}>
-            <h1 style={{ margin: 0, fontSize: "14px", fontWeight: 900, color: "#0f172a", letterSpacing: "-0.2px", lineHeight: 1.1, whiteSpace: "nowrap" }}>
-              NUTRIPULSE
-            </h1>
-            <span style={{ fontSize: "8.5px", fontWeight: 800, color: "#0284c7", letterSpacing: "0.8px", display: "block" }}>
-              COMMUNITY
-            </span>
+
+          {/* Action Icons: Search, Message, Notif, Profile (Siksik, 30px touch) */}
+          <div style={{ display: "flex", alignItems: "center", gap: "2px", flexShrink: 0 }}>
+            {/* 🔍 SEARCH */}
+            <button
+              type="button"
+              onClick={() => {
+                if (typeof setShowSearchModal === "function") setShowSearchModal(true);
+              }}
+              style={{
+                width: "30px",
+                height: "30px",
+                background: "none",
+                border: "none",
+                borderRadius: "6px",
+                cursor: "pointer",
+                color: "#334155",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: 0
+              }}
+              title="Search Athletes"
+            >
+              <i className="fa-solid fa-magnifying-glass" style={{ fontSize: "14px" }}></i>
+            </button>
+
+            {/* 💬 MESSAGES */}
+            <button
+              type="button"
+              onClick={() => {
+                if (typeof setActivePanel === "function") setActivePanel("inbox");
+                if (typeof setLastSeenMsgTime === "function") setLastSeenMsgTime(Date.now());
+              }}
+              style={{
+                width: "30px",
+                height: "30px",
+                background: "none",
+                border: "none",
+                borderRadius: "6px",
+                cursor: "pointer",
+                color: "#334155",
+                position: "relative",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: 0
+              }}
+              title="Huddle Messages"
+            >
+              <i className="fa-regular fa-comment-dots" style={{ fontSize: "15px" }}></i>
+              {unreadMsgCount > 0 && (
+                <span style={{
+                  position: "absolute", top: "2px", right: "2px", background: "#ef4444", color: "#ffffff",
+                  fontSize: "8px", fontWeight: 800, minWidth: "13px", height: "13px", borderRadius: "10px",
+                  display: "flex", alignItems: "center", justifyContent: "center", padding: "0 2px"
+                }}>
+                  {unreadMsgCount > 9 ? "9+" : unreadMsgCount}
+                </span>
+              )}
+            </button>
+
+            {/* 🔔 NOTIFICATIONS */}
+            <button
+              type="button"
+              onClick={() => {
+                if (typeof setActivePanel === "function") setActivePanel("notifications");
+                if (typeof setLastSeenNotifTime === "function") setLastSeenNotifTime(Date.now());
+              }}
+              style={{
+                width: "30px",
+                height: "30px",
+                background: "none",
+                border: "none",
+                borderRadius: "6px",
+                cursor: "pointer",
+                color: "#334155",
+                position: "relative",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: 0
+              }}
+              title="Notifications"
+            >
+              <i className="fa-regular fa-bell" style={{ fontSize: "15px" }}></i>
+              {unreadNotifCount > 0 && (
+                <span style={{
+                  position: "absolute", top: "3px", right: "3px", background: "#f43f5e",
+                  width: "6px", height: "6px", borderRadius: "50%", border: "1.5px solid #ffffff"
+                }}></span>
+              )}
+            </button>
+
+            {/* 👤 AVATAR */}
+            <button
+              type="button"
+              onClick={() => {
+                if (typeof setSelectedVisitor === "function") setSelectedVisitor(null);
+                if (typeof setActiveTab === "function") setActiveTab("profile");
+              }}
+              style={{
+                width: "30px",
+                height: "30px",
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: 0
+              }}
+              title="My Profile"
+            >
+              <img
+                src={user?.photoURL || avatarPreview || "https://i.pravatar.cc/150"}
+                alt="Profile"
+                style={{ width: "24px", height: "24px", borderRadius: "50%", objectFit: "cover", border: "1.5px solid #38bdf8" }}
+              />
+            </button>
           </div>
         </div>
 
-        {/* Action Controls: Search, Messages, Notifications, Avatar (Siksik, 32px touch target) */}
-        <div style={{ display: "flex", alignItems: "center", gap: "4px", flexShrink: 0 }}>
-          {/* 🔍 SEARCH */}
-          <button
-            type="button"
-            onClick={() => {
-              if (typeof setShowSearchModal === "function") setShowSearchModal(true);
-            }}
-            style={{
-              width: "32px",
-              height: "32px",
-              background: "none",
-              border: "none",
-              borderRadius: "8px",
-              cursor: "pointer",
-              color: "#334155",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: 0
-            }}
-            title="Search Athletes"
-          >
-            <i className="fa-solid fa-magnifying-glass" style={{ fontSize: "15px" }}></i>
-          </button>
+        {/* Row 2: Segmented Switcher (Siksik sa ilalim ng header, walang floating gap) */}
+        <div style={{ padding: "0 12px 8px 12px", boxSizing: "border-box" }}>
+          <div style={{ display: "flex", background: "#f1f5f9", borderRadius: "10px", padding: "2.5px" }}>
+            <button
+              type="button"
+              onClick={() => setActiveSubTab("leaderboard")}
+              style={{
+                flex: 1,
+                padding: "7px 0",
+                borderRadius: "8px",
+                border: "none",
+                fontWeight: 800,
+                fontSize: "11.5px",
+                cursor: "pointer",
+                display: "flex",
+                justifyContent: "center",
+                alignItems: "center",
+                gap: "5px",
+                background: activeSubTab === "leaderboard" ? "#ffffff" : "transparent",
+                color: activeSubTab === "leaderboard" ? "#0f172a" : "#64748b",
+                boxShadow: activeSubTab === "leaderboard" ? "0 1px 4px rgba(0,0,0,0.06)" : "none",
+                transition: "all 0.15s ease"
+              }}
+            >
+              <i className="fa-solid fa-trophy" style={{ color: activeSubTab === "leaderboard" ? "#eab308" : "#94a3b8", fontSize: "11px" }}></i>
+              LEADERBOARD
+            </button>
 
-          {/* 💬 MESSAGES */}
-          <button
-            type="button"
-            onClick={() => {
-              if (typeof setActivePanel === "function") setActivePanel("inbox");
-              if (typeof setLastSeenMsgTime === "function") setLastSeenMsgTime(Date.now());
-            }}
-            style={{
-              width: "32px",
-              height: "32px",
-              background: "none",
-              border: "none",
-              borderRadius: "8px",
-              cursor: "pointer",
-              color: "#334155",
-              position: "relative",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: 0
-            }}
-            title="Huddle Messages"
-          >
-            <i className="fa-regular fa-comment-dots" style={{ fontSize: "16px" }}></i>
-            {unreadMsgCount > 0 && (
-              <span style={{
-                position: "absolute", top: "2px", right: "2px", background: "#ef4444", color: "#ffffff",
-                fontSize: "8.5px", fontWeight: 800, minWidth: "14px", height: "14px", borderRadius: "10px",
-                display: "flex", alignItems: "center", justifyContent: "center", padding: "0 2px"
-              }}>
-                {unreadMsgCount > 9 ? "9+" : unreadMsgCount}
-              </span>
-            )}
-          </button>
-
-          {/* 🔔 NOTIFICATIONS */}
-          <button
-            type="button"
-            onClick={() => {
-              if (typeof setActivePanel === "function") setActivePanel("notifications");
-              if (typeof setLastSeenNotifTime === "function") setLastSeenNotifTime(Date.now());
-            }}
-            style={{
-              width: "32px",
-              height: "32px",
-              background: "none",
-              border: "none",
-              borderRadius: "8px",
-              cursor: "pointer",
-              color: "#334155",
-              position: "relative",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: 0
-            }}
-            title="Notifications"
-          >
-            <i className="fa-regular fa-bell" style={{ fontSize: "16px" }}></i>
-            {unreadNotifCount > 0 && (
-              <span style={{
-                position: "absolute", top: "4px", right: "4px", background: "#f43f5e",
-                width: "7px", height: "7px", borderRadius: "50%", border: "2px solid #ffffff"
-              }}></span>
-            )}
-          </button>
-
-          {/* 👤 AVATAR */}
-          <button
-            type="button"
-            onClick={() => {
-              if (typeof setSelectedVisitor === "function") setSelectedVisitor(null);
-              if (typeof setActiveTab === "function") setActiveTab("profile");
-            }}
-            style={{
-              width: "32px",
-              height: "32px",
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: 0
-            }}
-            title="My Profile"
-          >
-            <img
-              src={user?.photoURL || avatarPreview || "https://i.pravatar.cc/150"}
-              alt="Profile"
-              style={{ width: "26px", height: "26px", borderRadius: "50%", objectFit: "cover", border: "2px solid #38bdf8" }}
-            />
-          </button>
+            <button
+              type="button"
+              onClick={() => setActiveSubTab("feed")}
+              style={{
+                flex: 1,
+                padding: "7px 0",
+                borderRadius: "8px",
+                border: "none",
+                fontWeight: 800,
+                fontSize: "11.5px",
+                cursor: "pointer",
+                display: "flex",
+                justifyContent: "center",
+                alignItems: "center",
+                gap: "5px",
+                background: activeSubTab === "feed" ? "#ffffff" : "transparent",
+                color: activeSubTab === "feed" ? "#0f172a" : "#64748b",
+                boxShadow: activeSubTab === "feed" ? "0 1px 4px rgba(0,0,0,0.06)" : "none",
+                transition: "all 0.15s ease"
+              }}
+            >
+              <i className="fa-solid fa-bolt" style={{ color: activeSubTab === "feed" ? "#0284c7" : "#94a3b8", fontSize: "11px" }}></i>
+              PULSE FEED
+            </button>
+          </div>
         </div>
       </div>
 
