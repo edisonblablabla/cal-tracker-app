@@ -141,31 +141,32 @@ export default function CommunityTab({
       {/* ─── 1. COMPACT SOLID BRAND HEADER ─── */}
       {/* ─── UNIFIED SOLID STICKY APP BAR (Walang agwat, walang tagos) ─── */}
       {/* ─── 1. SOLID FLUSH STICKY APP BAR (Walang guwang sa taas at gilid) ─── */}
+      {/* ─── 1. FIXED EDGE-TO-EDGE TOP BRANDING BAR (Nakasagad sa top at gilid ng screen) ─── */}
       <div style={{
-        position: "sticky",
+        position: "fixed",
         top: 0,
         left: 0,
         right: 0,
         width: "100%",
+        height: "54px",
         backgroundColor: "#ffffff",
         borderBottom: "1px solid #e2e8f0",
         boxShadow: "0 2px 8px rgba(15, 23, 42, 0.05)",
-        zIndex: 1000,
+        zIndex: 2000,
         margin: 0,
-        borderRadius: 0,
+        padding: 0,
         boxSizing: "border-box"
       }}>
         <div style={{
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          height: "52px",
+          height: "100%",
           padding: "0 16px",
-          maxWidth: "600px",
-          margin: "0 auto",
+          width: "100%",
           boxSizing: "border-box"
         }}>
-          {/* Logo & Brand Name ONLY (Walang switcher sa ilalim nito) */}
+          {/* Logo & Brand Name ONLY (Siksik sa pinakakaliwa, walang switcher sa ilalim) */}
           <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
             <div style={{
               width: "32px",
@@ -190,7 +191,7 @@ export default function CommunityTab({
             </div>
           </div>
 
-          {/* Action Icons: Search, Message, Notif, Profile */}
+          {/* Action Icons: Search, Messages, Notifications, Avatar (Siksik sa pinakakanan) */}
           <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
             {/* 🔍 SEARCH */}
             <button
@@ -314,62 +315,65 @@ export default function CommunityTab({
         </div>
       </div>
 
-      {/* ─── 2. IISANG MALINIS NA TAB SWITCHER (Nasa ibaba ng Header) ─── */}
-      <div style={{ padding: "12px 16px 8px 16px", maxWidth: "600px", margin: "0 auto", boxSizing: "border-box" }}>
-        <div style={{ display: "flex", background: "#e2e8f0", borderRadius: "12px", padding: "3px" }}>
-          <button
-            type="button"
-            onClick={() => setActiveSubTab("leaderboard")}
-            style={{
-              flex: 1,
-              padding: "8px 0",
-              borderRadius: "10px",
-              border: "none",
-              fontWeight: 800,
-              fontSize: "12px",
-              cursor: "pointer",
-              display: "flex",
-              justifyContent: "center",
-              alignItems: "center",
-              gap: "6px",
-              background: activeSubTab === "leaderboard" ? "#ffffff" : "transparent",
-              color: activeSubTab === "leaderboard" ? "#0f172a" : "#64748b",
-              boxShadow: activeSubTab === "leaderboard" ? "0 2px 6px rgba(0,0,0,0.06)" : "none",
-              transition: "all 0.15s ease"
-            }}
-          >
-            <i className="fa-solid fa-trophy" style={{ color: activeSubTab === "leaderboard" ? "#eab308" : "#94a3b8" }}></i>
-            LEADERBOARD
-          </button>
+      {/* ─── 2. MAIN BODY (May paddingTop: 64px para hindi matakpan ng fixed header) ─── */}
+      <div style={{ paddingTop: "64px" }}>
 
-          <button
-            type="button"
-            onClick={() => setActiveSubTab("feed")}
-            style={{
-              flex: 1,
-              padding: "8px 0",
-              borderRadius: "10px",
-              border: "none",
-              fontWeight: 800,
-              fontSize: "12px",
-              cursor: "pointer",
-              display: "flex",
-              justifyContent: "center",
-              alignItems: "center",
-              gap: "6px",
-              background: activeSubTab === "feed" ? "#ffffff" : "transparent",
-              color: activeSubTab === "feed" ? "#0f172a" : "#64748b",
-              boxShadow: activeSubTab === "feed" ? "0 2px 6px rgba(0,0,0,0.06)" : "none",
-              transition: "all 0.15s ease"
-            }}
-          >
-            <i className="fa-solid fa-bolt" style={{ color: activeSubTab === "feed" ? "#0284c7" : "#94a3b8" }}></i>
-            PULSE FEED
-          </button>
+        {/* ─── IISANG MALINIS NA SEGMENTED TAB SWITCHER ─── */}
+        <div style={{ padding: "10px 16px 8px 16px", maxWidth: "560px", margin: "0 auto", boxSizing: "border-box" }}>
+          <div style={{ display: "flex", background: "#e2e8f0", borderRadius: "12px", padding: "3px" }}>
+            <button
+              type="button"
+              onClick={() => setActiveSubTab("leaderboard")}
+              style={{
+                flex: 1,
+                padding: "8px 0",
+                borderRadius: "10px",
+                border: "none",
+                fontWeight: 800,
+                fontSize: "12px",
+                cursor: "pointer",
+                display: "flex",
+                justifyContent: "center",
+                alignItems: "center",
+                gap: "6px",
+                background: activeSubTab === "leaderboard" ? "#ffffff" : "transparent",
+                color: activeSubTab === "leaderboard" ? "#0f172a" : "#64748b",
+                boxShadow: activeSubTab === "leaderboard" ? "0 2px 6px rgba(0,0,0,0.06)" : "none",
+                transition: "all 0.15s ease"
+              }}
+            >
+              <i className="fa-solid fa-trophy" style={{ color: activeSubTab === "leaderboard" ? "#eab308" : "#94a3b8" }}></i>
+              LEADERBOARD
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveSubTab("feed")}
+              style={{
+                flex: 1,
+                padding: "8px 0",
+                borderRadius: "10px",
+                border: "none",
+                fontWeight: 800,
+                fontSize: "12px",
+                cursor: "pointer",
+                display: "flex",
+                justifyContent: "center",
+                alignItems: "center",
+                gap: "6px",
+                background: activeSubTab === "feed" ? "#ffffff" : "transparent",
+                color: activeSubTab === "feed" ? "#0f172a" : "#64748b",
+                boxShadow: activeSubTab === "feed" ? "0 2px 6px rgba(0,0,0,0.06)" : "none",
+                transition: "all 0.15s ease"
+              }}
+            >
+              <i className="fa-solid fa-bolt" style={{ color: activeSubTab === "feed" ? "#0284c7" : "#94a3b8" }}></i>
+              PULSE FEED
+            </button>
+          </div>
         </div>
-      </div>
 
-      {/* ============================================================== */}
+        {/* ============================================================== */}
       {/* 🏆 LEADERBOARD VIEW (REAL DATA, METRIC FILTERS, PODIUM)        */}
       {/* ============================================================== */}
       {activeSubTab === "leaderboard" && (
@@ -891,7 +895,9 @@ export default function CommunityTab({
         </div>
       )}
     
-      {/* ─── SLIDE-OVER NOTIFICATIONS DRAWER ─── */}
+            </div> {/* END OF BODY WRAPPER */}
+
+{/* ─── SLIDE-OVER NOTIFICATIONS DRAWER ─── */}
       <div
         style={{
           position: "fixed",
