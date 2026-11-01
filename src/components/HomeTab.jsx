@@ -245,7 +245,8 @@ export default function HomeTab({
         const { latitude, longitude, accuracy } = pos.coords;
         setGpsAccuracy(Math.round(accuracy));
 
-        if (accuracy > 30) return;
+        // Accept accuracy up to 75m for indoor testing/city canyons
+        if (accuracy > 75) return;
 
         const newPoint = {
           lat: latitude,
@@ -261,7 +262,7 @@ export default function HomeTab({
             longitude
           );
 
-          if (deltaKm > 0.003 && deltaKm < 0.25) {
+          if (deltaKm > 0.002 && deltaKm < 0.3) {
             setGpsDistanceKm((prev) => Number((prev + deltaKm).toFixed(3)));
             setRouteCoordinates((prev) => [...prev, newPoint]);
             lastCoordsRef.current = { lat: latitude, lon: longitude };
@@ -287,6 +288,7 @@ export default function HomeTab({
     if (showToast) showToast("🛰️ Connected to Satellite GPS! Tracking walk...");
   };
 
+  // FINISH & SAVE HANDLER - GUARANTEED TO OPEN MODAL & SAVE
   const stopAndSaveGpsSession = () => {
     if (watchIdRef.current !== null) {
       navigator.geolocation.clearWatch(watchIdRef.current);
@@ -299,49 +301,56 @@ export default function HomeTab({
     releaseWakeLock();
     setIsPocketMode(false);
 
-    const stepsAdded = Math.round(gpsDistanceKm * 1333);
-    const calBurned = Math.round(gpsDistanceKm * 60);
-    const avgPace = gpsDistanceKm > 0.05 ? ((gpsDurationSec / 60) / gpsDistanceKm).toFixed(2) : "0.00";
+    const dist = Number(gpsDistanceKm) || 0;
+    const durSec = Number(gpsDurationSec) || 0;
+    const stepsAdded = Math.round(dist * 1333) || (durSec > 10 ? Math.round(durSec * 1.8) : 0);
+    const calBurned = Math.round(dist * 60) || (durSec > 5 ? Math.max(1, Math.round(durSec * 0.12)) : 1);
+    const avgPace = dist > 0.02 ? ((durSec / 60) / dist).toFixed(2) : "0.00";
 
     const completedActivity = {
       id: Date.now(),
       type: "Outdoor Run & Walk",
-      distanceKm: gpsDistanceKm,
-      durationMin: Math.max(1, Math.round(gpsDurationSec / 60)),
-      durationSec: gpsDurationSec,
+      distanceKm: dist,
+      durationMin: Math.max(1, Math.round(durSec / 60)),
+      durationSec: durSec,
       burnedCal: calBurned,
       steps: stepsAdded,
       avgPaceMinKm: avgPace,
-      route: routeCoordinates,
+      route: routeCoordinates.length > 0 ? routeCoordinates : (lastCoordsRef.current ? [lastCoordsRef.current] : []),
       dateLogged: currentDateStr,
       timestamp: Date.now()
     };
 
-    if (gpsDistanceKm > 0.01) {
+    // Save to Cloud & Local State
+    if (saveToCloud) {
+      const existingWorkouts = appData?.workoutLogs || [];
+      const updatedWorkouts = [completedActivity, ...existingWorkouts];
+      const updatedSteps = (Number(appData?.todaySteps) || 0) + stepsAdded;
+      const existingStepLogs = appData?.stepLogs || [];
       const newStepRecord = {
         id: Date.now(),
         steps: stepsAdded,
-        distanceKm: gpsDistanceKm,
+        distanceKm: dist,
         dateLogged: currentDateStr,
         timestamp: Date.now()
       };
 
-      if (saveToCloud) {
-        saveToCloud({
-          ...appData,
-          todaySteps: (Number(appData?.todaySteps) || 0) + stepsAdded,
-          lastStepDate: currentDateStr,
-          stepLogs: [...(appData?.stepLogs || []), newStepRecord],
-          workoutLogs: [...(appData?.workoutLogs || []), completedActivity]
-        });
-      }
-      setSelectedViewingActivity(completedActivity);
-      if (showToast) showToast(`🎉 Activity Finished: ${gpsDistanceKm.toFixed(2)} km (+${stepsAdded} steps)!`);
-    } else {
-      if (showToast) showToast("Activity stopped (Too short to log).");
+      saveToCloud({
+        ...appData,
+        todaySteps: updatedSteps,
+        lastStepDate: currentDateStr,
+        stepLogs: stepsAdded > 0 ? [newStepRecord, ...existingStepLogs] : existingStepLogs,
+        workoutLogs: updatedWorkouts
+      });
     }
 
+    // ALWAYS OPEN SUMMARY MODAL SO USER CAN VIEW ROUTE, EXPORT PNG & GPX
+    setSelectedViewingActivity(completedActivity);
     setIsGpsActive(false);
+
+    if (showToast) {
+      showToast(`🎉 Activity Saved: ${dist.toFixed(2)} km (+${calBurned} kcal)!`);
+    }
   };
 
   const handlePocketTouch = () => {
@@ -355,12 +364,13 @@ export default function HomeTab({
 
   // EXPORT GPX FILE
   const downloadGpxFile = (activity) => {
-    if (!activity || !activity.route || activity.route.length === 0) {
-      if (showToast) showToast("No GPS coordinate track available for this run.");
+    const coords = activity?.route || [];
+    if (coords.length === 0) {
+      if (showToast) showToast("Need GPS coordinate points to download GPX track.");
       return;
     }
 
-    const trkpts = activity.route
+    const trkpts = coords
       .map(
         (pt) =>
           `      <trkpt lat="${pt.lat}" lon="${pt.lon}">\n        <time>${pt.time || new Date().toISOString()}</time>\n      </trkpt>`
@@ -396,10 +406,7 @@ ${trkpts}
 
   // 🖼️ GENERATE & EXPORT STRAVA-STYLE ATHLETIC CARD IMAGE (PNG)
   const exportActivityAsImage = (activity) => {
-    if (!activity || !activity.route || activity.route.length === 0) {
-      if (showToast) showToast("Need at least 2 GPS points to generate route card.");
-      return;
-    }
+    if (!activity) return;
 
     const canvas = document.createElement("canvas");
     canvas.width = 900;
@@ -413,7 +420,7 @@ ${trkpts}
     ctx.fillStyle = bgGrad;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Decorative background glow
+    // Decorative glow
     const radial = ctx.createRadialGradient(canvas.width / 2, 400, 50, canvas.width / 2, 400, 450);
     radial.addColorStop(0, "rgba(56, 189, 248, 0.08)");
     radial.addColorStop(1, "transparent");
@@ -449,60 +456,76 @@ ${trkpts}
     ctx.fill();
     ctx.stroke();
 
-    // Route points normalization
-    const coords = activity.route;
-    const lats = coords.map((c) => c.lat);
-    const lons = coords.map((c) => c.lon);
-    const minLat = Math.min(...lats);
-    const maxLat = Math.max(...lats);
-    const minLon = Math.min(...lons);
-    const maxLon = Math.max(...lons);
+    const coords = activity.route || [];
 
-    const latSpan = maxLat - minLat || 0.0001;
-    const lonSpan = maxLon - minLon || 0.0001;
-    const pad = 60;
+    if (coords.length >= 2) {
+      const lats = coords.map((c) => c.lat);
+      const lons = coords.map((c) => c.lon);
+      const minLat = Math.min(...lats);
+      const maxLat = Math.max(...lats);
+      const minLon = Math.min(...lons);
+      const maxLon = Math.max(...lons);
 
-    const mapX = (lon) => boxX + pad + ((lon - minLon) / lonSpan) * (boxW - pad * 2);
-    const mapY = (lat) => boxY + boxH - pad - ((lat - minLat) / latSpan) * (boxH - pad * 2);
+      const latSpan = maxLat - minLat || 0.0001;
+      const lonSpan = maxLon - minLon || 0.0001;
+      const pad = 60;
 
-    // Draw glowing neon track
-    ctx.save();
-    ctx.strokeStyle = "#38bdf8";
-    ctx.lineWidth = 7;
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    ctx.shadowColor = "#0284c7";
-    ctx.shadowBlur = 20;
+      const mapX = (lon) => boxX + pad + ((lon - minLon) / lonSpan) * (boxW - pad * 2);
+      const mapY = (lat) => boxY + boxH - pad - ((lat - minLat) / latSpan) * (boxH - pad * 2);
 
-    ctx.beginPath();
-    ctx.moveTo(mapX(coords[0].lon), mapY(coords[0].lat));
-    for (let i = 1; i < coords.length; i++) {
-      ctx.lineTo(mapX(coords[i].lon), mapY(coords[i].lat));
+      // Glowing Neon Track
+      ctx.save();
+      ctx.strokeStyle = "#38bdf8";
+      ctx.lineWidth = 7;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.shadowColor = "#0284c7";
+      ctx.shadowBlur = 20;
+
+      ctx.beginPath();
+      ctx.moveTo(mapX(coords[0].lon), mapY(coords[0].lat));
+      for (let i = 1; i < coords.length; i++) {
+        ctx.lineTo(mapX(coords[i].lon), mapY(coords[i].lat));
+      }
+      ctx.stroke();
+      ctx.restore();
+
+      // Start circle (Green)
+      ctx.fillStyle = "#10b981";
+      ctx.beginPath();
+      ctx.arc(mapX(coords[0].lon), mapY(coords[0].lat), 9, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Finish circle (Red)
+      const lastPt = coords[coords.length - 1];
+      ctx.fillStyle = "#f43f5e";
+      ctx.beginPath();
+      ctx.arc(mapX(lastPt.lon), mapY(lastPt.lat), 10, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = 3;
+      ctx.stroke();
+
+      ctx.fillStyle = "#94a3b8";
+      ctx.font = "800 13px sans-serif";
+      ctx.fillText("● START", mapX(coords[0].lon) + 14, mapY(coords[0].lat) + 5);
+      ctx.fillText("■ FINISH", mapX(lastPt.lon) + 14, mapY(lastPt.lat) + 5);
+    } else {
+      // Single Point / Indoor Session Marker
+      ctx.fillStyle = "#38bdf8";
+      ctx.beginPath();
+      ctx.arc(boxX + boxW / 2, boxY + boxH / 2, 16, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = 4;
+      ctx.stroke();
+
+      ctx.fillStyle = "#94a3b8";
+      ctx.font = "800 18px sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("📍 Stationary Activity / Indoor GPS Point Recorded", boxX + boxW / 2, boxY + boxH / 2 + 55);
+      ctx.textAlign = "left";
     }
-    ctx.stroke();
-    ctx.restore();
-
-    // Start circle (Green)
-    ctx.fillStyle = "#10b981";
-    ctx.beginPath();
-    ctx.arc(mapX(coords[0].lon), mapY(coords[0].lat), 9, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Finish circle (Red/Coral)
-    const lastPt = coords[coords.length - 1];
-    ctx.fillStyle = "#f43f5e";
-    ctx.beginPath();
-    ctx.arc(mapX(lastPt.lon), mapY(lastPt.lat), 10, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = "#ffffff";
-    ctx.lineWidth = 3;
-    ctx.stroke();
-
-    // Map labels inside box
-    ctx.fillStyle = "#94a3b8";
-    ctx.font = "800 13px sans-serif";
-    ctx.fillText("● START", mapX(coords[0].lon) + 14, mapY(coords[0].lat) + 5);
-    ctx.fillText("■ FINISH", mapX(lastPt.lon) + 14, mapY(lastPt.lat) + 5);
 
     // 4. Metrics Grid Section
     const statsY = 690;
@@ -574,7 +597,8 @@ ${trkpts}
     a.download = `NutriPulse-${activity.dateLogged}-${activity.distanceKm}km-route.png`;
     document.body.appendChild(a);
     a.click();
-    document.body.removeChild(a);
+    document.body.removeChild(link => {});
+    a.remove();
     URL.revokeObjectURL(url);
     if (showToast) showToast("🖼️ Route Card Image saved to your device!");
   };
@@ -799,11 +823,20 @@ ${trkpts}
   };
 
   const renderRouteSvg = (coords) => {
-    if (!coords || coords.length < 2) {
+    if (!coords || coords.length === 0) {
       return (
-        <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "#64748b", fontSize: "11px" }}>
-          <i className="fa-solid fa-satellite-dish" style={{ marginRight: "6px" }}></i>
-          Acquiring GPS movement points...
+        <div style={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "#94a3b8", fontSize: "11px", gap: "4px" }}>
+          <i className="fa-solid fa-location-dot" style={{ color: "#38bdf8", fontSize: "18px" }}></i>
+          <span>Stationary GPS Point Logged</span>
+        </div>
+      );
+    }
+
+    if (coords.length === 1) {
+      return (
+        <div style={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "#38bdf8", fontSize: "11px", gap: "4px" }}>
+          <i className="fa-solid fa-crosshairs" style={{ fontSize: "20px" }}></i>
+          <span style={{ fontWeight: 800 }}>GPS Point: {coords[0].lat.toFixed(4)}, {coords[0].lon.toFixed(4)}</span>
         </div>
       );
     }
@@ -842,9 +875,8 @@ ${trkpts}
     );
   };
 
-  // Find all GPS activities with recorded routes from today
   const recordedGpsActivities = useMemo(() => {
-    return (todayWorkouts || []).filter((w) => w.route && Array.isArray(w.route) && w.route.length > 0);
+    return (todayWorkouts || []).filter((w) => w.type?.includes("Outdoor") || (w.route && Array.isArray(w.route)));
   }, [todayWorkouts]);
 
   return (
@@ -1187,7 +1219,7 @@ ${trkpts}
               </button>
             </div>
 
-            {/* ─── COMPLETED GPS SESSIONS FOR TODAY (TAP TO VIEW MAP AGAIN) ─── */}
+            {/* COMPLETED GPS SESSIONS (ALWAYS TAP TO VIEW MODAL AGAIN) */}
             {recordedGpsActivities.length > 0 && (
               <div style={{ borderTop: "1px solid #f1f5f9", paddingTop: "8px" }}>
                 <span style={{ fontSize: "9.5px", fontWeight: 800, color: "#64748b", textTransform: "uppercase", display: "block", marginBottom: "5px" }}>
