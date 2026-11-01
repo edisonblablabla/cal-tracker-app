@@ -437,7 +437,7 @@ ${trkpts}
     ctx.fillStyle = bgGrad;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Decorative Glow
+    // Glow
     try {
       const radial = ctx.createRadialGradient(canvas.width / 2, 400, 50, canvas.width / 2, 400, 450);
       radial.addColorStop(0, "rgba(56, 189, 248, 0.08)");
@@ -634,10 +634,10 @@ ${trkpts}
 
       const prefilledCaption = `🏃 Outdoor Activity: ${dist} km in ${dur}! Pace: ${pace}/km • Burned +${burn} kcal. Tracked with NutriPulse GPS ⚡`;
 
-      // 1. Isara ang GPS activity modal
+      // 1. Isara ang summary modal
       setSelectedViewingActivity(null);
 
-      // 2. I-fill ang postText at imagePreview sa composer
+      // 2. I-fill ang composer state sa App.jsx
       if (typeof setPostText === "function") {
         setPostText(prefilledCaption);
       }
@@ -645,9 +645,9 @@ ${trkpts}
         setImagePreview(dataUrl);
       }
 
-      // 3. Ilipat ang tab sa social nang direkta
+      // 3. Ilipat ang tab sa tamang Social Tab name nang ligtas
       if (typeof setActiveTab === "function") {
-        setActiveTab("social");
+        setActiveTab("community");
       }
 
       if (showToast) {
@@ -1616,7 +1616,7 @@ ${trkpts}
             {/* Action Buttons: Social Share, Direct Download, Image Preview, GPX */}
             <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginTop: "4px" }}>
               
-              {/* 🚀 1. SHARE DIRECTLY TO SOCIAL TAB FEED */}
+              {/* 🚀 SHARE TO PULSE FEED BUTTON */}
               <button
                 type="button"
                 onClick={() => handleShareToPulseFeed(selectedViewingActivity)}
@@ -1642,7 +1642,7 @@ ${trkpts}
               </button>
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px" }}>
-                {/* 📥 2. DIRECT DOWNLOAD TO GALLERY / STORAGE */}
+                {/* 📥 DIRECT DOWNLOAD */}
                 <button
                   type="button"
                   onClick={() => handleDirectDownloadImage(selectedViewingActivity)}
@@ -1665,7 +1665,7 @@ ${trkpts}
                   <span>Direct Download</span>
                 </button>
 
-                {/* 🖼️ 3. PREVIEW & LONG-PRESS SAVE MODAL */}
+                {/* 🖼️ PREVIEW & SAVE */}
                 <button
                   type="button"
                   onClick={() => handleOpenImagePreview(selectedViewingActivity)}
@@ -1689,7 +1689,7 @@ ${trkpts}
                 </button>
               </div>
 
-              {/* 💾 4. DOWNLOAD GPX */}
+              {/* 💾 DOWNLOAD GPX */}
               <button
                 type="button"
                 onClick={() => downloadGpxFile(selectedViewingActivity)}
