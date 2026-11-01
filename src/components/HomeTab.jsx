@@ -12,9 +12,9 @@ const DEFAULT_STAPLES = [
 ];
 
 export default function HomeTab({
-  setImagePreview,
-  setPostText,
   setActiveTab,
+  setPostText,
+  setImagePreview,
   setDraftSocialPost,
   user,
   appData,
@@ -637,7 +637,7 @@ ${trkpts}
       // 1. Isara ang summary modal
       setSelectedViewingActivity(null);
 
-      // 2. I-fill ang composer state sa App.jsx
+      // 2. I-populate ang composer sa Pulse Feed
       if (typeof setPostText === "function") {
         setPostText(prefilledCaption);
       }
@@ -645,17 +645,19 @@ ${trkpts}
         setImagePreview(dataUrl);
       }
 
-      // 3. Ilipat ang tab sa tamang Social Tab name nang ligtas
+      // 3. Lumipat sa Community / Pulse Feed tab
       if (typeof setActiveTab === "function") {
         setActiveTab("community");
       }
+
+      window.scrollTo({ top: 0, behavior: "smooth" });
 
       if (showToast) {
         showToast("✨ Opening Pulse Feed... Edit your caption before posting!");
       }
     } catch (err) {
       console.error("Share redirect error:", err);
-      if (showToast) showToast("⚠️ Error preparing post.");
+      if (showToast) showToast("⚠️ Error preparing post: " + err.message);
     }
   };
 
