@@ -1,6 +1,20 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { db } from "../services/firebase";
-import { doc, updateDoc, arrayUnion, arrayRemove, increment, collection, addDoc, serverTimestamp, onSnapshot } from "firebase/firestore";
+import {
+  doc,
+  setDoc,
+  updateDoc,
+  collection,
+  addDoc,
+  query,
+  where,
+  orderBy,
+  serverTimestamp,
+  onSnapshot,
+  arrayUnion,
+  arrayRemove,
+  increment
+} from "firebase/firestore";
 
 export default function CommunityTab({
   draftSocialPost,
@@ -40,23 +54,31 @@ export default function CommunityTab({
   showToast,
   formatPostTime = (ts) => "Just now"
 }) {
-  // ─── TABS & UNIFORM SLIDE-OVER STATE ───
+  // ─── TABS & SLIDE-OVER STATE ───
   const [activeSubTab, setActiveSubTab] = useState("leaderboard"); // 'leaderboard' o 'feed'
   const [leaderboardMetric, setLeaderboardMetric] = useState("distance"); // 'distance', 'calories', 'streak'
   const [showComposer, setShowComposer] = useState(false);
 
-  // LAHAT AY LOCAL SLIDE-OVER DRAWERS (WALANG ARROW BACK)
+  // UNIFORM SLIDE-OVER DRAWERS
   const [showNotifDrawer, setShowNotifDrawer] = useState(false);
   const [showInboxDrawer, setShowInboxDrawer] = useState(false);
   const [showSearchDrawer, setShowSearchDrawer] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
-  // COMMENTS & REAL-TIME STATE
+  // 1-ON-1 CHAT ENGINE STATE
+  const [activeChatRecipient, setActiveChatRecipient] = useState(null);
+  const [chatMessages, setChatMessages] = useState([]);
+  const [chatInputText, setChatInputText] = useState("");
+  const [isSendingMsg, setIsSendingMsg] = useState(false);
+  const [liveChats, setLiveChats] = useState([]);
+  const chatMessagesEndRef = useRef(null);
+
+  // HUDDLE COMMENTS STATE
   const [newCommentText, setNewCommentText] = useState("");
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
   const [liveSelectedPost, setLiveSelectedPost] = useState(null);
 
-  // ─── CLEAN AVATAR RENDERER (NO PRAVATAR, REAL GRADIENT INITIALS) ───
+  // ─── HELPER: INITIALS GRADIENT AVATAR (NO RANDOM PRAVATAR) ───
   const renderAvatar = (photoUrl, name = "Athlete", size = 34, border = "none") => {
     const hasValidPhoto = photoUrl && typeof photoUrl === "string" && photoUrl.startsWith("http") && !photoUrl.includes("pravatar");
     if (hasValidPhoto) {
@@ -64,14 +86,7 @@ export default function CommunityTab({
         <img
           src={photoUrl}
           alt={name}
-          style={{
-            width: size + "px",
-            height: size + "px",
-            borderRadius: "50%",
-            objectFit: "cover",
-            border: border,
-            flexShrink: 0
-          }}
+          style={{ width: size + "px", height: size + "px", borderRadius: "50%", objectFit: "cover", border: border, flexShrink: 0 }}
         />
       );
     }
@@ -99,7 +114,7 @@ export default function CommunityTab({
     );
   };
 
-  // ─── AUTO-LOAD DRAFT POST MULA SA HOMETAB ───
+  // ─── AUTO-LOAD DRAFT POST MULA SA HOMETAB GPS TRACKER ───
   useEffect(() => {
     if (draftSocialPost) {
       setActiveSubTab("feed");
@@ -114,16 +129,46 @@ export default function CommunityTab({
     if (postText || imagePreview) setShowComposer(true);
   }, [postText, imagePreview]);
 
-  // ─── REAL-TIME POST COMMENTS LISTENER ───
+  // ─── REAL-TIME LISTENER: CHATS NG KASALUKUYANG USER ───
+  useEffect(() => {
+    if (!user?.uid) return;
+    const q = query(collection(db, "chats"), where("participants", "array-contains", user.uid));
+    const unsub = onSnapshot(q, (snapshot) => {
+      const fetched = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      fetched.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+      setLiveChats(fetched);
+    }, (err) => console.error("Error fetching chats:", err));
+
+    return () => unsub();
+  }, [user?.uid]);
+
+  // ─── REAL-TIME LISTENER: MESSAGES NG AKTIBONG 1-ON-1 CHAT ───
+  useEffect(() => {
+    if (!user?.uid || !activeChatRecipient) {
+      setChatMessages([]);
+      return;
+    }
+    const otherUid = activeChatRecipient.id || activeChatRecipient.uid;
+    const chatId = [user.uid, otherUid].sort().join("_");
+
+    const q = query(collection(db, "chats", chatId, "messages"), orderBy("createdAt", "asc"));
+    const unsub = onSnapshot(q, (snapshot) => {
+      const msgs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      setChatMessages(msgs);
+      setTimeout(() => chatMessagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+    }, (err) => console.error("Error fetching messages:", err));
+
+    return () => unsub();
+  }, [user?.uid, activeChatRecipient]);
+
+  // ─── REAL-TIME LISTENER PARA SA BUKAS NA POST HUDDLE (COMMENTS) ───
   useEffect(() => {
     if (!selectedPost?.id) {
       setLiveSelectedPost(null);
       return;
     }
     const unsub = onSnapshot(doc(db, "communityPosts", selectedPost.id), (docSnap) => {
-      if (docSnap.exists()) {
-        setLiveSelectedPost({ id: docSnap.id, ...docSnap.data() });
-      }
+      if (docSnap.exists()) setLiveSelectedPost({ id: docSnap.id, ...docSnap.data() });
     }, (err) => console.error(err));
     return () => unsub();
   }, [selectedPost?.id]);
@@ -132,12 +177,13 @@ export default function CommunityTab({
 
   // ─── UNREAD COUNTS ───
   const unreadMsgCount = useMemo(() => {
-    if (!Array.isArray(inboxChats)) return 0;
-    return inboxChats.filter(c => {
+    const list = liveChats.length > 0 ? liveChats : inboxChats;
+    if (!Array.isArray(list)) return 0;
+    return list.filter(c => {
       const t = c.lastMessageTime?.toMillis ? c.lastMessageTime.toMillis() : (c.updatedAt || 0);
       return t > (lastSeenMsgTime || 0);
     }).length;
-  }, [inboxChats, lastSeenMsgTime]);
+  }, [liveChats, inboxChats, lastSeenMsgTime]);
 
   const unreadNotifCount = useMemo(() => {
     if (!Array.isArray(allUserNotifs)) return 0;
@@ -147,7 +193,7 @@ export default function CommunityTab({
     }).length;
   }, [allUserNotifs, lastSeenNotifTime]);
 
-  // ─── TELEMETRY AGGREGATOR MULA SA COMMUNITY POSTS ───
+  // ─── TELEMETRY AGGREGATOR MULA SA MGA TUNAY NA POSTS ───
   const telemetryStatsByUser = useMemo(() => {
     const stats = {};
     if (Array.isArray(publicCommunityPosts)) {
@@ -164,22 +210,23 @@ export default function CommunityTab({
     return stats;
   }, [publicCommunityPosts]);
 
-  // ─── FILTERED REAL ATHLETES PARA SA SEARCH ───
+  // ─── TUNAY NA MGA ATLETA PARA SA SEARCH DRAWER ───
   const searchResults = useMemo(() => {
     const validList = Array.isArray(userList) ? userList.filter(u => {
       const name = (u.displayName || u.name || u.username || "").trim();
       return name && name.toLowerCase() !== "no data";
     }) : [];
 
-    if (!searchQuery.trim()) return validList.slice(0, 15);
+    if (!searchQuery.trim()) return validList.slice(0, 20);
     const q = searchQuery.toLowerCase();
     return validList.filter(u => {
       const name = (u.displayName || u.name || u.username || "").toLowerCase();
-      return name.includes(q);
+      const email = (u.email || "").toLowerCase();
+      return name.includes(q) || email.includes(q);
     });
   }, [userList, searchQuery]);
 
-  // ─── TUNAY NA LEADERBOARD DATA (WALANG DUMMY) ───
+  // ─── TUNAY NA LEADERBOARD (WALANG DUMMY) ───
   const sortedAthletes = useMemo(() => {
     let list = Array.isArray(userList) && userList.length > 0 ? [...userList] : [];
 
@@ -239,7 +286,65 @@ export default function CommunityTab({
   const currentUserRank = currentUserIndex !== -1 ? currentUserIndex + 1 : sortedAthletes.length;
   const currentAthlete = sortedAthletes[currentUserIndex] || { dist: 0, cal: 0, streak: 0 };
 
-  // ─── FIRESTORE ACTIONS ───
+  // ─── ACTION: IPADALA ANG 1-ON-1 CHAT MESSAGE SA FIRESTORE ───
+  const handleSendMessage = async (e) => {
+    if (e) e.preventDefault();
+    if (!chatInputText.trim() || !user?.uid || !activeChatRecipient) return;
+
+    setIsSendingMsg(true);
+    const textToSend = chatInputText.trim();
+    const otherUid = activeChatRecipient.id || activeChatRecipient.uid;
+    const otherName = activeChatRecipient.displayName || activeChatRecipient.name || "Athlete";
+    const otherPhoto = activeChatRecipient.photoURL || activeChatRecipient.photo || "";
+    const myName = user.displayName || "NutriPulse Athlete";
+    const myPhoto = user.photoURL || avatarPreview || "";
+    const chatId = [user.uid, otherUid].sort().join("_");
+
+    try {
+      // 1. I-save ang mensahe sa subcollection
+      await addDoc(collection(db, "chats", chatId, "messages"), {
+        senderId: user.uid,
+        senderName: myName,
+        senderPhoto: myPhoto,
+        text: textToSend,
+        createdAt: serverTimestamp()
+      });
+
+      // 2. I-update ang chat header document
+      await setDoc(doc(db, "chats", chatId), {
+        participants: [user.uid, otherUid],
+        participantDetails: {
+          [user.uid]: { name: myName, photo: myPhoto },
+          [otherUid]: { name: otherName, photo: otherPhoto }
+        },
+        lastMessage: textToSend,
+        lastSenderId: user.uid,
+        updatedAt: Date.now()
+      }, { merge: true });
+
+      // 3. Magpadala ng notification sa kausap
+      await addDoc(collection(db, "notifications"), {
+        recipientId: otherUid,
+        userId: otherUid,
+        senderId: user.uid,
+        senderName: myName,
+        senderPhoto: myPhoto,
+        type: "message",
+        message: 'sent you a message: "' + textToSend.slice(0, 30) + '..."',
+        chatId: chatId,
+        createdAt: serverTimestamp()
+      });
+
+      setChatInputText("");
+    } catch (err) {
+      console.error("Error sending message:", err);
+      if (showToast) showToast("Failed to send message.");
+    } finally {
+      setIsSendingMsg(false);
+    }
+  };
+
+  // ─── ACTION: COMMENT SA POST HUDDLE ───
   const handleAddComment = async (e) => {
     if (e) e.preventDefault();
     if (!newCommentText.trim() || !activeHuddlePost?.id || !user) return;
@@ -268,7 +373,7 @@ export default function CommunityTab({
           senderName: user.displayName || "NutriPulse Athlete",
           senderPhoto: user.photoURL || avatarPreview || "",
           type: "comment",
-          message: 'replied in your activity huddle: "' + commentContent.slice(0, 25) + '..."',
+          message: 'commented on your huddle: "' + commentContent.slice(0, 25) + '..."',
           postId: activeHuddlePost.id,
           createdAt: serverTimestamp()
         });
@@ -282,6 +387,7 @@ export default function CommunityTab({
     }
   };
 
+  // ─── ACTION: PULSE BOOST ───
   const handlePulseBoost = async (post) => {
     if (typeof handleLike === "function") {
       handleLike(post.id);
@@ -305,6 +411,7 @@ export default function CommunityTab({
     setShowNotifDrawer(false);
     setShowInboxDrawer(false);
     setShowSearchDrawer(false);
+    setActiveChatRecipient(null);
     if (typeof setSelectedPost === "function") setSelectedPost(null);
   };
 
@@ -359,7 +466,7 @@ export default function CommunityTab({
 
         {/* Action Controls: Search, Messages, Notifications, Avatar */}
         <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
-          {/* 🔍 SEARCH BUTTON (SLIDE-OVER DRAWER WITH TOP-RIGHT ✕) */}
+          {/* 🔍 SEARCH BUTTON */}
           <button
             type="button"
             onClick={() => setShowSearchDrawer(true)}
@@ -369,11 +476,12 @@ export default function CommunityTab({
             <i className="fa-solid fa-magnifying-glass" style={{ fontSize: "15px" }}></i>
           </button>
 
-          {/* 💬 MESSAGES BUTTON (SLIDE-OVER DRAWER WITH TOP-RIGHT ✕ - NO ARROW BACK!) */}
+          {/* 💬 MESSAGES BUTTON (SLIDE-OVER DRAWER WITH TOP-RIGHT ✕) */}
           <button
             type="button"
             onClick={() => {
               setShowInboxDrawer(true);
+              setActiveChatRecipient(null);
               if (typeof setLastSeenMsgTime === "function") setLastSeenMsgTime(Date.now());
             }}
             style={{ width: "32px", height: "32px", background: "none", border: "none", borderRadius: "8px", cursor: "pointer", color: "#334155", position: "relative", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}
@@ -387,7 +495,7 @@ export default function CommunityTab({
             )}
           </button>
 
-          {/* 🔔 NOTIFICATIONS BUTTON (SLIDE-OVER DRAWER WITH TOP-RIGHT ✕) */}
+          {/* 🔔 NOTIFICATIONS BUTTON */}
           <button
             type="button"
             onClick={() => {
@@ -1008,7 +1116,7 @@ export default function CommunityTab({
       </div>
 
       {/* ============================================================== */}
-      {/* 💬 1. UNIFORM SLIDE-OVER INBOX DRAWER (NO ARROW BACK, TOP-RIGHT ✕) */}
+      {/* 💬 1. UNIFORM SLIDE-OVER LIVE INBOX & 1-ON-1 CHAT DRAWER       */}
       {/* ============================================================== */}
       <div
         style={{
@@ -1026,35 +1134,70 @@ export default function CommunityTab({
           flexDirection: "column"
         }}
       >
-        {/* Drawer Header (Exact match to Notifications Drawer) */}
+        {/* Drawer Header */}
         <div style={{
-          padding: "16px 18px",
+          padding: "14px 16px",
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
           borderBottom: "1px solid #f1f5f9",
           backgroundColor: "#ffffff"
         }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <div style={{
-              width: "28px",
-              height: "28px",
-              borderRadius: "7px",
-              background: "rgba(99, 102, 241, 0.1)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center"
-            }}>
-              <i className="fa-solid fa-comment-dots" style={{ color: "#6366f1", fontSize: "13px" }}></i>
+          {activeChatRecipient ? (
+            /* 1-on-1 Chat Header with Back Button to Inbox List */
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: 0 }}>
+              <button
+                type="button"
+                onClick={() => setActiveChatRecipient(null)}
+                style={{
+                  background: "#f1f5f9",
+                  border: "none",
+                  width: "28px",
+                  height: "28px",
+                  borderRadius: "50%",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  cursor: "pointer",
+                  color: "#0f172a",
+                  fontSize: "13px"
+                }}
+                title="Back to Inbox"
+              >
+                <i className="fa-solid fa-arrow-left"></i>
+              </button>
+              {renderAvatar(activeChatRecipient.photoURL || activeChatRecipient.photo, activeChatRecipient.displayName || activeChatRecipient.name, 28)}
+              <div style={{ minWidth: 0 }}>
+                <h3 style={{ margin: 0, color: "#0f172a", fontSize: "14px", fontWeight: 900, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {activeChatRecipient.displayName || activeChatRecipient.name || "Athlete"}
+                </h3>
+                <span style={{ fontSize: "10px", color: "#10b981", fontWeight: 700 }}>● Online</span>
+              </div>
             </div>
-            <h3 style={{ margin: 0, color: "#0f172a", fontSize: "15px", fontWeight: 900 }}>
-              Huddle Messages
-            </h3>
-          </div>
-          {/* IDENTICAL TOP-RIGHT CIRCULAR ✕ BUTTON */}
+          ) : (
+            /* Main Inbox Title */
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <div style={{
+                width: "28px",
+                height: "28px",
+                borderRadius: "7px",
+                background: "rgba(99, 102, 241, 0.1)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center"
+              }}>
+                <i className="fa-solid fa-comment-dots" style={{ color: "#6366f1", fontSize: "13px" }}></i>
+              </div>
+              <h3 style={{ margin: 0, color: "#0f172a", fontSize: "15px", fontWeight: 900 }}>
+                Huddle Messages
+              </h3>
+            </div>
+          )}
+
+          {/* KAPAREHAS NA BILOG NA ✕ CLOSE DRAWER BUTTON */}
           <button
             type="button"
-            onClick={() => setShowInboxDrawer(false)}
+            onClick={() => { setShowInboxDrawer(false); setActiveChatRecipient(null); }}
             style={{
               background: "#f1f5f9",
               border: "none",
@@ -1074,75 +1217,359 @@ export default function CommunityTab({
           </button>
         </div>
 
-        <div style={{
-          padding: "8px 18px",
+        {/* ─── DRAWER BODY: INBOX LIST vs ACTIVE 1-ON-1 CHAT ─── */}
+        {activeChatRecipient ? (
+          /* ACTIVE 1-ON-1 CHAT SCREEN */
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, backgroundColor: "#f8fafc" }}>
+            {/* Messages Scroll Area */}
+            <div style={{ flex: 1, overflowY: "auto", padding: "14px 12px", display: "flex", flexDirection: "column", gap: "10px" }}>
+              {chatMessages.length > 0 ? (
+                chatMessages.map((m, i) => {
+                  const isMe = m.senderId === user?.uid;
+                  return (
+                    <div
+                      key={m.id || i}
+                      style={{
+                        alignSelf: isMe ? "flex-end" : "flex-start",
+                        maxWidth: "80%",
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: isMe ? "flex-end" : "flex-start"
+                      }}
+                    >
+                      <div
+                        style={{
+                          background: isMe ? "linear-gradient(135deg, #4f46e5 0%, #38bdf8 100%)" : "#ffffff",
+                          color: isMe ? "#ffffff" : "#0f172a",
+                          padding: "9px 13px",
+                          borderRadius: isMe ? "14px 14px 3px 14px" : "14px 14px 14px 3px",
+                          fontSize: "13px",
+                          lineHeight: 1.4,
+                          boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+                          border: isMe ? "none" : "1px solid #e2e8f0",
+                          wordBreak: "break-word"
+                        }}
+                      >
+                        {m.text}
+                      </div>
+                      <span style={{ fontSize: "9.5px", color: "#94a3b8", marginTop: "3px", padding: "0 2px" }}>
+                        {formatPostTime(m.createdAt)}
+                      </span>
+                    </div>
+                  );
+                })
+              ) : (
+                <div style={{ textAlign: "center", padding: "40px 20px", color: "#94a3b8" }}>
+                  <i className="fa-regular fa-comment-dots" style={{ fontSize: "32px", color: "#cbd5e1", marginBottom: "8px" }}></i>
+                  <p style={{ fontSize: "12.5px", margin: 0 }}>Start a huddle with {activeChatRecipient.displayName || activeChatRecipient.name}!</p>
+                </div>
+              )}
+              <div ref={chatMessagesEndRef} />
+            </div>
+
+            {/* Chat Send Input Form */}
+            <form
+              onSubmit={handleSendMessage}
+              style={{
+                padding: "10px 12px",
+                background: "#ffffff",
+                borderTop: "1px solid #e2e8f0",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px"
+              }}
+            >
+              <input
+                type="text"
+                value={chatInputText}
+                onChange={(e) => setChatInputText(e.target.value)}
+                placeholder="Type a message..."
+                style={{
+                  flex: 1,
+                  padding: "9px 14px",
+                  borderRadius: "20px",
+                  border: "1px solid #cbd5e1",
+                  fontSize: "13px",
+                  outline: "none",
+                  backgroundColor: "#f8fafc",
+                  fontFamily: "inherit"
+                }}
+              />
+              <button
+                type="submit"
+                disabled={!chatInputText.trim() || isSendingMsg}
+                style={{
+                  width: "36px",
+                  height: "36px",
+                  borderRadius: "50%",
+                  border: "none",
+                  background: chatInputText.trim() ? "linear-gradient(135deg, #4f46e5 0%, #38bdf8 100%)" : "#e2e8f0",
+                  color: chatInputText.trim() ? "#ffffff" : "#94a3b8",
+                  cursor: chatInputText.trim() ? "pointer" : "default",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  boxShadow: chatInputText.trim() ? "0 2px 6px rgba(79, 70, 229, 0.3)" : "none"
+                }}
+              >
+                <i className="fa-solid fa-paper-plane" style={{ fontSize: "13px" }}></i>
+              </button>
+            </form>
+          </div>
+        ) : (
+          /* INBOX THREADS LIST SCREEN */
+          <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column" }}>
+            <div style={{
+              padding: "8px 18px",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              background: "#f8fafc",
+              borderBottom: "1px solid #f1f5f9"
+            }}>
+              <span style={{ fontSize: "11px", fontWeight: 700, color: "#64748b" }}>Active Conversations</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowInboxDrawer(false);
+                  setShowSearchDrawer(true);
+                }}
+                style={{ background: "none", border: "none", color: "#0284c7", fontSize: "11px", fontWeight: 800, cursor: "pointer", padding: 0 }}
+              >
+                + New Chat
+              </button>
+            </div>
+
+            <div style={{ padding: "12px 14px", flex: 1 }}>
+              {liveChats.length > 0 ? (
+                liveChats.map((chat) => {
+                  const otherUid = (chat.participants || []).find(p => p !== user?.uid);
+                  const details = chat.participantDetails?.[otherUid] || {};
+                  const otherName = details.name || "NutriPulse Athlete";
+                  const otherPhoto = details.photo || "";
+
+                  return (
+                    <div
+                      key={chat.id}
+                      onClick={() => setActiveChatRecipient({ id: otherUid, uid: otherUid, name: otherName, photo: otherPhoto })}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "10px",
+                        padding: "11px 12px",
+                        borderRadius: "12px",
+                        background: "#ffffff",
+                        border: "1px solid #f1f5f9",
+                        marginBottom: "8px",
+                        cursor: "pointer",
+                        boxShadow: "0 1px 3px rgba(0,0,0,0.02)"
+                      }}
+                    >
+                      {renderAvatar(otherPhoto, otherName, 36)}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: "13px", fontWeight: 800, color: "#0f172a" }}>
+                          {otherName}
+                        </div>
+                        <div style={{ fontSize: "11.5px", color: "#64748b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {chat.lastMessage || "Tap to chat..."}
+                        </div>
+                      </div>
+                      <i className="fa-solid fa-chevron-right" style={{ color: "#cbd5e1", fontSize: "11px" }}></i>
+                    </div>
+                  );
+                })
+              ) : (
+                <div style={{ textAlign: "center", padding: "50px 20px", color: "#94a3b8" }}>
+                  <i className="fa-solid fa-comments" style={{ fontSize: "38px", color: "#cbd5e1", marginBottom: "12px" }}></i>
+                  <div style={{ fontSize: "14px", fontWeight: 800, color: "#0f172a" }}>No active huddles yet</div>
+                  <p style={{ fontSize: "12px", color: "#64748b", marginTop: "4px", marginBottom: "16px" }}>
+                    Find athletes and send them a message to start chatting!
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowInboxDrawer(false);
+                      setShowSearchDrawer(true);
+                    }}
+                    style={{
+                      padding: "8px 16px",
+                      background: "linear-gradient(135deg, #4f46e5 0%, #38bdf8 100%)",
+                      color: "#ffffff",
+                      border: "none",
+                      borderRadius: "20px",
+                      fontSize: "12px",
+                      fontWeight: 800,
+                      cursor: "pointer"
+                    }}
+                  >
+                    Find Athletes 🔍
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ============================================================== */}
+      {/* 🔍 2. UNIFORM SLIDE-OVER SEARCH ATHLETES DRAWER (LIVE ACTIONS) */}
+      {/* ============================================================== */}
+      <div
+        style={{
+          position: "fixed",
+          top: 0,
+          right: showSearchDrawer ? "0" : "-100%",
+          width: "100%",
+          maxWidth: "360px",
+          height: "100vh",
+          backgroundColor: "#ffffff",
+          zIndex: 4000,
+          transition: "right 0.28s cubic-bezier(0.4, 0, 0.2, 1)",
+          boxShadow: showSearchDrawer ? "-6px 0 24px rgba(15, 23, 42, 0.15)" : "none",
           display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          background: "#f8fafc",
-          borderBottom: "1px solid #f1f5f9"
-        }}>
-          <span style={{ fontSize: "11px", fontWeight: 700, color: "#64748b" }}>Direct & Squad Conversations</span>
+          flexDirection: "column"
+        }}
+      >
+        <div style={{ padding: "16px 18px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #f1f5f9", backgroundColor: "#ffffff" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <div style={{ width: "28px", height: "28px", borderRadius: "7px", background: "rgba(56, 189, 248, 0.15)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <i className="fa-solid fa-magnifying-glass" style={{ color: "#0284c7", fontSize: "13px" }}></i>
+            </div>
+            <h3 style={{ margin: 0, color: "#0f172a", fontSize: "15px", fontWeight: 900 }}>Search Athletes</h3>
+          </div>
+          {/* KAPAREHAS NA BILOG NA ✕ CLOSE DRAWER BUTTON */}
           <button
             type="button"
-            onClick={() => {
-              if (typeof setLastSeenMsgTime === "function") setLastSeenMsgTime(Date.now());
-            }}
-            style={{ background: "none", border: "none", color: "#0284c7", fontSize: "11px", fontWeight: 800, cursor: "pointer", padding: 0 }}
+            onClick={() => { setShowSearchDrawer(false); setSearchQuery(""); }}
+            style={{ background: "#f1f5f9", border: "none", width: "28px", height: "28px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#64748b", fontSize: "14px", fontWeight: 800 }}
           >
-            Mark all read
+            ✕
           </button>
         </div>
 
-        {/* Real Inbox Chats List */}
+        {/* Live Search Input Bar */}
+        <div style={{ padding: "12px 16px", borderBottom: "1px solid #f1f5f9" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", background: "#f8fafc", borderRadius: "10px", padding: "8px 12px", border: "1px solid #e2e8f0" }}>
+            <i className="fa-solid fa-magnifying-glass" style={{ color: "#94a3b8", fontSize: "13px" }}></i>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search runners by name..."
+              style={{ border: "none", background: "transparent", outline: "none", width: "100%", fontSize: "13px", fontFamily: "inherit" }}
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                style={{ background: "none", border: "none", color: "#94a3b8", cursor: "pointer", padding: 0 }}
+              >
+                ✕
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Live Search Results with Message and Profile Buttons */}
         <div style={{ flex: 1, overflowY: "auto", padding: "12px 14px" }}>
-          {Array.isArray(inboxChats) && inboxChats.length > 0 ? (
-            inboxChats.map((chat, idx) => {
-              const participantName = chat.participantName || chat.otherUserName || "Athlete";
-              const participantPhoto = chat.participantPhoto || chat.otherUserPhoto || "";
+          {searchResults.length > 0 ? (
+            searchResults.map((athlete, idx) => {
+              const aName = athlete.displayName || athlete.name || "Athlete";
+              const aPhoto = athlete.photoURL || athlete.avatar || "";
+              const aId = athlete.id || athlete.uid;
+              const isMe = aId === user?.uid;
 
               return (
                 <div
-                  key={chat.id || idx}
+                  key={aId || idx}
                   style={{
                     display: "flex",
                     alignItems: "center",
-                    gap: "10px",
-                    padding: "11px 12px",
+                    justifyContent: "space-between",
+                    padding: "10px 12px",
                     borderRadius: "12px",
                     background: "#ffffff",
                     border: "1px solid #f1f5f9",
-                    marginBottom: "8px",
-                    cursor: "pointer"
+                    marginBottom: "8px"
                   }}
                 >
-                  {renderAvatar(participantPhoto, participantName, 36)}
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: "13px", fontWeight: 800, color: "#0f172a" }}>
-                      {participantName}
-                    </div>
-                    <div style={{ fontSize: "11.5px", color: "#64748b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {chat.lastMessage || "Tap to chat with athlete..."}
+                  <div style={{ display: "flex", alignItems: "center", gap: "10px", minWidth: 0, flex: 1 }}>
+                    {renderAvatar(aPhoto, aName, 36)}
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ fontSize: "13px", fontWeight: 800, color: "#0f172a", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {aName} {isMe && <span style={{ color: "#0284c7", fontSize: "10.5px" }}>(You)</span>}
+                      </div>
+                      <div style={{ fontSize: "11px", color: "#64748b" }}>
+                        NutriPulse Member
+                      </div>
                     </div>
                   </div>
-                  <i className="fa-solid fa-chevron-right" style={{ color: "#cbd5e1", fontSize: "12px" }}></i>
+
+                  {/* Actions: Message & View Profile */}
+                  <div style={{ display: "flex", gap: "6px", flexShrink: 0, marginLeft: "8px" }}>
+                    {!isMe && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowSearchDrawer(false);
+                          setActiveChatRecipient(athlete);
+                          setShowInboxDrawer(true);
+                        }}
+                        style={{
+                          background: "#f0f9ff",
+                          border: "1px solid #bae6fd",
+                          borderRadius: "8px",
+                          padding: "6px 9px",
+                          color: "#0284c7",
+                          cursor: "pointer",
+                          fontSize: "11px",
+                          fontWeight: 800,
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "4px"
+                        }}
+                        title="Direct Message"
+                      >
+                        <i className="fa-solid fa-comment-dots"></i>
+                        <span>Chat</span>
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (typeof setSelectedVisitor === "function") setSelectedVisitor(athlete);
+                        if (typeof setActiveTab === "function") setActiveTab("profile");
+                        setShowSearchDrawer(false);
+                      }}
+                      style={{
+                        background: "#f8fafc",
+                        border: "1px solid #e2e8f0",
+                        borderRadius: "8px",
+                        padding: "6px 9px",
+                        color: "#475569",
+                        cursor: "pointer",
+                        fontSize: "11px",
+                        fontWeight: 700
+                      }}
+                      title="View Profile"
+                    >
+                      <i className="fa-regular fa-user"></i>
+                    </button>
+                  </div>
                 </div>
               );
             })
           ) : (
-            <div style={{ textAlign: "center", padding: "50px 20px", color: "#94a3b8" }}>
-              <i className="fa-solid fa-comments" style={{ fontSize: "38px", color: "#cbd5e1", marginBottom: "12px" }}></i>
-              <div style={{ fontSize: "14px", fontWeight: 800, color: "#0f172a" }}>No active huddles yet</div>
-              <p style={{ fontSize: "12px", color: "#64748b", marginTop: "4px" }}>
-                Connect with athletes from the Leaderboard to start direct messaging.
-              </p>
+            <div style={{ textAlign: "center", padding: "40px 20px", color: "#94a3b8", fontSize: "13px" }}>
+              No athletes found matching "{searchQuery}"
             </div>
           )}
         </div>
       </div>
 
       {/* ============================================================== */}
-      {/* 🔔 2. UNIFORM SLIDE-OVER NOTIFICATIONS DRAWER                  */}
+      {/* 🔔 3. UNIFORM SLIDE-OVER NOTIFICATIONS DRAWER                  */}
       {/* ============================================================== */}
       <div
         style={{
@@ -1167,7 +1594,6 @@ export default function CommunityTab({
             </div>
             <h3 style={{ margin: 0, color: "#0f172a", fontSize: "15px", fontWeight: 900 }}>Notifications</h3>
           </div>
-          {/* IDENTICAL TOP-RIGHT CIRCULAR ✕ BUTTON */}
           <button
             type="button"
             onClick={() => setShowNotifDrawer(false)}
@@ -1253,96 +1679,6 @@ export default function CommunityTab({
       </div>
 
       {/* ============================================================== */}
-      {/* 🔍 3. UNIFORM SLIDE-OVER SEARCH ATHLETES DRAWER                */}
-      {/* ============================================================== */}
-      <div
-        style={{
-          position: "fixed",
-          top: 0,
-          right: showSearchDrawer ? "0" : "-100%",
-          width: "100%",
-          maxWidth: "360px",
-          height: "100vh",
-          backgroundColor: "#ffffff",
-          zIndex: 4000,
-          transition: "right 0.28s cubic-bezier(0.4, 0, 0.2, 1)",
-          boxShadow: showSearchDrawer ? "-6px 0 24px rgba(15, 23, 42, 0.15)" : "none",
-          display: "flex",
-          flexDirection: "column"
-        }}
-      >
-        <div style={{ padding: "16px 18px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #f1f5f9", backgroundColor: "#ffffff" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <div style={{ width: "28px", height: "28px", borderRadius: "7px", background: "rgba(56, 189, 248, 0.15)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <i className="fa-solid fa-magnifying-glass" style={{ color: "#0284c7", fontSize: "13px" }}></i>
-            </div>
-            <h3 style={{ margin: 0, color: "#0f172a", fontSize: "15px", fontWeight: 900 }}>Search Athletes</h3>
-          </div>
-          {/* IDENTICAL TOP-RIGHT CIRCULAR ✕ BUTTON */}
-          <button
-            type="button"
-            onClick={() => { setShowSearchDrawer(false); setSearchQuery(""); }}
-            style={{ background: "#f1f5f9", border: "none", width: "28px", height: "28px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#64748b", fontSize: "14px", fontWeight: 800 }}
-          >
-            ✕
-          </button>
-        </div>
-
-        <div style={{ padding: "12px 16px", borderBottom: "1px solid #f1f5f9" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", background: "#f8fafc", borderRadius: "10px", padding: "8px 12px", border: "1px solid #e2e8f0" }}>
-            <i className="fa-solid fa-magnifying-glass" style={{ color: "#94a3b8", fontSize: "13px" }}></i>
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search runners by name..."
-              style={{ border: "none", background: "transparent", outline: "none", width: "100%", fontSize: "13px", fontFamily: "inherit" }}
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => setSearchQuery("")}
-                style={{ background: "none", border: "none", color: "#94a3b8", cursor: "pointer", padding: 0 }}
-              >
-                ✕
-              </button>
-            )}
-          </div>
-        </div>
-
-        <div style={{ flex: 1, overflowY: "auto", padding: "12px 14px" }}>
-          {searchResults.length > 0 ? (
-            searchResults.map((athlete, idx) => (
-              <div
-                key={athlete.id || athlete.uid || idx}
-                onClick={() => {
-                  if (typeof setSelectedVisitor === "function") setSelectedVisitor(athlete);
-                  if (typeof setActiveTab === "function") setActiveTab("profile");
-                  setShowSearchDrawer(false);
-                }}
-                style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 12px", borderRadius: "12px", background: "#ffffff", border: "1px solid #f1f5f9", marginBottom: "8px", cursor: "pointer" }}
-              >
-                {renderAvatar(athlete.photoURL || athlete.avatar, athlete.displayName || athlete.name, 36)}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: "13px", fontWeight: 800, color: "#0f172a" }}>
-                    {athlete.displayName || athlete.name || "Athlete"}
-                  </div>
-                  <div style={{ fontSize: "11px", color: "#64748b" }}>
-                    Tap to view passport profile
-                  </div>
-                </div>
-                <i className="fa-solid fa-chevron-right" style={{ color: "#cbd5e1", fontSize: "12px" }}></i>
-              </div>
-            ))
-          ) : (
-            <div style={{ textAlign: "center", padding: "40px 20px", color: "#94a3b8", fontSize: "13px" }}>
-              No athletes found matching "{searchQuery}"
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* ============================================================== */}
       {/* 💬 4. UNIFORM SLIDE-OVER POST HUDDLE (COMMENTS) DRAWER         */}
       {/* ============================================================== */}
       <div
@@ -1368,7 +1704,6 @@ export default function CommunityTab({
             </div>
             <h3 style={{ margin: 0, color: "#0f172a", fontSize: "15px", fontWeight: 900 }}>Activity Huddle</h3>
           </div>
-          {/* IDENTICAL TOP-RIGHT CIRCULAR ✕ BUTTON */}
           <button
             type="button"
             onClick={() => {
