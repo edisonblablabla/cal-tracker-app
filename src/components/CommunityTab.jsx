@@ -1815,6 +1815,7 @@ export default function CommunityTab({
       {/* 💬 4. POST HUDDLE (COMMENTS & DETAIL) DRAWER                   */}
       {/* ============================================================== */}
       <div style={getDrawerStyle(Boolean(activeHuddlePost))}>
+        {/* Fixed Top Header */}
         <div style={{ height: "54px", padding: "0 16px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #f1f5f9", backgroundColor: "#ffffff", flexShrink: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <div style={{ width: "28px", height: "28px", borderRadius: "7px", background: "rgba(16, 185, 129, 0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -1831,166 +1832,185 @@ export default function CommunityTab({
           </button>
         </div>
 
-        {activeHuddlePost && (() => {
-          const author = getAthlete(activeHuddlePost.userId, activeHuddlePost.userName);
-          return (
-            <div style={{ padding: "14px 16px", background: "#f8fafc", borderBottom: "1px solid #f1f5f9", flexShrink: 0, maxHeight: "55vh", overflowY: "auto" }}>
-              <div
-                onClick={() => handleOpenAthleteProfile(activeHuddlePost.userId, author)}
-                style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px", cursor: "pointer" }}
-              >
-                {renderAvatar(author.photo, author.name, 32)}
-                <div>
-                  <span style={{ fontSize: "13px", fontWeight: 800, color: "#0f172a", display: "block" }}>
-                    {author.name}
-                  </span>
-                  <span style={{ fontSize: "10px", color: "#94a3b8" }}>
-                    {formatPostTime(activeHuddlePost.createdAt)}
-                  </span>
-                </div>
-              </div>
-
-              {activeHuddlePost.text && (
-                <p style={{ margin: "0 0 10px 0", fontSize: "13px", color: "#334155", lineHeight: 1.45, whiteSpace: "pre-wrap" }}>
-                  {activeHuddlePost.text}
-                </p>
-              )}
-
-              {/* TAP POST IMAGE TO ZOOM IN FULLSCREEN LIGHTBOX */}
-              {activeHuddlePost.imageUrl && (
+        {/* SINGLE UNIFIED SCROLL CONTAINER: Buong post at mga komento ay tuloy-tuloy na magka-scroll */}
+        <div style={{ flex: 1, overflowY: "auto", minHeight: 0, paddingBottom: "20px", WebkitOverflowScrolling: "touch" }}>
+          
+          {/* Post Header & Details */}
+          {activeHuddlePost && (() => {
+            const author = getAthlete(activeHuddlePost.userId, activeHuddlePost.userName);
+            return (
+              <div style={{ padding: "16px", background: "#ffffff", borderBottom: "1px solid #f1f5f9" }}>
                 <div
-                  onClick={() => openLayer("photo", () => setViewingPhoto(activeHuddlePost.imageUrl))}
-                  style={{ borderRadius: "10px", overflow: "hidden", border: "1px solid #e2e8f0", background: "#0b0f19", marginBottom: "8px", cursor: "zoom-in" }}
-                  title="Tap to zoom picture"
+                  onClick={() => {
+                    closeCurrentLayer();
+                    handleOpenAthleteProfile(activeHuddlePost.userId, author);
+                  }}
+                  style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "10px", cursor: "pointer" }}
                 >
-                  <img
-                    src={activeHuddlePost.imageUrl}
-                    alt="Activity Graphic"
-                    style={{ width: "100%", maxHeight: "360px", objectFit: "contain", display: "block", margin: "0 auto" }}
-                  />
+                  {renderAvatar(author.photo, author.name, 36)}
+                  <div>
+                    <span style={{ fontSize: "13.5px", fontWeight: 800, color: "#0f172a", display: "block" }}>
+                      {author.name}
+                    </span>
+                    <span style={{ fontSize: "10px", color: "#94a3b8" }}>
+                      {formatPostTime(activeHuddlePost.createdAt)}
+                    </span>
+                  </div>
                 </div>
-              )}
-            </div>
-          );
-        })()}
 
-        {/* Realtime Comments List with Avatar Resolution & Inline Edit/Delete */}
-        <div style={{ flex: 1, overflowY: "auto", padding: "14px", minHeight: 0 }}>
-          {huddleComments.length > 0 ? (
-            huddleComments.map((c, i) => {
-              const commenter = getAthlete(c.userId || c.uid, c.userName || c.name);
-              const commenterAvatar = commenter.photo || c.userAvatar || c.avatarUrl || "";
-              const isCommentOwner = c.userId === user?.uid;
-              const canManage = isCommentOwner || isAdmin;
-              const isCurrentlyEditing = editingCommentId === c.id;
+                {activeHuddlePost.text && (
+                  <p style={{ margin: "0 0 10px 0", fontSize: "13px", color: "#334155", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>
+                    {activeHuddlePost.text}
+                  </p>
+                )}
 
-              return (
-                <div key={c.id || i} style={{ background: "#f8fafc", padding: "10px 12px", borderRadius: "12px", border: "1px solid #f1f5f9", marginBottom: "10px", position: "relative" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "4px" }}>
-                    <div
-                      onClick={() => handleOpenAthleteProfile(c.userId || c.uid, commenter)}
-                      style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer" }}
-                    >
-                      {renderAvatar(commenterAvatar, commenter.name, 28)}
-                      <div>
-                        <span style={{ fontSize: "12px", fontWeight: 800, color: "#0f172a" }}>{commenter.name}</span>
-                        {c.isEdited && <span style={{ fontSize: "8.5px", color: "#94a3b8", fontStyle: "italic", marginLeft: "4px" }}>(edited)</span>}
+                {/* Proportional Tap-to-Zoom Image (Walang sariling scrollbar) */}
+                {activeHuddlePost.imageUrl && (
+                  <div
+                    onClick={() => openLayer("photo", () => setViewingPhoto(activeHuddlePost.imageUrl))}
+                    style={{ borderRadius: "12px", overflow: "hidden", border: "1px solid #e2e8f0", background: "#0b0f19", marginBottom: "6px", cursor: "zoom-in" }}
+                    title="Tap to zoom picture"
+                  >
+                    <img
+                      src={activeHuddlePost.imageUrl}
+                      alt="Activity Graphic"
+                      style={{ width: "100%", height: "auto", maxHeight: "250px", objectFit: "contain", display: "block", margin: "0 auto" }}
+                    />
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
+          {/* Section Divider & Comment Counter */}
+          <div style={{ padding: "12px 16px 6px 16px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <span style={{ fontSize: "11px", fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+              Conversation ({huddleComments.length})
+            </span>
+            <span style={{ fontSize: "10px", color: "#94a3b8" }}>Real-time sync ⚡</span>
+          </div>
+
+          {/* Comments List na natural na dumadaloy sa ilalim */}
+          <div style={{ padding: "6px 16px" }}>
+            {huddleComments.length > 0 ? (
+              huddleComments.map((c, i) => {
+                const commenter = getAthlete(c.userId || c.uid, c.userName || c.name);
+                const commenterAvatar = commenter.photo || c.userAvatar || c.avatarUrl || "";
+                const isCommentOwner = c.userId === user?.uid;
+                const canManage = isCommentOwner || isAdmin;
+                const isCurrentlyEditing = editingCommentId === c.id;
+
+                return (
+                  <div key={c.id || i} style={{ background: "#ffffff", padding: "10px 12px", borderRadius: "12px", border: "1px solid #f1f5f9", marginBottom: "10px", boxShadow: "0 1px 3px rgba(0,0,0,0.02)" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "4px" }}>
+                      <div
+                        onClick={() => {
+                          closeCurrentLayer();
+                          handleOpenAthleteProfile(c.userId || c.uid, commenter);
+                        }}
+                        style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer" }}
+                      >
+                        {renderAvatar(commenterAvatar, commenter.name, 28)}
+                        <div>
+                          <span style={{ fontSize: "12px", fontWeight: 800, color: "#0f172a" }}>{commenter.name}</span>
+                          {c.isEdited && <span style={{ fontSize: "8.5px", color: "#94a3b8", fontStyle: "italic", marginLeft: "4px" }}>(edited)</span>}
+                        </div>
                       </div>
-                    </div>
 
-                    <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                      <span style={{ fontSize: "9.5px", color: "#94a3b8" }}>{formatPostTime(c.createdAt)}</span>
-                      {canManage && (
-                        <div style={{ position: "relative" }}>
-                          <button
-                            type="button"
-                            onClick={() => setActiveCommentMenuId(activeCommentMenuId === c.id ? null : c.id)}
-                            style={{ background: "none", border: "none", color: "#94a3b8", padding: "2px 5px", cursor: "pointer", fontSize: "13px" }}
-                          >
-                            <i className="fa-solid fa-ellipsis-vertical"></i>
-                          </button>
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                        <span style={{ fontSize: "9.5px", color: "#94a3b8" }}>{formatPostTime(c.createdAt)}</span>
+                        {canManage && (
+                          <div style={{ position: "relative" }}>
+                            <button
+                              type="button"
+                              onClick={() => setActiveCommentMenuId(activeCommentMenuId === c.id ? null : c.id)}
+                              style={{ background: "none", border: "none", color: "#94a3b8", padding: "2px 5px", cursor: "pointer", fontSize: "13px" }}
+                            >
+                              <i className="fa-solid fa-ellipsis-vertical"></i>
+                            </button>
 
-                          {activeCommentMenuId === c.id && (
-                            <div style={{
-                              position: "absolute",
-                              right: 0,
-                              top: "20px",
-                              background: "#ffffff",
-                              border: "1px solid #e2e8f0",
-                              borderRadius: "10px",
-                              boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
-                              zIndex: 100,
-                              minWidth: "100px",
-                              overflow: "hidden"
-                            }}>
-                              {isCommentOwner && (
+                            {activeCommentMenuId === c.id && (
+                              <div style={{
+                                position: "absolute",
+                                right: 0,
+                                top: "20px",
+                                background: "#ffffff",
+                                border: "1px solid #e2e8f0",
+                                borderRadius: "10px",
+                                boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                                zIndex: 100,
+                                minWidth: "100px",
+                                overflow: "hidden"
+                              }}>
+                                {isCommentOwner && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setEditingCommentId(c.id);
+                                      setEditingCommentText(c.text);
+                                      setActiveCommentMenuId(null);
+                                    }}
+                                    style={{ width: "100%", padding: "7px 10px", background: "none", border: "none", textAlign: "left", fontSize: "11.5px", fontWeight: 700, color: "#334155", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px" }}
+                                  >
+                                    <i className="fa-solid fa-pen" style={{ color: "#0284c7" }}></i> Edit
+                                  </button>
+                                )}
                                 <button
                                   type="button"
-                                  onClick={() => {
-                                    setEditingCommentId(c.id);
-                                    setEditingCommentText(c.text);
-                                    setActiveCommentMenuId(null);
-                                  }}
-                                  style={{ width: "100%", padding: "7px 10px", background: "none", border: "none", textAlign: "left", fontSize: "11.5px", fontWeight: 700, color: "#334155", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px" }}
+                                  onClick={() => handleDeleteComment(c.id)}
+                                  style={{ width: "100%", padding: "7px 10px", background: "none", border: "none", textAlign: "left", fontSize: "11.5px", fontWeight: 700, color: "#ef4444", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px" }}
                                 >
-                                  <i className="fa-solid fa-pen" style={{ color: "#0284c7" }}></i> Edit
+                                  <i className="fa-solid fa-trash"></i> Delete
                                 </button>
-                              )}
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteComment(c.id)}
-                                style={{ width: "100%", padding: "7px 10px", background: "none", border: "none", textAlign: "left", fontSize: "11.5px", fontWeight: 700, color: "#ef4444", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px" }}
-                              >
-                                <i className="fa-solid fa-trash"></i> Delete
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {isCurrentlyEditing ? (
-                    <div style={{ marginTop: "6px" }}>
-                      <input
-                        type="text"
-                        value={editingCommentText}
-                        onChange={(e) => setEditingCommentText(e.target.value)}
-                        style={{ width: "100%", padding: "7px 10px", borderRadius: "8px", border: "1px solid #cbd5e1", fontSize: "12px", outline: "none", boxSizing: "border-box" }}
-                      />
-                      <div style={{ display: "flex", gap: "6px", marginTop: "6px", justifyContent: "flex-end" }}>
-                        <button
-                          type="button"
-                          onClick={() => setEditingCommentId(null)}
-                          style={{ padding: "4px 8px", background: "#f1f5f9", border: "none", borderRadius: "6px", fontSize: "10.5px", fontWeight: 700, color: "#64748b", cursor: "pointer" }}
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleSaveEditComment(c.id)}
-                          style={{ padding: "4px 10px", background: "#0284c7", border: "none", borderRadius: "6px", fontSize: "10.5px", fontWeight: 800, color: "#ffffff", cursor: "pointer" }}
-                        >
-                          Save
-                        </button>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
-                  ) : (
-                    <p style={{ margin: "4px 0 0 36px", fontSize: "12.5px", color: "#334155", lineHeight: 1.4, wordBreak: "break-word" }}>
-                      {c.text}
-                    </p>
-                  )}
-                </div>
-              );
-            })
-          ) : (
-            <div style={{ textAlign: "center", padding: "40px 20px", color: "#94a3b8", fontSize: "12.5px" }}>
-              No comments in this huddle yet. Send some energy! ⚡
-            </div>
-          )}
+
+                    {isCurrentlyEditing ? (
+                      <div style={{ marginTop: "6px" }}>
+                        <input
+                          type="text"
+                          value={editingCommentText}
+                          onChange={(e) => setEditingCommentText(e.target.value)}
+                          style={{ width: "100%", padding: "7px 10px", borderRadius: "8px", border: "1px solid #cbd5e1", fontSize: "12px", outline: "none", boxSizing: "border-box" }}
+                        />
+                        <div style={{ display: "flex", gap: "6px", marginTop: "6px", justifyContent: "flex-end" }}>
+                          <button
+                            type="button"
+                            onClick={() => setEditingCommentId(null)}
+                            style={{ padding: "4px 8px", background: "#f1f5f9", border: "none", borderRadius: "6px", fontSize: "10.5px", fontWeight: 700, color: "#64748b", cursor: "pointer" }}
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleSaveEditComment(c.id)}
+                            style={{ padding: "4px 10px", background: "#0284c7", border: "none", borderRadius: "6px", fontSize: "10.5px", fontWeight: 800, color: "#ffffff", cursor: "pointer" }}
+                          >
+                            Save
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <p style={{ margin: "4px 0 0 36px", fontSize: "12.5px", color: "#334155", lineHeight: 1.4, wordBreak: "break-word" }}>
+                        {c.text}
+                      </p>
+                    )}
+                  </div>
+                );
+              })
+            ) : (
+              <div style={{ textAlign: "center", padding: "30px 20px", color: "#94a3b8", fontSize: "12.5px" }}>
+                No comments in this huddle yet. Send some energy! ⚡
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* Comment Send Box */}
+        {/* Pinned Bottom Input Form */}
         <form
           onSubmit={handleAddComment}
           style={{ padding: "10px 14px 14px 14px", borderTop: "1px solid #f1f5f9", backgroundColor: "#ffffff", display: "flex", gap: "8px", alignItems: "center", flexShrink: 0 }}
