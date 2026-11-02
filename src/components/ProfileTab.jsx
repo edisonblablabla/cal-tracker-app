@@ -27,9 +27,19 @@ export default function ProfileTab({
   setActivePanel,
   setSelectedPost,
   showToast,
-  formatPostTime = (ts) => "Just now"
+  formatPostTime = (ts) => "Just now",
+  profPostText = "",
+  setProfPostText,
+  profImagePreview = null,
+  setProfImagePreview,
+  profPostVisibility = "public",
+  setProfPostVisibility,
+  handleImageChange,
+  createPost,
+  isPublishing = false
 }) {
-  const [profileSubTab, setProfileSubTab] = useState("activities"); // "activities" | "boosters" | "boosting"
+  const [profileSubTab, setProfileSubTab] = useState("activities");
+  const profFileInputRef = useRef(null); // "activities" | "boosters" | "boosting"
   const [myPosts, setMyPosts] = useState([]);
   const [allAthletes, setAllAthletes] = useState([]);
   const [loadingPosts, setLoadingPosts] = useState(true);
