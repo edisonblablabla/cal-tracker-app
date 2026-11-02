@@ -288,18 +288,57 @@ export default function ModalsLayer({
             flexShrink: 0
           }}>
             <div style={{ display: "flex", alignItems: "center", gap: "10px", minWidth: 0 }}>
-              <div style={{
-                width: "30px",
-                height: "30px",
-                borderRadius: "8px",
-                background: activePanel === "chat" ? "rgba(99, 102, 241, 0.12)" : "rgba(56, 189, 248, 0.15)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                flexShrink: 0
-              }}>
-                <i className={activePanel === "chat" ? "fa-solid fa-comment-dots" : "fa-regular fa-user"} style={{ color: activePanel === "chat" ? "#6366f1" : "#0284c7", fontSize: "14px" }}></i>
-              </div>
+              {activePanel === "chat" ? (
+                /* TOTOONG AVATAR NG KA-CHAT (SUPPORTED ANG UPLOADED AT BASE64) */
+                (() => {
+                  const partnerPhoto = activeChatPartner?.avatarUrl || activeChatPartner?.photoURL || activeChatPartner?.photo || "";
+                  const partnerName = activeChatPartner?.userName || activeChatPartner?.displayName || activeChatPartner?.name || "Athlete";
+                  const hasPhoto = partnerPhoto && (partnerPhoto.startsWith("http://") || partnerPhoto.startsWith("https://") || partnerPhoto.startsWith("data:image/") || partnerPhoto.startsWith("blob:")) && !partnerPhoto.includes("pravatar");
+
+                  if (hasPhoto) {
+                    return (
+                      <img
+                        src={partnerPhoto}
+                        alt={partnerName}
+                        style={{ width: "34px", height: "34px", borderRadius: "50%", objectFit: "cover", flexShrink: 0, border: "1.5px solid #e2e8f0" }}
+                      />
+                    );
+                  }
+
+                  const initial = partnerName.trim().charAt(0).toUpperCase();
+                  return (
+                    <div style={{
+                      width: "34px",
+                      height: "34px",
+                      borderRadius: "50%",
+                      background: "linear-gradient(135deg, #4f46e5 0%, #38bdf8 100%)",
+                      color: "#ffffff",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontWeight: 900,
+                      fontSize: "14px",
+                      flexShrink: 0,
+                      textTransform: "uppercase"
+                    }}>
+                      {initial}
+                    </div>
+                  );
+                })()
+              ) : (
+                <div style={{
+                  width: "30px",
+                  height: "30px",
+                  borderRadius: "8px",
+                  background: "rgba(56, 189, 248, 0.15)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0
+                }}>
+                  <i className="fa-regular fa-user" style={{ color: "#0284c7", fontSize: "14px" }}></i>
+                </div>
+              )}
               <div style={{ minWidth: 0 }}>
                 <h3 style={{ margin: 0, fontSize: "15px", fontWeight: 900, color: "#0f172a", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {activePanel === "chat" && (activeChatPartner?.userName || "Athlete Conversation")}
