@@ -1330,11 +1330,7 @@ export default function ProfileTab({
             borderRadius: "20px",
             width: "100%",
             maxWidth: "400px",
-            maxHeight: "90vh",
-            display: "flex",
-            flexDirection: "column",
-            boxShadow: "0 20px 40px rgba(0,0,0,0.18)",
-            overflow: "hidden"
+            maxHeight: "min(88dvh, 88vh)", display: "flex", flexDirection: "column", boxShadow: "0 20px 40px rgba(0,0,0,0.22)", overflow: "hidden", position: "relative"
           }}>
             {/* Modal Header */}
             <div style={{
@@ -1362,7 +1358,7 @@ export default function ProfileTab({
             </div>
 
             {/* Modal Scrollable Body */}
-            <div style={{ padding: "16px 20px", overflowY: "auto", flex: 1 }}>
+            <div style={{ padding: "16px 18px 50px 18px", overflowY: "auto", flex: 1, minHeight: 0, WebkitOverflowScrolling: "touch", overscrollBehavior: "contain" }}>
               <form onSubmit={handleSaveProfile} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
                   {/* Tab Switcher sa loob ng Modal */}
                   <div style={{ display: "flex", gap: "6px", background: "#f1f5f9", padding: "4px", borderRadius: "10px", marginBottom: "4px" }}>
@@ -1641,7 +1637,7 @@ export default function ProfileTab({
                   </div>
 
                   {/* Prominent Red Sign Out */}
-                  <div style={{ borderTop: "1px solid #f1f5f9", paddingTop: "12px", marginTop: "4px" }}>
+                    <div style={{ borderTop: "1px solid #f1f5f9", paddingTop: "14px", marginTop: "8px", paddingBottom: "16px" }}>
                     <button
                       type="button"
                       onClick={handleLogout}
