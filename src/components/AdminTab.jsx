@@ -1,7 +1,18 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import ExpandableText from "./ExpandableText";
+import { db } from "../services/firebase";
+import { 
+  collection, 
+  query, 
+  where, 
+  getDocs, 
+  orderBy, 
+  onSnapshot, 
+  doc, 
+  deleteDoc 
+} from "firebase/firestore";
 
-const ONLINE_THRESHOLD = 75000; // 75 seconds (ang presence heartbeat ay 30s)
+const ONLINE_THRESHOLD = 75000; // 75 seconds presence window
 
 function parseMs(ts) {
   if (!ts) return null;
@@ -40,7 +51,7 @@ function formatAdminLastOnline(ts, now) {
 export default function AdminTab({
   posts = [],
   userList = [],
-  adminSubTab,
+  adminSubTab = "posts",
   setAdminSubTab,
   isRefreshing,
   setIsRefreshing,
@@ -52,195 +63,984 @@ export default function AdminTab({
   setActivePanel,
   showToast
 }) {
-  // Live ticker na nag-uupdate bawat 5 segundo para realtime ang online/offline
   const [now, setNow] = useState(Date.now());
+  const [activeTab, setActiveTabInternal] = useState(adminSubTab || "posts");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [userFilter, setUserFilter] = useState("all"); // 'all', 'online', 'blocked'
+
+  // ─── INVESTIGATION & CHAT VAULT STATES ───
+  const [investigatingUser, setInvestigatingUser] = useState(null);
+  const [userChats, setUserChats] = useState([]);
+  const [isLoadingChats, setIsLoadingChats] = useState(false);
+  const [activeChatThread, setActiveChatThread] = useState(null);
+  const [chatTranscript, setChatTranscript] = useState([]);
+  const [isLoadingTranscript, setIsLoadingTranscript] = useState(false);
+  const [chatSearchQuery, setChatSearchQuery] = useState("");
+
+  const handleSubTabChange = (t) => {
+    setActiveTabInternal(t);
+    if (setAdminSubTab) setAdminSubTab(t);
+  };
+
+  useEffect(() => {
+    if (adminSubTab && adminSubTab !== activeTab) {
+      setActiveTabInternal(adminSubTab);
+    }
+  }, [adminSubTab]);
 
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 5000);
     return () => clearInterval(timer);
   }, []);
 
+  const notify = (msg) => {
+    if (typeof showToast === "function") showToast(msg);
+    else alert(msg);
+  };
+
   const handleRefreshClick = async () => {
     if (isRefreshing) return;
-    setIsRefreshing(true);
+    if (setIsRefreshing) setIsRefreshing(true);
     try {
-      if (typeof fetchPosts === "function") fetchPosts();
-      if (typeof fetchUsers === "function") fetchUsers();
-      // 700ms animation delay para kitang-kita ang spinning feedback
-      await new Promise(r => setTimeout(r, 700));
-      if (typeof showToast === "function") {
-        showToast("Admin data successfully refreshed! 🔄");
-      }
+      if (typeof fetchPosts === "function") await fetchPosts();
+      if (typeof fetchUsers === "function") await fetchUsers();
+      await new Promise(r => setTimeout(r, 600));
+      notify("Admin metrics & databases refreshed! 🔄");
     } catch (e) {
       console.error("Refresh error:", e);
     } finally {
-      setIsRefreshing(false);
+      if (setIsRefreshing) setIsRefreshing(false);
     }
   };
 
-  const onlineCount = userList.filter(u => {
-    const ms = parseMs(u.lastSeen);
-    return ms && (now - ms < ONLINE_THRESHOLD);
-  }).length;
+  // ─── METRIC COMPUTATIONS ───
+  const onlineUsers = useMemo(() => {
+    return userList.filter(u => {
+      const ms = parseMs(u.lastSeen);
+      return ms && (now - ms < ONLINE_THRESHOLD);
+    });
+  }, [userList, now]);
+
+  const blockedUsers = useMemo(() => {
+    return userList.filter(u => u.isBlocked);
+  }, [userList]);
+
+  const hiddenPosts = useMemo(() => {
+    return posts.filter(p => p.isHidden);
+  }, [posts]);
+
+  // ─── SEARCH & FILTER LOGIC ───
+  const filteredUsers = useMemo(() => {
+    return userList.filter(u => {
+      const q = searchQuery.toLowerCase().trim();
+      const matchesSearch = !q || 
+        (u.userName && u.userName.toLowerCase().includes(q)) ||
+        (u.userEmail && u.userEmail.toLowerCase().includes(q)) ||
+        (u.uid && u.uid.toLowerCase().includes(q));
+
+      if (!matchesSearch) return false;
+      if (userFilter === "online") {
+        const ms = parseMs(u.lastSeen);
+        return ms && (now - ms < ONLINE_THRESHOLD);
+      }
+      if (userFilter === "blocked") return !!u.isBlocked;
+      return true;
+    });
+  }, [userList, searchQuery, userFilter, now]);
+
+  const filteredPosts = useMemo(() => {
+    const q = searchQuery.toLowerCase().trim();
+    if (!q) return posts;
+    return posts.filter(p => 
+      (p.userName && p.userName.toLowerCase().includes(q)) ||
+      (p.text && p.text.toLowerCase().includes(q)) ||
+      (p.userId && p.userId.toLowerCase().includes(q))
+    );
+  }, [posts, searchQuery]);
+
+  // ─── INVESTIGATION FORENSICS: FETCH CHATS ───
+  const startInvestigation = async (userObj) => {
+    setInvestigatingUser(userObj);
+    handleSubTabChange("vault");
+    setActiveChatThread(null);
+    setChatTranscript([]);
+    setIsLoadingChats(true);
+
+    try {
+      const q = query(collection(db, "chats"), where("participants", "array-contains", userObj.uid));
+      const snap = await getDocs(q);
+      const threads = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      threads.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+      setUserChats(threads);
+      if (threads.length === 0) {
+        notify("Walang nahanap na chat logs para sa account na ito.");
+      } else {
+        notify(`🕵️‍♂️ Natagpuan ang ${threads.length} chat threads!`);
+      }
+    } catch (err) {
+      console.error("Forensic chat fetch failed:", err);
+      notify("Hindi ma-access ang chat vault. Pakisuri ang Firebase rules.");
+    } finally {
+      setIsLoadingChats(false);
+    }
+  };
+
+  // ─── FETCH INDIVIDUAL CHAT TRANSCRIPT ───
+  const loadChatTranscript = async (chat) => {
+    setActiveChatThread(chat);
+    setIsLoadingTranscript(true);
+    try {
+      const msgQuery = query(
+        collection(db, "chats", chat.id, "messages"),
+        orderBy("createdAt", "asc")
+      );
+      const snap = await getDocs(msgQuery);
+      const msgs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      setChatTranscript(msgs);
+    } catch (e) {
+      console.error("Transcript read error:", e);
+      notify("Hindi mabasa ang mga mensahe sa thread na ito.");
+    } finally {
+      setIsLoadingTranscript(false);
+    }
+  };
+
+  // ─── PERMANENT DELETE POST HANDLER ───
+  const handleDeletePostPermanently = async (postId) => {
+    if (!window.confirm("Sigurado ka bang nais mong BURAHIN nang permanente ang post na ito sa database?")) return;
+    try {
+      await deleteDoc(doc(db, "posts", postId));
+      notify("🗑️ Matagumpay na nabura ang post sa database!");
+      if (typeof fetchPosts === "function") fetchPosts();
+    } catch (err) {
+      console.error("Error deleting post:", err);
+      notify("Nabigong burahin ang post.");
+    }
+  };
+
+  const copyToClipboard = (text, label) => {
+    navigator.clipboard.writeText(text);
+    notify(`📋 Na-copy ang ${label} sa clipboard!`);
+  };
 
   return (
-    <div className="screen active">
-      <div style={{ marginBottom: "10px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div>
-          <h3 style={{ fontSize: "18px", fontWeight: 900, color: "#dc2626", margin: 0 }}>Admin Panel</h3>
-          <span style={{ fontSize: "10px", color: "var(--text-muted)", fontWeight: 600 }}>Moderation & Evidence Vault</span>
+    <div className="screen active" style={{ maxWidth: "780px", margin: "0 auto", paddingBottom: "40px" }}>
+      
+      {/* ─── 1. COMMAND CENTER EXECUTIVE HEADER ─── */}
+      <div style={{
+        background: "linear-gradient(135deg, #0f172a 0%, #1e293b 100%)",
+        padding: "16px 20px",
+        borderRadius: "18px",
+        color: "#ffffff",
+        marginBottom: "16px",
+        boxShadow: "0 10px 25px -5px rgba(15, 23, 42, 0.4)",
+        border: "1px solid rgba(255, 255, 255, 0.1)"
+      }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px" }}>
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <div style={{
+                width: "28px",
+                height: "28px",
+                borderRadius: "8px",
+                background: "linear-gradient(135deg, #ef4444, #dc2626)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                boxShadow: "0 2px 8px rgba(239,68,68,0.5)"
+              }}>
+                <i className="fa-solid fa-shield-halved" style={{ fontSize: "14px", color: "#fff" }}></i>
+              </div>
+              <h2 style={{ fontSize: "18px", fontWeight: 900, margin: 0, letterSpacing: "-0.3px" }}>
+                NutriPulse Command Center
+              </h2>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "4px" }}>
+              <span style={{ fontSize: "11px", color: "#94a3b8", fontWeight: 600 }}>Super Admin Moderation & Security Console</span>
+              <span style={{ fontSize: "9px", background: "rgba(16, 185, 129, 0.2)", color: "#34d399", padding: "1px 6px", borderRadius: "10px", fontWeight: 800, border: "1px solid rgba(52, 211, 153, 0.3)" }}>
+                🟢 30s Heartbeat
+              </span>
+            </div>
+          </div>
+
+          <button
+            onClick={handleRefreshClick}
+            disabled={isRefreshing}
+            style={{
+              background: isRefreshing ? "#334155" : "rgba(255, 255, 255, 0.12)",
+              border: "1px solid rgba(255, 255, 255, 0.2)",
+              color: "#ffffff",
+              padding: "7px 14px",
+              borderRadius: "10px",
+              fontSize: "11px",
+              fontWeight: 800,
+              cursor: isRefreshing ? "wait" : "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              backdropFilter: "blur(4px)",
+              transition: "all 0.2s ease"
+            }}
+          >
+            <i className={"fa-solid fa-arrows-rotate " + (isRefreshing ? "fa-spin" : "")}></i>
+            <span>{isRefreshing ? "Syncing..." : "Refresh Cloud"}</span>
+          </button>
         </div>
-        <button 
-          onClick={handleRefreshClick} 
-          disabled={isRefreshing} 
-          style={{ 
-            background: isRefreshing ? "#e0f2fe" : "#ffffff", 
-            border: isRefreshing ? "1px solid #38bdf8" : "1px solid #cbd5e1", 
-            color: isRefreshing ? "#0284c7" : "#334155",
-            padding: "5px 12px", 
-            borderRadius: "10px", 
-            fontSize: "10px", 
-            fontWeight: 800, 
-            cursor: isRefreshing ? "wait" : "pointer",
+
+        {/* ─── 4 PRO KPI CARDS ─── */}
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))",
+          gap: "10px",
+          marginTop: "16px"
+        }}>
+          {/* Card 1: Athletes */}
+          <div style={{ background: "rgba(255,255,255,0.06)", padding: "10px 12px", borderRadius: "12px", border: "1px solid rgba(255,255,255,0.08)" }}>
+            <div style={{ fontSize: "10px", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase" }}>Registered</div>
+            <div style={{ fontSize: "20px", fontWeight: 900, color: "#38bdf8", marginTop: "2px" }}>
+              {userList.length} <span style={{ fontSize: "11px", color: "#94a3b8", fontWeight: 600 }}>Athletes</span>
+            </div>
+          </div>
+
+          {/* Card 2: Online Pulse */}
+          <div style={{ background: "rgba(16,185,129,0.08)", padding: "10px 12px", borderRadius: "12px", border: "1px solid rgba(16,185,129,0.2)" }}>
+            <div style={{ fontSize: "10px", color: "#34d399", fontWeight: 700, textTransform: "uppercase" }}>Live Online</div>
+            <div style={{ fontSize: "20px", fontWeight: 900, color: "#10b981", marginTop: "2px", display: "flex", alignItems: "center", gap: "6px" }}>
+              <span>{onlineUsers.length}</span>
+              <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#10b981", boxShadow: "0 0 10px #10b981" }}></span>
+            </div>
+          </div>
+
+          {/* Card 3: Posts & Moderation */}
+          <div style={{ background: "rgba(255,255,255,0.06)", padding: "10px 12px", borderRadius: "12px", border: "1px solid rgba(255,255,255,0.08)" }}>
+            <div style={{ fontSize: "10px", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase" }}>Community Feed</div>
+            <div style={{ fontSize: "20px", fontWeight: 900, color: "#f8fafc", marginTop: "2px" }}>
+              {posts.length} <span style={{ fontSize: "11px", color: hiddenPosts.length > 0 ? "#f59e0b" : "#94a3b8", fontWeight: 700 }}>({hiddenPosts.length} Hidden)</span>
+            </div>
+          </div>
+
+          {/* Card 4: Security Flags */}
+          <div style={{ background: blockedUsers.length > 0 ? "rgba(239,68,68,0.12)" : "rgba(255,255,255,0.06)", padding: "10px 12px", borderRadius: "12px", border: blockedUsers.length > 0 ? "1px solid rgba(239,68,68,0.3)" : "1px solid rgba(255,255,255,0.08)" }}>
+            <div style={{ fontSize: "10px", color: blockedUsers.length > 0 ? "#f87171" : "#94a3b8", fontWeight: 700, textTransform: "uppercase" }}>Security Flags</div>
+            <div style={{ fontSize: "20px", fontWeight: 900, color: blockedUsers.length > 0 ? "#ef4444" : "#cbd5e1", marginTop: "2px" }}>
+              {blockedUsers.length} <span style={{ fontSize: "11px", fontWeight: 700 }}>Blocked</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ─── 2. MAIN SUB-TAB SWITCHER ─── */}
+      <div style={{
+        display: "flex",
+        background: "#e2e8f0",
+        padding: "4px",
+        borderRadius: "14px",
+        gap: "4px",
+        marginBottom: "14px"
+      }}>
+        <button
+          type="button"
+          onClick={() => handleSubTabChange("posts")}
+          style={{
+            flex: 1,
+            padding: "8px 12px",
+            borderRadius: "10px",
+            border: "none",
+            fontWeight: 800,
+            fontSize: "12px",
+            background: activeTab === "posts" ? "#ffffff" : "transparent",
+            color: activeTab === "posts" ? "#0f172a" : "#64748b",
+            boxShadow: activeTab === "posts" ? "0 2px 6px rgba(0,0,0,0.08)" : "none",
+            cursor: "pointer",
             display: "flex",
             alignItems: "center",
-            gap: "5px",
-            boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
-            transition: "all 0.2s ease"
+            justifyContent: "center",
+            gap: "6px",
+            transition: "all 0.15s ease"
           }}
         >
-          <i className={"fa-solid fa-rotate-right " + (isRefreshing ? "fa-spin" : "")} style={{ color: isRefreshing ? "#0284c7" : "#64748b" }}></i> 
-          <span>{isRefreshing ? "Refreshing..." : "Refresh"}</span>
+          <i className="fa-solid fa-newspaper" style={{ color: activeTab === "posts" ? "#ef4444" : "inherit" }}></i>
+          <span>Posts & Feed ({posts.length})</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => handleSubTabChange("users")}
+          style={{
+            flex: 1,
+            padding: "8px 12px",
+            borderRadius: "10px",
+            border: "none",
+            fontWeight: 800,
+            fontSize: "12px",
+            background: activeTab === "users" ? "#ffffff" : "transparent",
+            color: activeTab === "users" ? "#0f172a" : "#64748b",
+            boxShadow: activeTab === "users" ? "0 2px 6px rgba(0,0,0,0.08)" : "none",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "6px",
+            transition: "all 0.15s ease"
+          }}
+        >
+          <i className="fa-solid fa-users" style={{ color: activeTab === "users" ? "#3b82f6" : "inherit" }}></i>
+          <span>Athletes ({userList.length})</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => handleSubTabChange("vault")}
+          style={{
+            flex: 1,
+            padding: "8px 12px",
+            borderRadius: "10px",
+            border: "none",
+            fontWeight: 800,
+            fontSize: "12px",
+            background: activeTab === "vault" ? "#ffffff" : "transparent",
+            color: activeTab === "vault" ? "#7c3aed" : "#64748b",
+            boxShadow: activeTab === "vault" ? "0 2px 6px rgba(0,0,0,0.08)" : "none",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "6px",
+            transition: "all 0.15s ease"
+          }}
+        >
+          <i className="fa-solid fa-user-secret" style={{ color: activeTab === "vault" ? "#7c3aed" : "inherit" }}></i>
+          <span>Chat Vault 🕵️‍♂️</span>
         </button>
       </div>
 
-      <div style={{ display: "flex", gap: "6px", marginBottom: "10px" }}>
-        <button 
-          onClick={() => setAdminSubTab("posts")}
-          style={{ flex: 1, padding: "6px", borderRadius: "10px", border: "none", fontWeight: 800, fontSize: "11px", background: adminSubTab === "posts" ? "#dc2626" : "#e2e8f0", color: adminSubTab === "posts" ? "white" : "#475569", cursor: "pointer" }}
-        >
-          Posts ({posts.length})
-        </button>
-        <button 
-          onClick={() => setAdminSubTab("users")}
-          style={{ flex: 1, padding: "6px", borderRadius: "10px", border: "none", fontWeight: 800, fontSize: "11px", background: adminSubTab === "users" ? "#dc2626" : "#e2e8f0", color: adminSubTab === "users" ? "white" : "#475569", cursor: "pointer" }}
-        >
-          Users ({userList.length})
-        </button>
-      </div>
+      {/* ─── 3. TAB CONTENT: POSTS & FEED ─── */}
+      {activeTab === "posts" && (
+        <div>
+          {/* Search Bar for Posts */}
+          <div style={{ position: "relative", marginBottom: "12px" }}>
+            <i className="fa-solid fa-magnifying-glass" style={{ position: "absolute", left: "14px", top: "12px", color: "#94a3b8", fontSize: "13px" }}></i>
+            <input
+              type="text"
+              placeholder="Search posts by caption, author name, or UID..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{
+                width: "100%",
+                padding: "10px 14px 10px 38px",
+                borderRadius: "12px",
+                border: "1px solid #cbd5e1",
+                fontSize: "12px",
+                outline: "none",
+                background: "#ffffff",
+                boxShadow: "0 1px 3px rgba(0,0,0,0.03)"
+              }}
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                style={{ position: "absolute", right: "12px", top: "8px", background: "none", border: "none", color: "#94a3b8", cursor: "pointer", fontSize: "14px" }}
+              >
+                ✕
+              </button>
+            )}
+          </div>
 
-      {adminSubTab === "users" && (
-        <div style={{ background: "#0f172a", color: "white", padding: "8px 12px", borderRadius: "12px", marginBottom: "8px", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "11px", fontWeight: 700 }}>
-          <span>🟢 Online: <strong style={{ color: "#10b981", fontSize: "12px" }}>{onlineCount}</strong></span>
-          <span>👥 Accounts: <strong style={{ color: "#38bdf8", fontSize: "12px" }}>{userList.length}</strong></span>
+          {filteredPosts.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "40px 20px", background: "#ffffff", borderRadius: "16px", border: "1px dashed #cbd5e1", color: "#64748b" }}>
+              <i className="fa-regular fa-folder-open" style={{ fontSize: "32px", color: "#cbd5e1", marginBottom: "8px" }}></i>
+              <div style={{ fontSize: "13px", fontWeight: 700 }}>Walang posts na tumutugma sa filter.</div>
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+              {filteredPosts.map(p => {
+                const author = userList.find(u => u.uid === p.userId);
+                const isBlocked = author?.isBlocked;
+
+                return (
+                  <div
+                    key={p.id}
+                    style={{
+                      background: p.isHidden ? "#fffbeb" : "#ffffff",
+                      borderRadius: "16px",
+                      padding: "14px 16px",
+                      border: p.isHidden ? "1px solid #fcd34d" : "1px solid #e2e8f0",
+                      boxShadow: "0 2px 8px rgba(0,0,0,0.03)",
+                      transition: "all 0.2s ease"
+                    }}
+                  >
+                    {/* Author & Header Actions */}
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "8px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                        <div style={{
+                          width: "36px",
+                          height: "36px",
+                          borderRadius: "50%",
+                          background: author?.avatarUrl ? "none" : "#e2e8f0",
+                          overflow: "hidden",
+                          flexShrink: 0,
+                          border: "1px solid #cbd5e1",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontWeight: 800,
+                          color: "#475569",
+                          fontSize: "12px"
+                        }}>
+                          {author?.avatarUrl ? (
+                            <img src={author.avatarUrl} alt="Avatar" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                          ) : (
+                            (p.userName || "A").slice(0, 1).toUpperCase()
+                          )}
+                        </div>
+                        <div>
+                          <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
+                            <span style={{ fontSize: "13px", fontWeight: 800, color: "#0f172a" }}>{p.userName || "Anonymous Athlete"}</span>
+                            <span style={{ fontSize: "9px", background: "#f1f5f9", padding: "1px 6px", borderRadius: "6px", fontWeight: 700, color: "#475569" }}>
+                              {p.visibility || "public"}
+                            </span>
+                            {p.isHidden && (
+                              <span style={{ fontSize: "9px", background: "#f59e0b", color: "#fff", padding: "1px 6px", borderRadius: "6px", fontWeight: 800 }}>
+                                🔒 HIDDEN
+                              </span>
+                            )}
+                            {isBlocked && (
+                              <span style={{ fontSize: "9px", background: "#ef4444", color: "#fff", padding: "1px 6px", borderRadius: "6px", fontWeight: 800 }}>
+                                ⛔ BLOCKED AUTHOR
+                              </span>
+                            )}
+                          </div>
+                          <div style={{ fontSize: "10px", color: "#94a3b8", marginTop: "2px" }}>
+                            {formatAdminCreated(p.createdAt)}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Direct Controls */}
+                      <div style={{ display: "flex", gap: "5px" }}>
+                        <button
+                          type="button"
+                          onClick={() => toggleHidePost(p.id, p.isHidden)}
+                          title={p.isHidden ? "Unhide from community" : "Hide from community"}
+                          style={{
+                            background: p.isHidden ? "#10b981" : "#f59e0b",
+                            color: "#ffffff",
+                            border: "none",
+                            borderRadius: "8px",
+                            padding: "4px 8px",
+                            fontSize: "10px",
+                            fontWeight: 800,
+                            cursor: "pointer",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "4px"
+                          }}
+                        >
+                          <i className={p.isHidden ? "fa-solid fa-eye" : "fa-solid fa-eye-slash"}></i>
+                          <span>{p.isHidden ? "Unhide" : "Hide"}</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleDeletePostPermanently(p.id)}
+                          title="Permanently Delete Post"
+                          style={{
+                            background: "#fee2e2",
+                            color: "#dc2626",
+                            border: "1px solid #fca5a5",
+                            borderRadius: "8px",
+                            padding: "4px 8px",
+                            fontSize: "10px",
+                            fontWeight: 800,
+                            cursor: "pointer"
+                          }}
+                        >
+                          <i className="fa-solid fa-trash"></i>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Post Text */}
+                    <div style={{ margin: "8px 0" }}>
+                      <ExpandableText text={p.text} maxChars={120} />
+                    </div>
+
+                    {/* Image Attachment Preview */}
+                    {p.imageUrl && (
+                      <div
+                        onClick={() => {
+                          if (setSelectedPost && setActivePanel) {
+                            setSelectedPost(p);
+                            setActivePanel("post_detail");
+                          }
+                        }}
+                        style={{
+                          borderRadius: "10px",
+                          overflow: "hidden",
+                          maxHeight: "140px",
+                          marginBottom: "8px",
+                          background: "#0f172a",
+                          cursor: "pointer",
+                          position: "relative"
+                        }}
+                      >
+                        <img src={p.imageUrl} alt="Attached Media" style={{ width: "100%", height: "140px", objectFit: "cover" }} />
+                        <span style={{ position: "absolute", bottom: "6px", right: "6px", background: "rgba(0,0,0,0.6)", color: "#fff", fontSize: "9px", padding: "2px 6px", borderRadius: "4px", fontWeight: 700 }}>
+                          Click to inspect
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Footer Metadata & Telemetry */}
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "6px", paddingTop: "8px", borderTop: "1px solid #f1f5f9", fontSize: "10px", color: "#64748b" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                        <span>UID:</span>
+                        <code style={{ background: "#f1f5f9", padding: "1px 4px", borderRadius: "4px", fontSize: "9px" }}>{p.userId?.slice(0, 10)}...</code>
+                        <button
+                          type="button"
+                          onClick={() => copyToClipboard(p.userId, "User ID")}
+                          style={{ background: "none", border: "none", color: "#3b82f6", cursor: "pointer", padding: "0 2px" }}
+                        >
+                          <i className="fa-regular fa-copy"></i>
+                        </button>
+                      </div>
+
+                      <div style={{ display: "flex", gap: "6px" }}>
+                        <button
+                          type="button"
+                          onClick={() => author && startInvestigation(author)}
+                          style={{
+                            background: "#ede9fe",
+                            color: "#7c3aed",
+                            border: "none",
+                            borderRadius: "6px",
+                            padding: "2px 8px",
+                            fontSize: "10px",
+                            fontWeight: 800,
+                            cursor: "pointer"
+                          }}
+                        >
+                          🕵️‍♂️ View Chats
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => toggleBlockUser(p.userId, isBlocked)}
+                          style={{
+                            background: isBlocked ? "#10b981" : "#ef4444",
+                            color: "#fff",
+                            border: "none",
+                            borderRadius: "6px",
+                            padding: "2px 8px",
+                            fontSize: "10px",
+                            fontWeight: 800,
+                            cursor: "pointer"
+                          }}
+                        >
+                          {isBlocked ? "Unblock Author" : "Block Author"}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
-      {adminSubTab === "posts" ? (
+      {/* ─── 4. TAB CONTENT: ATHLETES DIRECTORY ─── */}
+      {activeTab === "users" && (
         <div>
-          {posts.length === 0 ? (
-            <p style={{ textAlign: "center", padding: "16px", color: "var(--text-muted)", fontSize: "11px" }}>No posts found in database.</p>
+          {/* Controls: Search + Filter Pills */}
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "12px" }}>
+            <div style={{ position: "relative", flex: 1, minWidth: "220px" }}>
+              <i className="fa-solid fa-magnifying-glass" style={{ position: "absolute", left: "14px", top: "11px", color: "#94a3b8", fontSize: "13px" }}></i>
+              <input
+                type="text"
+                placeholder="Search athletes by name, email, or UID..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                style={{
+                  width: "100%",
+                  padding: "9px 14px 9px 36px",
+                  borderRadius: "10px",
+                  border: "1px solid #cbd5e1",
+                  fontSize: "12px",
+                  outline: "none",
+                  background: "#ffffff"
+                }}
+              />
+            </div>
+
+            <div style={{ display: "flex", gap: "4px" }}>
+              {["all", "online", "blocked"].map((f) => (
+                <button
+                  key={f}
+                  type="button"
+                  onClick={() => setUserFilter(f)}
+                  style={{
+                    padding: "6px 12px",
+                    borderRadius: "8px",
+                    border: "none",
+                    fontWeight: 800,
+                    fontSize: "11px",
+                    background: userFilter === f ? "#0f172a" : "#e2e8f0",
+                    color: userFilter === f ? "#ffffff" : "#475569",
+                    cursor: "pointer",
+                    textTransform: "capitalize"
+                  }}
+                >
+                  {f === "all" ? "Lahat" : f === "online" ? "Online" : "Blocked"}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {filteredUsers.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "40px 20px", background: "#ffffff", borderRadius: "16px", border: "1px dashed #cbd5e1", color: "#64748b" }}>
+              <i className="fa-solid fa-user-xmark" style={{ fontSize: "32px", color: "#cbd5e1", marginBottom: "8px" }}></i>
+              <div style={{ fontSize: "13px", fontWeight: 700 }}>Walang athlete na tumugma sa iyong criteria.</div>
+            </div>
           ) : (
-            posts.map(p => {
-              const postAuthorObj = userList.find(u => u.uid === p.userId);
-              const isAuthorBlocked = postAuthorObj?.isBlocked;
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+              {filteredUsers.map(u => {
+                const lastSeenMs = parseMs(u.lastSeen);
+                const isOnline = lastSeenMs && (now - lastSeenMs < ONLINE_THRESHOLD);
 
-              return (
-                <div key={p.id} className="card" style={{ padding: "10px 12px", borderRadius: "14px", marginBottom: "8px", border: p.isHidden ? "1px solid #f59e0b" : "1px solid #e2e8f0", background: p.isHidden ? "#fffbeb" : "#ffffff" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "6px", minWidth: 0, flex: 1 }}>
-                      <span style={{ fontSize: "11px", fontWeight: 800, color: "#0f172a", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.userName}</span>
-                      <span style={{ fontSize: "8px", background: "#f1f5f9", padding: "1px 5px", borderRadius: "4px", fontWeight: 700, color: "#64748b", flexShrink: 0 }}>
-                        {p.visibility || "public"}
-                      </span>
-                      {p.isHidden && (
-                        <span style={{ fontSize: "8px", background: "#d97706", color: "white", padding: "1px 5px", borderRadius: "4px", fontWeight: 800, flexShrink: 0 }}>
-                          HIDDEN
-                        </span>
-                      )}
-                      {isAuthorBlocked && (
-                        <span style={{ fontSize: "8px", background: "#dc2626", color: "white", padding: "1px 5px", borderRadius: "4px", fontWeight: 800, flexShrink: 0 }}>
-                          BLOCKED USER
-                        </span>
-                      )}
+                return (
+                  <div
+                    key={u.uid}
+                    style={{
+                      background: u.isBlocked ? "#fef2f2" : "#ffffff",
+                      borderRadius: "14px",
+                      padding: "12px 14px",
+                      border: u.isBlocked ? "1px solid #fca5a5" : "1px solid #e2e8f0",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      flexWrap: "wrap",
+                      gap: "10px",
+                      boxShadow: "0 1px 4px rgba(0,0,0,0.02)"
+                    }}
+                  >
+                    {/* Athlete Left Profile */}
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px", minWidth: 0, flex: 1 }}>
+                      <div style={{ position: "relative", flexShrink: 0 }}>
+                        <div style={{
+                          width: "40px",
+                          height: "40px",
+                          borderRadius: "50%",
+                          background: u.avatarUrl ? "none" : "#e0e7ff",
+                          overflow: "hidden",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontWeight: 800,
+                          color: "#4f46e5",
+                          fontSize: "14px",
+                          border: "1px solid #c7d2fe"
+                        }}>
+                          {u.avatarUrl ? (
+                            <img src={u.avatarUrl} alt="Avatar" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                          ) : (
+                            (u.userName || "A").slice(0, 1).toUpperCase()
+                          )}
+                        </div>
+                        {isOnline && (
+                          <span style={{
+                            position: "absolute",
+                            bottom: "0",
+                            right: "0",
+                            width: "12px",
+                            height: "12px",
+                            borderRadius: "50%",
+                            background: "#10b981",
+                            border: "2px solid #ffffff"
+                          }}></span>
+                        )}
+                      </div>
+
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
+                          <span style={{ fontSize: "13px", fontWeight: 800, color: "#0f172a" }}>{u.userName || "Athlete"}</span>
+                          {isOnline ? (
+                            <span style={{ fontSize: "8px", background: "#10b981", color: "#fff", padding: "1px 5px", borderRadius: "5px", fontWeight: 800 }}>
+                              ONLINE
+                            </span>
+                          ) : (
+                            <span style={{ fontSize: "8px", background: "#94a3b8", color: "#fff", padding: "1px 5px", borderRadius: "5px", fontWeight: 800 }}>
+                              OFFLINE
+                            </span>
+                          )}
+                          {u.isBlocked && (
+                            <span style={{ fontSize: "8px", background: "#ef4444", color: "#fff", padding: "1px 5px", borderRadius: "5px", fontWeight: 800 }}>
+                              BLOCKED
+                            </span>
+                          )}
+                        </div>
+
+                        <div style={{ fontSize: "11px", color: "#64748b", marginTop: "2px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          {u.userEmail || "No Email Provided"}
+                        </div>
+
+                        <div style={{ fontSize: "10px", color: "#94a3b8", marginTop: "2px", display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                          <span>Joined: {formatAdminCreated(u.createdAt)}</span>
+                          <span>Last: <strong style={{ color: isOnline ? "#10b981" : "#64748b" }}>{isOnline ? "Active Now" : formatAdminLastOnline(u.lastSeen, now)}</strong></span>
+                        </div>
+                      </div>
                     </div>
 
-                    <div style={{ display: "flex", gap: "4px", flexShrink: 0 }}>
-                      <button 
-                        onClick={() => toggleHidePost(p.id, p.isHidden)}
-                        style={{ background: p.isHidden ? "#10b981" : "#f59e0b", color: "white", border: "none", borderRadius: "6px", padding: "2px 6px", fontSize: "9px", fontWeight: 800, cursor: "pointer" }}
+                    {/* Actions */}
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                      <button
+                        type="button"
+                        onClick={() => startInvestigation(u)}
+                        title="Investigate Messages & Chats"
+                        style={{
+                          background: "#f5f3ff",
+                          color: "#7c3aed",
+                          border: "1px solid #ddd6fe",
+                          padding: "6px 10px",
+                          borderRadius: "8px",
+                          fontSize: "11px",
+                          fontWeight: 800,
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "4px"
+                        }}
                       >
-                        {p.isHidden ? "Unhide" : "Hide"}
+                        <i className="fa-solid fa-magnifying-glass-arrow-right"></i>
+                        <span>Investigate</span>
                       </button>
-                      <button 
-                        onClick={() => toggleBlockUser(p.userId, isAuthorBlocked)}
-                        style={{ background: isAuthorBlocked ? "#10b981" : "#dc2626", color: "white", border: "none", borderRadius: "6px", padding: "2px 6px", fontSize: "9px", fontWeight: 800, cursor: "pointer" }}
+
+                      <button
+                        type="button"
+                        onClick={() => toggleBlockUser(u.uid, u.isBlocked)}
+                        style={{
+                          background: u.isBlocked ? "#10b981" : "#ef4444",
+                          color: "#ffffff",
+                          border: "none",
+                          padding: "6px 10px",
+                          borderRadius: "8px",
+                          fontSize: "11px",
+                          fontWeight: 800,
+                          cursor: "pointer"
+                        }}
                       >
-                        {isAuthorBlocked ? "Unblock User" : "Block User"}
+                        {u.isBlocked ? "Unblock" : "Block User"}
                       </button>
                     </div>
                   </div>
-
-                  <ExpandableText text={p.text} maxChars={80} />
-
-                  {p.imageUrl && (
-                    <div 
-                      onClick={(e) => { e.stopPropagation(); setSelectedPost(p); setActivePanel("post_detail"); }} 
-                      style={{ borderRadius: "8px", overflow: "hidden", marginBottom: "6px", height: "60px", background: "#f8fafc", cursor: "pointer", position: "relative" }}
-                    >
-                      <img src={p.imageUrl} alt="Uploaded Media" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                    </div>
-                  )}
-
-                  <div style={{ fontSize: "8px", color: "var(--text-muted)", fontWeight: 600 }}>
-                    User ID: {p.userId} • Created: {formatAdminCreated(p.createdAt)}
-                  </div>
-                </div>
-              );
-            })
+                );
+              })}
+            </div>
           )}
         </div>
-      ) : (
+      )}
+
+      {/* ─── 5. TAB CONTENT: EVIDENCE & CHAT INVESTIGATION VAULT ─── */}
+      {activeTab === "vault" && (
         <div>
-          {userList.length === 0 ? (
-            <p style={{ textAlign: "center", padding: "16px", color: "var(--text-muted)", fontSize: "11px" }}>No registered user profiles found.</p>
-          ) : (
-            userList.map(u => {
-              const lastSeenMs = parseMs(u.lastSeen);
-              const isOnline = lastSeenMs && (now - lastSeenMs < ONLINE_THRESHOLD);
+          {/* Security & Compliance Banner */}
+          <div style={{
+            background: "#4c1d95",
+            color: "#ffffff",
+            padding: "12px 16px",
+            borderRadius: "14px",
+            marginBottom: "14px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "10px",
+            boxShadow: "0 4px 15px rgba(76, 29, 149, 0.3)"
+          }}>
+            <div>
+              <div style={{ fontWeight: 800, fontSize: "13px", display: "flex", alignItems: "center", gap: "6px" }}>
+                <i className="fa-solid fa-lock"></i>
+                <span>Strict Security & Trust/Safety Investigation Vault</span>
+              </div>
+              <div style={{ fontSize: "11px", opacity: 0.9, marginTop: "2px" }}>
+                Gamitin lamang ito sa pag-imbestiga ng mga ulat ng pambabastos, scam, o panloloko sa komunidad.
+              </div>
+            </div>
+          </div>
 
-              return (
-                <div key={u.uid} className="card" style={{ padding: "10px 12px", borderRadius: "14px", marginBottom: "8px", border: u.isBlocked ? "1px solid #dc2626" : "1px solid #e2e8f0", background: u.isBlocked ? "#fef2f2" : "#ffffff", boxShadow: "0 2px 6px rgba(0,0,0,0.02)" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "6px", minWidth: 0, flex: 1 }}>
-                      <span style={{ fontSize: "12px", fontWeight: 900, color: "#0f172a", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{u.userName || "Athlete"}</span>
-                      {isOnline ? (
-                        <span style={{ fontSize: "8px", background: "#10b981", color: "white", padding: "2px 6px", borderRadius: "6px", fontWeight: 800, flexShrink: 0, boxShadow: "0 1px 4px rgba(16,185,129,0.3)" }}>🟢 ONLINE</span>
-                      ) : (
-                        <span style={{ fontSize: "8px", background: "#94a3b8", color: "white", padding: "2px 6px", borderRadius: "6px", fontWeight: 800, flexShrink: 0 }}>OFFLINE</span>
-                      )}
-                      {u.isBlocked && <span style={{ fontSize: "8px", background: "#dc2626", color: "white", padding: "2px 6px", borderRadius: "6px", fontWeight: 800, flexShrink: 0 }}>BLOCKED</span>}
-                    </div>
+          {/* Select User to Investigate */}
+          <div style={{ background: "#ffffff", padding: "14px", borderRadius: "14px", border: "1px solid #e2e8f0", marginBottom: "14px" }}>
+            <label style={{ fontSize: "11px", fontWeight: 800, color: "#475569", display: "block", marginBottom: "6px", textTransform: "uppercase" }}>
+              Pumili ng Account na Iniimbestigahan:
+            </label>
+            <select
+              value={investigatingUser?.uid || ""}
+              onChange={(e) => {
+                const found = userList.find(u => u.uid === e.target.value);
+                if (found) startInvestigation(found);
+              }}
+              style={{
+                width: "100%",
+                padding: "9px 12px",
+                borderRadius: "10px",
+                border: "1px solid #cbd5e1",
+                fontSize: "12px",
+                fontWeight: 700,
+                outline: "none",
+                background: "#f8fafc"
+              }}
+            >
+              <option value="">-- Pumili mula sa listahan ng Athletes ({userList.length}) --</option>
+              {userList.map(u => (
+                <option key={u.uid} value={u.uid}>
+                  {u.userName || "Athlete"} ({u.userEmail || u.uid}) {u.isBlocked ? "⛔ [BLOCKED]" : ""}
+                </option>
+              ))}
+            </select>
 
-                    <button 
-                      onClick={() => toggleBlockUser(u.uid, u.isBlocked)}
-                      style={{ background: u.isBlocked ? "#10b981" : "#dc2626", color: "white", border: "none", borderRadius: "6px", padding: "3px 8px", fontSize: "9px", fontWeight: 800, cursor: "pointer", flexShrink: 0 }}
+            {investigatingUser && (
+              <div style={{ marginTop: "12px", padding: "10px 12px", background: "#f8fafc", borderRadius: "10px", border: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "8px" }}>
+                <div>
+                  <div style={{ fontSize: "12px", fontWeight: 800, color: "#0f172a" }}>
+                    Paksa: {investigatingUser.userName} ({investigatingUser.userEmail || "No Email"})
+                  </div>
+                  <div style={{ fontSize: "10px", color: "#64748b", marginTop: "1px" }}>
+                    UID: <code>{investigatingUser.uid}</code>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => toggleBlockUser(investigatingUser.uid, investigatingUser.isBlocked)}
+                  style={{
+                    background: investigatingUser.isBlocked ? "#10b981" : "#ef4444",
+                    color: "#ffffff",
+                    border: "none",
+                    padding: "4px 10px",
+                    borderRadius: "6px",
+                    fontSize: "11px",
+                    fontWeight: 800,
+                    cursor: "pointer"
+                  }}
+                >
+                  {investigatingUser.isBlocked ? "Unblock Account" : "Block Account Agad"}
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Investigation Chat Threads */}
+          {isLoadingChats ? (
+            <div style={{ textAlign: "center", padding: "30px", color: "#64748b" }}>
+              <i className="fa-solid fa-spinner fa-spin" style={{ fontSize: "24px", color: "#7c3aed", marginBottom: "8px" }}></i>
+              <div style={{ fontSize: "12px", fontWeight: 700 }}>Kinukuha ang mga mensahe mula sa cloud database...</div>
+            </div>
+          ) : userChats.length > 0 ? (
+            <div style={{ display: "grid", gridTemplateColumns: activeChatThread ? "1fr 1fr" : "1fr", gap: "12px" }}>
+              {/* Left Column: Chat Threads List */}
+              <div style={{ background: "#ffffff", padding: "12px", borderRadius: "14px", border: "1px solid #e2e8f0" }}>
+                <div style={{ fontSize: "11px", fontWeight: 800, color: "#64748b", marginBottom: "8px", textTransform: "uppercase" }}>
+                  Natagpuang Chat Threads ({userChats.length})
+                </div>
+
+                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                  {userChats.map(c => {
+                    const otherUid = c.participants?.find(p => p !== investigatingUser?.uid);
+                    const otherUser = userList.find(u => u.uid === otherUid);
+                    const isSelected = activeChatThread?.id === c.id;
+
+                    return (
+                      <div
+                        key={c.id}
+                        onClick={() => loadChatTranscript(c)}
+                        style={{
+                          padding: "10px",
+                          borderRadius: "10px",
+                          border: isSelected ? "1.5px solid #7c3aed" : "1px solid #e2e8f0",
+                          background: isSelected ? "#f5f3ff" : "#f8fafc",
+                          cursor: "pointer",
+                          transition: "all 0.15s ease"
+                        }}
+                      >
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <span style={{ fontSize: "12px", fontWeight: 800, color: "#0f172a" }}>
+                            {otherUser?.userName || "Athlete (" + (otherUid?.slice(0, 6) || "ID") + ")"}
+                          </span>
+                          <span style={{ fontSize: "9px", color: "#94a3b8" }}>
+                            {c.updatedAt ? new Date(c.updatedAt).toLocaleDateString() : ""}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: "11px", color: "#64748b", marginTop: "3px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          {c.lastMessage || "(Walang text preview)"}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Right Column: Chat Transcript Inspector */}
+              {activeChatThread && (
+                <div style={{ background: "#ffffff", padding: "14px", borderRadius: "14px", border: "1px solid #e2e8f0", display: "flex", flexDirection: "column" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingBottom: "8px", borderBottom: "1px solid #f1f5f9", marginBottom: "10px" }}>
+                    <span style={{ fontSize: "12px", fontWeight: 900, color: "#0f172a" }}>
+                      Transcript Viewer
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setActiveChatThread(null)}
+                      style={{ background: "none", border: "none", color: "#94a3b8", cursor: "pointer", fontSize: "14px" }}
                     >
-                      {u.isBlocked ? "Unblock User" : "Block User"}
+                      ✕
                     </button>
                   </div>
 
-                  <div style={{ fontSize: "10px", color: "#64748b", lineHeight: 1.4, wordBreak: "break-all" }}>
-                    <div><strong>Email:</strong> {u.userEmail || "N/A"}</div>
-                    <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "4px", marginTop: "3px", color: "#475569" }}>
-                      <span><strong>Created:</strong> {formatAdminCreated(u.createdAt)}</span>
-                      <span><strong>Last Online:</strong> <strong style={{ color: isOnline ? "#10b981" : "#475569" }}>{isOnline ? "Active Now" : (u.lastLoggedOutAt ? formatAdminLastOnline(u.lastLoggedOutAt, now) : formatAdminLastOnline(u.lastSeen, now))}</strong></span>
+                  {isLoadingTranscript ? (
+                    <div style={{ textAlign: "center", padding: "30px", color: "#64748b" }}>
+                      <i className="fa-solid fa-spinner fa-spin" style={{ fontSize: "20px", color: "#7c3aed", marginBottom: "6px" }}></i>
+                      <div style={{ fontSize: "11px" }}>Binubuksan ang transcript...</div>
                     </div>
-                  </div>
+                  ) : chatTranscript.length === 0 ? (
+                    <div style={{ textAlign: "center", padding: "20px", color: "#94a3b8", fontSize: "11px" }}>
+                      Walang nakitang laman sa chat thread na ito.
+                    </div>
+                  ) : (
+                    <div style={{ maxHeight: "350px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "8px", paddingRight: "4px" }}>
+                      {chatTranscript.map((m, idx) => {
+                        const isTarget = m.senderUid === investigatingUser?.uid;
+
+                        return (
+                          <div
+                            key={m.id || idx}
+                            style={{
+                              alignSelf: isTarget ? "flex-end" : "flex-start",
+                              maxWidth: "85%",
+                              background: isTarget ? "#ede9fe" : "#f1f5f9",
+                              border: isTarget ? "1px solid #ddd6fe" : "1px solid #e2e8f0",
+                              padding: "8px 12px",
+                              borderRadius: "12px"
+                            }}
+                          >
+                            <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", fontSize: "9px", fontWeight: 800, color: isTarget ? "#6d28d9" : "#475569", marginBottom: "2px" }}>
+                              <span>{m.senderName || (isTarget ? investigatingUser.userName : "Partner")}</span>
+                              <span>{m.createdAt ? new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ""}</span>
+                            </div>
+                            <div style={{ fontSize: "12px", color: "#0f172a", wordBreak: "break-word" }}>
+                              {m.text}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
-              );
-            })
-          )}
+              )}
+            </div>
+          ) : investigatingUser ? (
+            <div style={{ textAlign: "center", padding: "30px", background: "#ffffff", borderRadius: "14px", border: "1px dashed #cbd5e1", color: "#64748b" }}>
+              <i className="fa-regular fa-comment-slash" style={{ fontSize: "28px", color: "#cbd5e1", marginBottom: "8px" }}></i>
+              <div style={{ fontSize: "12px", fontWeight: 700 }}>Walang anumang naitalang personal chat ang account na ito sa cloud.</div>
+            </div>
+          ) : null}
         </div>
       )}
     </div>
