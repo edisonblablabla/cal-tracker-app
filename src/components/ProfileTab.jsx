@@ -345,9 +345,7 @@ export default function ProfileTab({
       let updatedHistory = Array.isArray(appData?.weightHistory) ? [...appData.weightHistory] : [];
       if (appData?.weight && Number(appData.weight) !== numWeight) {
         updatedHistory.push({
-          val: numWeight,
-          date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-          timestamp: Date.now()
+          id: Date.now(), val: numWeight, weight: numWeight, date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" }), timestamp: Date.now()
         });
       }
 
@@ -357,6 +355,7 @@ export default function ProfileTab({
         userTitle: editTitle.trim() || "Fitness Enthusiast",
         userBio: editBio.trim() || "",
         weight: numWeight,
+        currentWeight: numWeight,
         prevWeight: appData?.weight || numWeight,
         height: numHeight,
         activityLevel: currentAct,

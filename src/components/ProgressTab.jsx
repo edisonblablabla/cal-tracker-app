@@ -98,7 +98,7 @@ export default function ProgressTab({
   };
 
   // 3. WEIGHT TRACKER DYNAMIC DATES & WAVE SPLINE
-  const currentWeight = Number(appData?.currentWeight || appData?.weight || 68.2);
+  const currentWeight = Number(appData?.weight || appData?.currentWeight || 65);
   const targetWeight = Number(appData?.targetWeight || 62.0);
 
   const { chartPoints, linePath, areaPath, weightDiffStr } = useMemo(() => {
@@ -226,8 +226,7 @@ export default function ProgressTab({
     if (saveToCloud) {
       const updated = {
         ...appData,
-        currentWeight: w,
-        weight: w,
+        weight: w, currentWeight: w,
         weightHistory: [...(appData?.weightHistory || []), newRecord]
       };
       saveToCloud(updated);
