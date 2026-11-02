@@ -1202,6 +1202,68 @@ export default function App() {
     }
   };
 
+    const completeOnboardingFromWizard = async (wizardData) => {
+    setIsSavingOnboarding(true);
+    try {
+      const todayShort = new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" });
+      const todayStr = new Date().toDateString();
+
+      const initialData = {
+        userName: wizardData.userName || user?.displayName || "Athlete",
+        userEmail: user?.email || "",
+        userTitle: "Fitness Enthusiast",
+        gender: wizardData.gender || "male",
+        age: wizardData.age || 25,
+        avatarUrl: "",
+        coverUrl: "",
+        height: wizardData.height || 168,
+        weight: wizardData.weight || 65,
+        prevWeight: wizardData.weight || 65,
+        targetWeight: wizardData.targetWeight || 62,
+        weightHistory: [{ val: wizardData.weight || 65, date: todayShort }],
+        activityLevel: wizardData.activityLevel || 1.55,
+        dayMode: "workout",
+        streakDays: 1,
+        lastLogDate: todayStr,
+        activeGoalType: wizardData.activeGoalType || "cut",
+        baseGoal: wizardData.baseGoal || 2000,
+        goal: wizardData.baseGoal || 2000,
+        pGoal: wizardData.pGoal || 140,
+        cGoal: wizardData.cGoal || 200,
+        fGoal: wizardData.fGoal || 55,
+        waterTargetMl: wizardData.waterTargetMl || 2500,
+        todayBurnedCal: 0,
+        todayWaterMl: 0,
+        isBlocked: false,
+        isPrivateAccount: false,
+        boosting: [],
+        myBoosters: [],
+        pendingBoosterRequests: [],
+        onboardingCompleted: true,
+        createdAt: Date.now(),
+        weeklyLogs: { mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 },
+        meals: []
+      };
+
+      await saveToCloud(initialData);
+      if (typeof setAppData === "function") setAppData(initialData);
+      if (typeof setProfName === "function") setProfName(initialData.userName);
+      if (typeof setProfTitle === "function") setProfTitle(initialData.userTitle);
+      if (typeof setProfHeight === "function") setProfHeight(initialData.height);
+      if (typeof setProfWeight === "function") setProfWeight(initialData.weight);
+      if (typeof setProfActivity === "function") setProfActivity(initialData.activityLevel);
+      if (typeof setOnboardStep === "function") setOnboardStep(0);
+      if (typeof setShowSettingsModal === "function") setShowSettingsModal(false);
+      if (typeof setActiveTab === "function") setActiveTab("home");
+      if (typeof setActivePanel === "function") setActivePanel(null);
+    } catch (err) {
+      console.error("Onboarding saving error:", err);
+      alert("Error saving profile: " + err.message);
+    } finally {
+      setIsSavingOnboarding(false);
+    }
+  };
+
   const completeOnboarding = async () => {
     setIsSavingOnboarding(true);
     try {
