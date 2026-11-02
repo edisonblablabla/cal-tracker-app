@@ -309,9 +309,6 @@ export default function ProfileTab({
         height: numHeight,
         activityLevel: editActivityLevel || "moderate",
         primaryObjective: editObjective || "maintain",
-        targetBurn: numBurnGoal,
-        dailyBurnGoal: numBurnGoal,
-        stepGoal: numStepGoal,
         weightHistory: updatedHistory
       });
 
@@ -1338,25 +1335,7 @@ export default function ProfileTab({
                     >
                       ⚖️ Body
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => setSettingsSubTab("goals")}
-                      style={{
-                        flex: 1,
-                        padding: "7px 0",
-                        borderRadius: "8px",
-                        border: "none",
-                        fontSize: "11.5px",
-                        fontWeight: 800,
-                        cursor: "pointer",
-                        background: settingsSubTab === "goals" ? "#ffffff" : "transparent",
-                        color: settingsSubTab === "goals" ? "#0284c7" : "#64748b",
-                        boxShadow: settingsSubTab === "goals" ? "0 1px 3px rgba(0,0,0,0.06)" : "none",
-                        transition: "all 0.15s ease"
-                      }}
-                    >
-                      🎯 Goals
-                    </button>
+                    
                   </div>
 
                   {/* ─── TAB 1: IDENTITY ─── */}
@@ -1506,86 +1485,7 @@ export default function ProfileTab({
                     </div>
                   )}
 
-                  {/* ─── TAB 3: DAILY GOALS ─── */}
-                  {settingsSubTab === "goals" && (
-                    <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-                      <div>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "5px" }}>
-                          <label style={{ fontSize: "11px", fontWeight: 800, color: "#64748b", textTransform: "uppercase" }}>
-                            Daily Active Burn Target (kcal)
-                          </label>
-                          <span style={{ fontSize: "12px", fontWeight: 900, color: "#0284c7" }}>{editBurnGoal} kcal</span>
-                        </div>
-                        <input
-                          type="number"
-                          value={editBurnGoal}
-                          onChange={(e) => setEditBurnGoal(e.target.value)}
-                          style={{ width: "100%", padding: "10px 12px", borderRadius: "10px", background: "#f8fafc", border: "1px solid #cbd5e1", color: "#0f172a", fontSize: "13px", outline: "none", boxSizing: "border-box" }}
-                          placeholder="500"
-                        />
-                        <div style={{ display: "flex", gap: "6px", marginTop: "6px" }}>
-                          {[300, 500, 750, 1000].map((val) => (
-                            <button
-                              key={val}
-                              type="button"
-                              onClick={() => setEditBurnGoal(val)}
-                              style={{
-                                flex: 1,
-                                padding: "5px 0",
-                                fontSize: "11px",
-                                fontWeight: 700,
-                                borderRadius: "6px",
-                                border: editBurnGoal == val ? "1px solid #0284c7" : "1px solid #e2e8f0",
-                                background: editBurnGoal == val ? "rgba(2,132,199,0.1)" : "#ffffff",
-                                color: editBurnGoal == val ? "#0284c7" : "#64748b",
-                                cursor: "pointer"
-                              }}
-                            >
-                              {val}k
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      <div>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "5px" }}>
-                          <label style={{ fontSize: "11px", fontWeight: 800, color: "#64748b", textTransform: "uppercase" }}>
-                            Daily Step Goal
-                          </label>
-                          <span style={{ fontSize: "12px", fontWeight: 900, color: "#10b981" }}>{Number(editStepGoal).toLocaleString()} steps</span>
-                        </div>
-                        <input
-                          type="number"
-                          value={editStepGoal}
-                          onChange={(e) => setEditStepGoal(e.target.value)}
-                          style={{ width: "100%", padding: "10px 12px", borderRadius: "10px", background: "#f8fafc", border: "1px solid #cbd5e1", color: "#0f172a", fontSize: "13px", outline: "none", boxSizing: "border-box" }}
-                          placeholder="8000"
-                        />
-                        <div style={{ display: "flex", gap: "6px", marginTop: "6px" }}>
-                          {[6000, 8000, 10000, 12000].map((val) => (
-                            <button
-                              key={val}
-                              type="button"
-                              onClick={() => setEditStepGoal(val)}
-                              style={{
-                                flex: 1,
-                                padding: "5px 0",
-                                fontSize: "11px",
-                                fontWeight: 700,
-                                borderRadius: "6px",
-                                border: editStepGoal == val ? "1px solid #10b981" : "1px solid #e2e8f0",
-                                background: editStepGoal == val ? "rgba(16,185,129,0.1)" : "#ffffff",
-                                color: editStepGoal == val ? "#10b981" : "#64748b",
-                                cursor: "pointer"
-                              }}
-                            >
-                              {(val / 1000)}k
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  )}
+                  
 
                   {/* Action Buttons: Cancel & Save */}
                   <div style={{ display: "flex", gap: "8px", marginTop: "6px" }}>

@@ -26,7 +26,11 @@ export default function GoalsTab({
       <div className="card" style={{ background: "linear-gradient(135deg, #4f46e5, #3730a3)", color: "white", marginBottom: "14px" }}>
         <p style={{ fontSize: "11px", opacity: 0.8 }}>Active Strategy Plan</p>
         <h2 style={{ fontSize: "20px", fontWeight: 800 }}>{titles[appData?.activeGoalType || 'jogger']}</h2>
-        <p style={{ fontSize: "11px", opacity: 0.8, marginTop: "2px" }}><span>{activeGoal}</span> kcal/day</p>
+        <p style={{ fontSize: "11px", opacity: 0.9, marginTop: "4px", display: "flex", gap: "10px", flexWrap: "wrap" }}>
+            <span>🔥 <b>{activeGoal}</b> kcal/day</span>
+            <span>⚡ <b>{appData?.dailyBurnTarget || 450}</b> kcal burn</span>
+            <span>👟 <b>{Number(appData?.dailyStepsTarget || 10000).toLocaleString()}</b> steps</span>
+          </p>
       </div>
 
       <div className="goal-section-header">Running & Cardio Goals</div>

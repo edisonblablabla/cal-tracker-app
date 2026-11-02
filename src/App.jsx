@@ -1437,9 +1437,19 @@ export default function App() {
 
   const setGoalPreset = (type) => {
     if (!appData) return;
-    const w = appData.weight || 60;
-    const h = appData.height || 160;
-    const act = parseFloat(appData.activityLevel) || 1.55;
+    const w = parseFloat(appData.weight) || 60;
+    const h = parseFloat(appData.height) || 160;
+    
+    // Convert string activity levels to standard multiplier
+    let act = 1.55;
+    if (typeof appData.activityLevel === "string") {
+      if (appData.activityLevel === "sedentary") act = 1.2;
+      else if (appData.activityLevel === "light") act = 1.375;
+      else if (appData.activityLevel === "moderate") act = 1.55;
+      else if (appData.activityLevel === "active") act = 1.725;
+    } else if (parseFloat(appData.activityLevel)) {
+      act = parseFloat(appData.activityLevel);
+    }
 
     let bmr = (10 * w) + (6.25 * h) - (5 * 25) + 5;
     let tdee = Math.round(bmr * act);
@@ -1448,24 +1458,77 @@ export default function App() {
     let pGoal = Math.round(w * 2.0);
     let cGoal = Math.round(w * 3.2);
     let fGoal = Math.round(w * 0.9);
+    let dailyStepsTarget = 10000;
+    let dailyBurnTarget = 450;
 
     if (type === "jogger") {
-      baseGoal = tdee + 100; pGoal = Math.round(w * 1.8); cGoal = Math.round(w * 4.5); fGoal = Math.round(w * 0.9);
+      baseGoal = tdee + 100;
+      pGoal = Math.round(w * 1.8);
+      cGoal = Math.round(w * 4.5);
+      fGoal = Math.round(w * 0.9);
+      dailyStepsTarget = 8000;
+      dailyBurnTarget = 500;
     } else if (type === "marathon") {
-      baseGoal = tdee + 400; pGoal = Math.round(w * 1.8); cGoal = Math.round(w * 6.0); fGoal = Math.round(w * 1.0);
+      baseGoal = tdee + 400;
+      pGoal = Math.round(w * 1.8);
+      cGoal = Math.round(w * 6.0);
+      fGoal = Math.round(w * 1.0);
+      dailyStepsTarget = 15000;
+      dailyBurnTarget = 750;
     } else if (type === "steps") {
-      baseGoal = Math.max(1200, tdee - 250); pGoal = Math.round(w * 2.0); cGoal = Math.round(w * 3.2); fGoal = Math.round(w * 0.8);
+      baseGoal = Math.max(1200, tdee - 250);
+      pGoal = Math.round(w * 2.0);
+      cGoal = Math.round(w * 3.2);
+      fGoal = Math.round(w * 0.8);
+      dailyStepsTarget = 10000;
+      dailyBurnTarget = 450;
     } else if (type === "bulk") {
-      baseGoal = tdee + 250; pGoal = Math.round(w * 2.2); cGoal = Math.round(w * 4.0); fGoal = Math.round(w * 1.0);
+      baseGoal = tdee + 250;
+      pGoal = Math.round(w * 2.2);
+      cGoal = Math.round(w * 4.0);
+      fGoal = Math.round(w * 1.0);
+      dailyStepsTarget = 6000;
+      dailyBurnTarget = 350;
     } else if (type === "cut") {
-      baseGoal = Math.max(1200, tdee - 450); pGoal = Math.round(w * 2.4); cGoal = Math.round(w * 2.0); fGoal = Math.round(w * 0.8);
+      baseGoal = Math.max(1200, tdee - 450);
+      pGoal = Math.round(w * 2.4);
+      cGoal = Math.round(w * 2.0);
+      fGoal = Math.round(w * 0.8);
+      dailyStepsTarget = 12000;
+      dailyBurnTarget = 600;
     } else if (type === "recomp") {
-      baseGoal = tdee; pGoal = Math.round(w * 2.2); cGoal = Math.round(w * 3.0); fGoal = Math.round(w * 0.9);
+      baseGoal = tdee;
+      pGoal = Math.round(w * 2.2);
+      cGoal = Math.round(w * 3.0);
+      fGoal = Math.round(w * 0.9);
+      dailyStepsTarget = 8000;
+      dailyBurnTarget = 450;
     } else if (type === "dirty") {
-      baseGoal = tdee + 600; pGoal = Math.round(w * 2.0); cGoal = Math.round(w * 5.0); fGoal = Math.round(w * 1.2);
+      baseGoal = tdee + 600;
+      pGoal = Math.round(w * 2.0);
+      cGoal = Math.round(w * 5.0);
+      fGoal = Math.round(w * 1.2);
+      dailyStepsTarget = 5000;
+      dailyBurnTarget = 300;
+    } else if (type === "maint") {
+      baseGoal = tdee;
+      pGoal = Math.round(w * 2.0);
+      cGoal = Math.round(w * 3.2);
+      fGoal = Math.round(w * 0.9);
+      dailyStepsTarget = 8000;
+      dailyBurnTarget = 400;
     }
 
-    saveToCloud({ ...appData, activeGoalType: type, baseGoal, pGoal, cGoal, fGoal });
+    saveToCloud({
+      ...appData,
+      activeGoalType: type,
+      baseGoal,
+      pGoal,
+      cGoal,
+      fGoal,
+      dailyStepsTarget,
+      dailyBurnTarget
+    });
   };
 
   const saveUserProfile = async () => {
