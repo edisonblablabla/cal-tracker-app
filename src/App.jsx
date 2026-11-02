@@ -1956,6 +1956,8 @@ export default function App() {
           <ProfileTab
             user={user}
             appData={syncedAppData || appData}
+                  saveToCloud={saveToCloud}
+                  setAppData={setAppData}
             avatarPreview={avatarPreview}
             coverPreview={coverPreview}
             handleDirectCoverChange={handleDirectCoverChange}

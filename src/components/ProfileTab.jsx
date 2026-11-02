@@ -21,6 +21,11 @@ export default function ProfileTab({
   handleSignOut,
   user,
   appData,
+  saveToCloud,
+  setAppData,
+  handleDirectAvatarChange,
+  handleDirectCoverChange,
+  coverPreview,
   avatarPreview,
   setActiveTab,
   setSelectedVisitor,
@@ -310,61 +315,29 @@ export default function ProfileTab({
       let dailyBurnTarget = appData?.dailyBurnTarget || 450;
 
       if (activeType === "jogger") {
-        baseGoal = tdee + 100;
-        pGoal = Math.round(numWeight * 1.8);
-        cGoal = Math.round(numWeight * 4.5);
-        fGoal = Math.round(numWeight * 0.9);
-        dailyStepsTarget = 8000;
-        dailyBurnTarget = 500;
+        baseGoal = tdee + 100; pGoal = Math.round(numWeight * 1.8); cGoal = Math.round(numWeight * 4.5); fGoal = Math.round(numWeight * 0.9);
+        dailyStepsTarget = 8000; dailyBurnTarget = 500;
       } else if (activeType === "marathon") {
-        baseGoal = tdee + 400;
-        pGoal = Math.round(numWeight * 1.8);
-        cGoal = Math.round(numWeight * 6.0);
-        fGoal = Math.round(numWeight * 1.0);
-        dailyStepsTarget = 15000;
-        dailyBurnTarget = 750;
+        baseGoal = tdee + 400; pGoal = Math.round(numWeight * 1.8); cGoal = Math.round(numWeight * 6.0); fGoal = Math.round(numWeight * 1.0);
+        dailyStepsTarget = 15000; dailyBurnTarget = 750;
       } else if (activeType === "steps") {
-        baseGoal = Math.max(1200, tdee - 250);
-        pGoal = Math.round(numWeight * 2.0);
-        cGoal = Math.round(numWeight * 3.2);
-        fGoal = Math.round(numWeight * 0.8);
-        dailyStepsTarget = 10000;
-        dailyBurnTarget = 450;
+        baseGoal = Math.max(1200, tdee - 250); pGoal = Math.round(numWeight * 2.0); cGoal = Math.round(numWeight * 3.2); fGoal = Math.round(numWeight * 0.8);
+        dailyStepsTarget = 10000; dailyBurnTarget = 450;
       } else if (activeType === "bulk") {
-        baseGoal = tdee + 250;
-        pGoal = Math.round(numWeight * 2.2);
-        cGoal = Math.round(numWeight * 4.0);
-        fGoal = Math.round(numWeight * 1.0);
-        dailyStepsTarget = 6000;
-        dailyBurnTarget = 350;
+        baseGoal = tdee + 250; pGoal = Math.round(numWeight * 2.2); cGoal = Math.round(numWeight * 4.0); fGoal = Math.round(numWeight * 1.0);
+        dailyStepsTarget = 6000; dailyBurnTarget = 350;
       } else if (activeType === "cut") {
-        baseGoal = Math.max(1200, tdee - 450);
-        pGoal = Math.round(numWeight * 2.4);
-        cGoal = Math.round(numWeight * 2.0);
-        fGoal = Math.round(numWeight * 0.8);
-        dailyStepsTarget = 12000;
-        dailyBurnTarget = 600;
+        baseGoal = Math.max(1200, tdee - 450); pGoal = Math.round(numWeight * 2.4); cGoal = Math.round(numWeight * 2.0); fGoal = Math.round(numWeight * 0.8);
+        dailyStepsTarget = 12000; dailyBurnTarget = 600;
       } else if (activeType === "recomp") {
-        baseGoal = tdee;
-        pGoal = Math.round(numWeight * 2.2);
-        cGoal = Math.round(numWeight * 3.0);
-        fGoal = Math.round(numWeight * 0.9);
-        dailyStepsTarget = 8000;
-        dailyBurnTarget = 450;
+        baseGoal = tdee; pGoal = Math.round(numWeight * 2.2); cGoal = Math.round(numWeight * 3.0); fGoal = Math.round(numWeight * 0.9);
+        dailyStepsTarget = 8000; dailyBurnTarget = 450;
       } else if (activeType === "dirty") {
-        baseGoal = tdee + 600;
-        pGoal = Math.round(numWeight * 2.0);
-        cGoal = Math.round(numWeight * 5.0);
-        fGoal = Math.round(numWeight * 1.2);
-        dailyStepsTarget = 5000;
-        dailyBurnTarget = 300;
+        baseGoal = tdee + 600; pGoal = Math.round(numWeight * 2.0); cGoal = Math.round(numWeight * 5.0); fGoal = Math.round(numWeight * 1.2);
+        dailyStepsTarget = 5000; dailyBurnTarget = 300;
       } else if (activeType === "maint") {
-        baseGoal = tdee;
-        pGoal = Math.round(numWeight * 2.0);
-        cGoal = Math.round(numWeight * 3.2);
-        fGoal = Math.round(numWeight * 0.9);
-        dailyStepsTarget = 8000;
-        dailyBurnTarget = 400;
+        baseGoal = tdee; pGoal = Math.round(numWeight * 2.0); cGoal = Math.round(numWeight * 3.2); fGoal = Math.round(numWeight * 0.9);
+        dailyStepsTarget = 8000; dailyBurnTarget = 400;
       }
 
       // 3. I-update ang weight history kapag may aktwal na pagbabago sa timbang
@@ -377,8 +350,8 @@ export default function ProfileTab({
         });
       }
 
-      // 4. I-commit ang kumpletong synchronized record sa Firestore
-      await updateDoc(doc(db, "users", user.uid), {
+      const payload = {
+        ...(appData || {}),
         userName: editName.trim() || "Athlete",
         userTitle: editTitle.trim() || "Fitness Enthusiast",
         userBio: editBio.trim() || "",
@@ -395,10 +368,18 @@ export default function ProfileTab({
         dailyStepsTarget,
         dailyBurnTarget,
         weightHistory: updatedHistory
-      });
+      };
+
+      // 4. Direktang i-sync sa React State sa App.jsx at Firestore Cloud
+      if (typeof saveToCloud === "function") {
+        await saveToCloud(payload);
+      } else {
+        if (typeof setAppData === "function") setAppData(payload);
+        await updateDoc(doc(db, "users", user.uid), payload);
+      }
 
       setIsEditingProfile(false);
-      if (showToast) showToast("Athlete Settings updated & targets recalculated! ⚡");
+      if (showToast) showToast("Athlete Settings saved & synchronized! ⚡");
     } catch (err) {
       console.error(err);
       if (showToast) showToast("Failed to update profile: " + err.message);
@@ -1426,6 +1407,72 @@ export default function ProfileTab({
                   {/* ─── TAB 1: IDENTITY ─── */}
                   {settingsSubTab === "identity" && (
                     <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                      
+                      {/* 📸 DIRECT AVATAR PHOTO PICKER */}
+                      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "6px 0 12px", borderBottom: "1px dashed #e2e8f0", gap: "8px" }}>
+                        <div style={{ position: "relative", width: "78px", height: "78px" }}>
+                          {renderAvatar(avatarPreview || appData?.avatarUrl || user?.photoURL, editName || appData?.userName || "Athlete", 78, "3px solid #0284c7")}
+                          <label
+                            htmlFor="athlete-settings-avatar-input"
+                            style={{
+                              position: "absolute",
+                              bottom: "-2px",
+                              right: "-2px",
+                              width: "28px",
+                              height: "28px",
+                              borderRadius: "50%",
+                              background: "linear-gradient(135deg, #0284c7, #38bdf8)",
+                              color: "#ffffff",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              cursor: "pointer",
+                              boxShadow: "0 2px 6px rgba(0,0,0,0.25)",
+                              border: "2px solid #ffffff"
+                            }}
+                            title="Upload Profile Picture"
+                          >
+                            <i className="fa-solid fa-camera" style={{ fontSize: "12px" }}></i>
+                          </label>
+                          <input
+                            id="athlete-settings-avatar-input"
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => {
+                              if (typeof handleDirectAvatarChange === "function") {
+                                handleDirectAvatarChange(e);
+                              } else if (e.target.files && e.target.files[0]) {
+                                const reader = new FileReader();
+                                reader.onload = async (evt) => {
+                                  const url = evt.target.result;
+                                  if (typeof saveToCloud === "function") {
+                                    await saveToCloud({ ...(appData || {}), avatarUrl: url });
+                                  } else {
+                                    await updateDoc(doc(db, "users", user.uid), { avatarUrl: url });
+                                  }
+                                  if (showToast) showToast("Profile avatar updated! ⚡");
+                                };
+                                reader.readAsDataURL(e.target.files[0]);
+                              }
+                            }}
+                            style={{ display: "none" }}
+                          />
+                        </div>
+                        <label
+                          htmlFor="athlete-settings-avatar-input"
+                          style={{
+                            fontSize: "11.5px",
+                            fontWeight: 800,
+                            color: "#0284c7",
+                            cursor: "pointer",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "5px"
+                          }}
+                        >
+                          <i className="fa-solid fa-camera"></i> Change Profile Picture
+                        </label>
+                      </div>
                       <div>
                         <label style={{ fontSize: "11px", fontWeight: 800, color: "#64748b", display: "block", marginBottom: "5px", textTransform: "uppercase" }}>
                           Athlete Name
