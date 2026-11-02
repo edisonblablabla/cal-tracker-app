@@ -21,9 +21,7 @@ import AdminTab from "./components/AdminTab";
 import ModalsLayer from "./components/ModalsLayer";
 import React, {  useState, useEffect, useRef , useMemo } from "react";
 import { 
-  signInWithPopup,
-  signInWithRedirect,
-  getRedirectResult, 
+  signInWithPopup, 
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signOut, 
@@ -478,19 +476,7 @@ export default function App() {
     document.title = "NutriPulse - Health Dashboard";
     let heartbeatInterval = null;
 
-    getRedirectResult(auth)
-        .then((result) => {
-          if (result?.user) {
-            setUser(result.user);
-            setShowAuthForm(false);
-            setOnboardStep(0);
-            setActiveTab("home");
-            setActivePanel(null);
-          }
-        })
-        .catch((e) => console.error("Redirect auth error:", e));
-
-      const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
       setShowSettingsModal(false);
       if (currentUser) {
@@ -1243,10 +1229,24 @@ export default function App() {
     setErrorMessage("");
     setShowSettingsModal(false);
     try {
-      await signInWithRedirect(auth, googleProvider);
+      const result = await signInWithPopup(auth, googleProvider);
+      if (result?.user) {
+        setUser(result.user);
+      }
+      setShowAuthForm(false);
+      setOnboardStep(0);
+      setActiveTab("home");
+      setActivePanel(null);
+
+      // Puwersahing tawagin ang focus pabalik sa NutriPulse
+      if (typeof window !== "undefined") {
+        try { window.focus(); } catch (e) {}
+      }
     } catch (error) {
-      console.error("Google sign-in redirect error:", error);
-      setErrorMessage("Google Login Error: " + error.message);
+      console.error("Google Login Error:", error);
+      if (error.code !== "auth/popup-closed-by-user") {
+        setErrorMessage("Google Login Error: " + error.message);
+      }
     }
   };
 
