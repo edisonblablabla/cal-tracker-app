@@ -574,8 +574,13 @@ export default function App() {
 
           // ⚡ PERMANENT REAL-TIME CLOUD LISTENER (Eliminates all local rollback)
           unsubUserDoc = onSnapshot(userDocRef, async (docSnap) => {
-            if (docSnap.exists()) {
-              let data = docSnap.data();
+              if (docSnap.exists()) {
+                let data = docSnap.data();
+                // Proteksyon: panatilihing completed kung may local flag na
+                const isLocallyDone = currentUser?.uid && localStorage.getItem(`np_onboard_${currentUser.uid}`) === "true";
+                if (isLocallyDone && !data?.onboardingCompleted) {
+                  data = { ...data, onboardingCompleted: true };
+                }
               const todayStr = new Date().toDateString();
 
               if (data?.lastLogDate && data.lastLogDate !== todayStr) {
@@ -1198,33 +1203,35 @@ if (!data?.onboardingCompleted && data?.height && data?.weight && (data?.baseGoa
     const completeOnboardingFromWizard = async (wizardData) => {
     setIsSavingOnboarding(true);
     try {
+      const activeUser = auth.currentUser || user;
+      const uid = activeUser?.uid;
       const todayShort = new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" });
       const todayStr = new Date().toDateString();
 
       const initialData = {
-        userName: wizardData.userName || user?.displayName || "Athlete",
-        userEmail: user?.email || "",
+        userName: wizardData.userName || activeUser?.displayName || "Athlete",
+        userEmail: activeUser?.email || "",
         userTitle: "Fitness Enthusiast",
         gender: wizardData.gender || "male",
-        age: wizardData.age || 25,
-        avatarUrl: "",
+        age: Number(wizardData.age) || 25,
+        avatarUrl: activeUser?.photoURL || "",
         coverUrl: "",
-        height: wizardData.height || 168,
-        weight: wizardData.weight || 65,
-        prevWeight: wizardData.weight || 65,
-        targetWeight: wizardData.targetWeight || 62,
-        weightHistory: [{ val: wizardData.weight || 65, date: todayShort }],
-        activityLevel: wizardData.activityLevel || 1.55,
+        height: Number(wizardData.height) || 168,
+        weight: Number(wizardData.weight) || 65,
+        prevWeight: Number(wizardData.weight) || 65,
+        targetWeight: Number(wizardData.targetWeight) || 62,
+        weightHistory: [{ val: Number(wizardData.weight) || 65, date: todayShort }],
+        activityLevel: Number(wizardData.activityLevel) || 1.55,
         dayMode: "workout",
         streakDays: 1,
         lastLogDate: todayStr,
         activeGoalType: wizardData.activeGoalType || "cut",
-        baseGoal: wizardData.baseGoal || 2000,
-        goal: wizardData.baseGoal || 2000,
-        pGoal: wizardData.pGoal || 140,
-        cGoal: wizardData.cGoal || 200,
-        fGoal: wizardData.fGoal || 55,
-        waterTargetMl: wizardData.waterTargetMl || 2500,
+        baseGoal: Number(wizardData.baseGoal) || 2000,
+        goal: Number(wizardData.baseGoal) || 2000,
+        pGoal: Number(wizardData.pGoal) || 140,
+        cGoal: Number(wizardData.cGoal) || 200,
+        fGoal: Number(wizardData.fGoal) || 55,
+        waterTargetMl: Number(wizardData.waterTargetMl) || 2500,
         todayBurnedCal: 0,
         todayWaterMl: 0,
         isBlocked: false,
@@ -1238,18 +1245,26 @@ if (!data?.onboardingCompleted && data?.height && data?.weight && (data?.baseGoa
         meals: []
       };
 
-      await saveToCloud(initialData);
-      if (typeof setAppData === "function") setAppData(initialData);
-      if (typeof setProfName === "function") setProfName(initialData.userName);
-      if (typeof setProfTitle === "function") setProfTitle(initialData.userTitle);
-      if (typeof setProfHeight === "function") setProfHeight(initialData.height);
-      if (typeof setProfWeight === "function") setProfWeight(initialData.weight);
-      if (typeof setProfActivity === "function") setProfActivity(initialData.activityLevel);
-      if (typeof setShowSettingsModal === "function") setShowSettingsModal(false);
-      if (typeof setActiveTab === "function") setActiveTab("home");
-      if (typeof setActivePanel === "function") setActivePanel(null);
+      // 1. Agarang synchronous persistence sa browser
+      if (uid) {
+        localStorage.setItem(`np_onboard_${uid}`, "true");
+        localStorage.setItem(`np_profile_${uid}`, JSON.stringify(initialData));
+        const userDocRef = doc(db, "users", uid);
+        await setDoc(userDocRef, initialData, { merge: true });
+      }
+
+      // 2. Local state updates
+      setAppData(initialData);
+      setProfName(initialData.userName);
+      setProfTitle(initialData.userTitle);
+      setProfHeight(initialData.height);
+      setProfWeight(initialData.weight);
+      setProfActivity(initialData.activityLevel);
+      setShowSettingsModal(false);
+      setActiveTab("home");
+      setActivePanel(null);
     } catch (err) {
-      console.error("Onboarding saving error:", err);
+      console.error("Onboarding save error:", err);
       alert("Error saving profile: " + err.message);
     } finally {
       setIsSavingOnboarding(false);
@@ -1625,7 +1640,8 @@ if (!data?.onboardingCompleted && data?.height && data?.weight && (data?.baseGoa
     );
   }
 
-  if (user && (!appData || !appData.onboardingCompleted)) {
+  const isLocallyCompleted = user?.uid && localStorage.getItem(`np_onboard_${user.uid}`) === "true";
+  if (user && (!appData || !appData.onboardingCompleted) && !isLocallyCompleted) {
     return (
       <AthleteOnboardingWizard
         user={user}
