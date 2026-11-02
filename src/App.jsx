@@ -528,100 +528,123 @@ export default function App() {
     return () => { if (unsubNotifs) unsubNotifs(); };
   }, [user]);
 
-  // 3. ON AUTH STATE CHANGED LISTENER
-  useEffect(() => {
-    document.title = "NutriPulse - Health Dashboard";
-    let heartbeatInterval = null;
+  // 3. ON AUTH STATE CHANGED & REAL-TIME USER DOC LISTENER (100% CLOUD-SYNCED)
+    useEffect(() => {
+      document.title = "NutriPulse - Health Dashboard";
+      let heartbeatInterval = null;
+      let unsubUserDoc = null;
 
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      setUser(currentUser);
-      setShowSettingsModal(false);
-      if (currentUser) {
-        const userDocRef = doc(db, "users", currentUser.uid);
-        try {
-          const docSnap = await getDoc(userDocRef);
-          
-          if (docSnap.exists()) {
-            let data = docSnap.data();
-            const todayStr = new Date().toDateString();
+      const handleVisibilityChange = () => {
+        if (document.visibilityState === "visible" && auth.currentUser) {
+          setDoc(doc(db, "users", auth.currentUser.uid), { lastSeen: Date.now() }, { merge: true }).catch(() => {});
+        }
+      };
 
-            if (data?.lastLogDate && data.lastLogDate !== todayStr) {
-              data = {
-                ...data,
-                todayBurnedCal: 0,
-                todayWaterMl: 0,
-                lastLogDate: todayStr
-              };
-              await setDoc(userDocRef, { todayBurnedCal: 0, todayWaterMl: 0, lastLogDate: todayStr }, { merge: true });
-            }
+      const handleFocus = () => {
+        if (auth.currentUser) {
+          setDoc(doc(db, "users", auth.currentUser.uid), { lastSeen: Date.now() }, { merge: true }).catch(() => {});
+        }
+      };
 
-            setAppData(data || {});
-            if (data?.lastSeenNotifTime) {
-              setLastSeenNotifTimeState(data.lastSeenNotifTime);
-            }
-            if (data?.lastSeenMsgTime) {
-              setLastSeenMsgTimeState(data.lastSeenMsgTime);
-            }
+      const handleBeforeUnload = () => {
+        if (auth.currentUser) {
+          setDoc(doc(db, "users", auth.currentUser.uid), { lastSeen: Date.now() }, { merge: true }).catch(() => {});
+        }
+      };
 
-            const sendPresencePing = () => {
-              setDoc(userDocRef, { lastSeen: Date.now() }, { merge: true }).catch(console.error);
-            };
+      window.addEventListener("visibilitychange", handleVisibilityChange);
+      window.addEventListener("focus", handleFocus);
+      window.addEventListener("beforeunload", handleBeforeUnload);
 
-            sendPresencePing();
-            heartbeatInterval = setInterval(sendPresencePing, 30000);
+      const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
+        setUser(currentUser);
+        setShowSettingsModal(false);
 
-            const handleVisibilityChange = () => {
-              if (document.visibilityState === "visible") {
-                sendPresencePing();
+        if (unsubUserDoc) {
+          unsubUserDoc();
+          unsubUserDoc = null;
+        }
+
+        if (currentUser) {
+          const userDocRef = doc(db, "users", currentUser.uid);
+
+          const sendPresencePing = () => {
+            setDoc(userDocRef, { lastSeen: Date.now() }, { merge: true }).catch(() => {});
+          };
+          sendPresencePing();
+          if (heartbeatInterval) clearInterval(heartbeatInterval);
+          heartbeatInterval = setInterval(sendPresencePing, 30000);
+
+          // ⚡ PERMANENT REAL-TIME CLOUD LISTENER (Eliminates all local rollback)
+          unsubUserDoc = onSnapshot(userDocRef, async (docSnap) => {
+            if (docSnap.exists()) {
+              let data = docSnap.data();
+              const todayStr = new Date().toDateString();
+
+              if (data?.lastLogDate && data.lastLogDate !== todayStr) {
+                data = {
+                  ...data,
+                  todayBurnedCal: 0,
+                  todayWaterMl: 0,
+                  lastLogDate: todayStr
+                };
+                await setDoc(userDocRef, { todayBurnedCal: 0, todayWaterMl: 0, lastLogDate: todayStr }, { merge: true });
               }
-            };
 
-            const handleBeforeUnload = () => {
-              setDoc(userDocRef, { lastSeen: Date.now() }, { merge: true });
-            };
+              setAppData(data || {});
+              if (data?.lastSeenNotifTime) setLastSeenNotifTimeState(data.lastSeenNotifTime);
+              if (data?.lastSeenMsgTime) setLastSeenMsgTimeState(data.lastSeenMsgTime);
 
-            window.addEventListener("visibilitychange", handleVisibilityChange);
-            window.addEventListener("focus", sendPresencePing);
-            window.addEventListener("beforeunload", handleBeforeUnload);
+              setProfName(data?.userName || currentUser.displayName || "Athlete");
+              setProfTitle(data?.userTitle || "Fitness Enthusiast");
+              if (data?.height) setProfHeight(data.height);
+              if (data?.weight) {
+                setProfWeight(data.weight);
+                setNewLogWeight(data.weight);
+              }
+              if (data?.activityLevel) setProfActivity(data.activityLevel);
+              if (data?.isPrivateAccount !== undefined) setProfIsBlocked(data.isPrivateAccount);
+              if (data?.avatarUrl) setAvatarPreview(data.avatarUrl);
+              if (data?.coverUrl) setCoverPreview(data.coverUrl);
 
-            setProfName(data?.userName || currentUser.displayName || "Athlete");
-            setProfTitle(data?.userTitle || "Fitness Enthusiast");
-            setProfHeight(data?.height || 160);
-            setProfWeight(data?.weight || 60);
-            setProfActivity(data?.activityLevel || 1.55);
-            setProfIsBlocked(data?.isPrivateAccount || false);
-            setNewLogWeight(data?.weight || 60);
-            setAvatarPreview(data?.avatarUrl || "");
-            setCoverPreview(data?.coverUrl || "");
-
-            // Auto-grant onboarding completion at diretso agad sa Home Tab
               setOnboardStep(0);
               setShowAuthForm(false);
               setActiveTab("home");
               setActivePanel(null);
-              if (!data?.onboardingCompleted && currentUser?.uid) {
+
+              if (!data?.onboardingCompleted) {
                 setDoc(userDocRef, { onboardingCompleted: true }, { merge: true }).catch(() => {});
               }
-          } else {
+            } else {
               setOnboardStep(0);
               setShowAuthForm(false);
               setActiveTab("home");
               setActivePanel(null);
             }
-        } catch (e) {
-          console.error("Auth doc fetch error:", e);
+            setLoading(false);
+          }, (err) => {
+            console.error("Firestore user onSnapshot error:", err);
+            setLoading(false);
+          });
+        } else {
+          if (heartbeatInterval) {
+            clearInterval(heartbeatInterval);
+            heartbeatInterval = null;
+          }
+          setAppData(null);
+          setLoading(false);
         }
-      } else {
-        if (heartbeatInterval) clearInterval(heartbeatInterval);
-      }
-      setLoading(false);
-    });
+      });
 
-    return () => {
-      unsubscribe();
-      if (heartbeatInterval) clearInterval(heartbeatInterval);
-    };
-  }, []);
+      return () => {
+        unsubscribeAuth();
+        if (unsubUserDoc) unsubUserDoc();
+        if (heartbeatInterval) clearInterval(heartbeatInterval);
+        window.removeEventListener("visibilitychange", handleVisibilityChange);
+        window.removeEventListener("focus", handleFocus);
+        window.removeEventListener("beforeunload", handleBeforeUnload);
+      };
+    }, []);
 
   // 4. WORKOUT TIMER LISTENER
   useEffect(() => {
