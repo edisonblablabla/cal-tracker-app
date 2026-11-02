@@ -177,6 +177,8 @@ export default function App() {
   React.useEffect(() => {
     window.scrollTo(0, 0);
   }, [activeTab]);
+    const [signupName, setSignupName] = useState("");
+  const [isAuthLoading, setIsAuthLoading] = useState(false);
   const [setupGoalType, setSetupGoalType] = useState("jogger");
 
   const [quote, setQuote] = useState(() => FITNESS_QUOTES[Math.floor(Math.random() * FITNESS_QUOTES.length)]);
@@ -1243,7 +1245,7 @@ if (!data?.onboardingCompleted && data?.height && data?.weight && (data?.baseGoa
       if (typeof setProfHeight === "function") setProfHeight(initialData.height);
       if (typeof setProfWeight === "function") setProfWeight(initialData.weight);
       if (typeof setProfActivity === "function") setProfActivity(initialData.activityLevel);
-      if (typeof setOnboardStep === "function") if (typeof setShowSettingsModal === "function") setShowSettingsModal(false);
+      if (typeof setShowSettingsModal === "function") setShowSettingsModal(false);
       if (typeof setActiveTab === "function") setActiveTab("home");
       if (typeof setActivePanel === "function") setActivePanel(null);
     } catch (err) {
