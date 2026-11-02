@@ -823,8 +823,7 @@ export default function CommunityTab({
                 }}
               >
                 <i className="fa-solid fa-fire" style={{ color: leaderboardMetric === "calories" ? "#f97316" : "#64748b" }}></i>
-                Calories
-              </button>
+                Calories Burned</button>
 
               <button
                 type="button"
