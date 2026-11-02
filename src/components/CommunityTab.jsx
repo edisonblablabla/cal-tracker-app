@@ -104,12 +104,14 @@ export default function CommunityTab({
     if (!isFromPopstate && hasPushedHistoryRef.current) {
       hasPushedHistoryRef.current = false;
       try { window.history.back(); } catch (e) {}
+    } else {
+      hasPushedHistoryRef.current = false;
     }
   };
 
   const openDrawerWithHistory = (openFn) => {
     try {
-      window.history.pushState({ communityDrawer: true }, "");
+      window.history.pushState({ tab: "community", communityDrawer: true }, "");
       hasPushedHistoryRef.current = true;
     } catch (e) {}
     openFn();
@@ -1172,7 +1174,7 @@ export default function CommunityTab({
                           <img
                             src={post.imageUrl}
                             alt="Activity"
-                            style={{ width: "100%", maxHeight: "360px", objectFit: "contain", display: "block", margin: "0 auto" }}
+                            style={{ width: "100%", maxHeight: "none", height: "auto", objectFit: "contain", display: "block", margin: "0 auto" }}
                           />
                         </div>
                       )}
@@ -1762,7 +1764,7 @@ export default function CommunityTab({
         {activeHuddlePost && (() => {
           const author = getAthlete(activeHuddlePost.userId, activeHuddlePost.userName);
           return (
-            <div style={{ padding: "14px 16px", background: "#f8fafc", borderBottom: "1px solid #f1f5f9", flexShrink: 0, maxHeight: "50vh", overflowY: "auto" }}>
+            <div style={{ padding: "14px 16px", background: "#f8fafc", borderBottom: "1px solid #f1f5f9", flexShrink: 0, overflowY: "visible" }}>
               <div
                 onClick={() => {
                   closeAllDrawers();
@@ -1793,7 +1795,7 @@ export default function CommunityTab({
                   <img
                     src={activeHuddlePost.imageUrl}
                     alt="Activity Graphic"
-                    style={{ width: "100%", height: "auto", maxHeight: "380px", objectFit: "contain", display: "block", margin: "0 auto" }}
+                    style={{ width: "100%", height: "auto", maxHeight: "none", height: "auto", objectFit: "contain", display: "block", margin: "0 auto" }}
                   />
                 </div>
               )}
