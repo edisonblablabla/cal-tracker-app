@@ -52,21 +52,17 @@ export default function CommunityTab({
   showToast,
   formatPostTime = (ts) => "Just now"
 }) {
-  // ─── TABS & SLIDE-OVER STATE ───
-  const [activeSubTab, setActiveSubTab] = useState("leaderboard"); // 'leaderboard' o 'feed'
-  const [leaderboardMetric, setLeaderboardMetric] = useState("distance"); // 'distance', 'calories', 'streak'
+  const [activeSubTab, setActiveSubTab] = useState("leaderboard");
+  const [leaderboardMetric, setLeaderboardMetric] = useState("distance");
   const [showComposer, setShowComposer] = useState(false);
 
-  // UNIFORM SLIDE-OVER DRAWERS
+  // DRAWERS & PANELS
   const [showNotifDrawer, setShowNotifDrawer] = useState(false);
   const [showInboxDrawer, setShowInboxDrawer] = useState(false);
   const [showSearchDrawer, setShowSearchDrawer] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
-  // DIRECT FIRESTORE ATHLETES SYNC
-  const [dbUsers, setDbUsers] = useState([]);
-
-  // 1-ON-1 CHAT ENGINE STATE
+  // CHAT & POST DETAILS
   const [activeChatPartner, setActiveChatPartner] = useState(null);
   const [chatMessages, setChatMessages] = useState([]);
   const [chatInputText, setChatInputText] = useState("");
@@ -74,60 +70,106 @@ export default function CommunityTab({
   const [liveChats, setLiveChats] = useState([]);
   const chatMessagesEndRef = useRef(null);
 
-  // POST HUDDLE (COMMENTS / DETAIL) STATE
   const [activeHuddlePost, setActiveHuddlePost] = useState(null);
   const [huddleComments, setHuddleComments] = useState([]);
   const [newCommentText, setNewCommentText] = useState("");
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
 
-  // COMMENT EDIT / DELETE STATES
+  // FULLSCREEN PHOTO LIGHTBOX
+  const [viewingPhoto, setViewingPhoto] = useState(null);
+
+  // COMMENT MANAGEMENT
   const [editingCommentId, setEditingCommentId] = useState(null);
   const [editingCommentText, setEditingCommentText] = useState("");
   const [activeCommentMenuId, setActiveCommentMenuId] = useState(null);
 
+  const [dbUsers, setDbUsers] = useState([]);
   const isAdmin = user?.email && String(user.email).toLowerCase().includes("admin");
 
-  // ─── MASTER POPSTATE CONTROLLER (DEVICE BACK BUTTON INTEGRATION) ───
-  const hasOpenDrawer = Boolean(activeHuddlePost || showNotifDrawer || showInboxDrawer || showSearchDrawer || activeChatPartner);
-  const hasPushedHistoryRef = useRef(false);
-
-  const closeAllDrawers = (isFromPopstate = false) => {
-    setShowNotifDrawer(false);
-    setShowInboxDrawer(false);
-    setShowSearchDrawer(false);
-    setActiveChatPartner(null);
-    setActiveHuddlePost(null);
-    setEditingCommentId(null);
-    setActiveCommentMenuId(null);
-    if (typeof setSelectedPost === "function") setSelectedPost(null);
-
-    if (!isFromPopstate && hasPushedHistoryRef.current) {
-      hasPushedHistoryRef.current = false;
-      try { window.history.back(); } catch (e) {}
-    }
-  };
-
-  const openDrawerWithHistory = (openFn) => {
+  // ==============================================================
+  // 🧭 SINGLE-SOURCE-OF-TRUTH NAVIGATION & BACK BUTTON FLOWCHART
+  // ==============================================================
+  const openLayer = (layerName, openFn) => {
     try {
-      window.history.pushState({ communityDrawer: true }, "");
-      hasPushedHistoryRef.current = true;
+      window.history.pushState({ tab: "community", drawer: layerName }, "");
     } catch (e) {}
     openFn();
   };
 
+  const closeCurrentLayer = () => {
+    if (window.history.state?.drawer) {
+      try {
+        window.history.back();
+        return;
+      } catch (e) {}
+    }
+    // Fallback kung walang history state
+    if (viewingPhoto) { setViewingPhoto(null); return; }
+    if (activeChatPartner) { setActiveChatPartner(null); return; }
+    setActiveHuddlePost(null);
+    setShowInboxDrawer(false);
+    setShowSearchDrawer(false);
+    setShowNotifDrawer(false);
+    if (typeof setSelectedPost === "function") setSelectedPost(null);
+  };
+
   useEffect(() => {
-    const handleDeviceBack = (e) => {
-      if (hasOpenDrawer) {
-        if (activeChatPartner) {
-          setActiveChatPartner(null);
-          return;
-        }
-        closeAllDrawers(true);
+    const handlePopState = (e) => {
+      const drawer = e.state?.drawer;
+
+      if (!drawer) {
+        setViewingPhoto(null);
+        setActiveChatPartner(null);
+        setActiveHuddlePost(null);
+        setShowInboxDrawer(false);
+        setShowSearchDrawer(false);
+        setShowNotifDrawer(false);
+        setEditingCommentId(null);
+        setActiveCommentMenuId(null);
+        if (typeof setSelectedPost === "function") setSelectedPost(null);
+        return;
+      }
+
+      if (drawer === "photo") {
+        return;
+      }
+
+      if (drawer === "chat") {
+        setViewingPhoto(null);
+        setShowInboxDrawer(true);
+        return;
+      }
+
+      if (drawer === "inbox") {
+        setViewingPhoto(null);
+        setActiveChatPartner(null);
+        setShowInboxDrawer(true);
+        return;
+      }
+
+      if (drawer === "huddle") {
+        setViewingPhoto(null);
+        return;
+      }
+
+      if (drawer === "search") {
+        setViewingPhoto(null);
+        setShowSearchDrawer(true);
+        return;
+      }
+
+      if (drawer === "notif") {
+        setViewingPhoto(null);
+        setShowNotifDrawer(true);
+        return;
       }
     };
-    window.addEventListener("popstate", handleDeviceBack);
-    return () => window.removeEventListener("popstate", handleDeviceBack);
-  }, [hasOpenDrawer, activeChatPartner]);
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
+  const hasAnyDrawerOpen = Boolean(viewingPhoto || activeHuddlePost || showNotifDrawer || showInboxDrawer || showSearchDrawer || activeChatPartner);
 
   // ─── 1. REALTIME FIRESTORE USERS SYNC ───
   useEffect(() => {
@@ -173,7 +215,6 @@ export default function CommunityTab({
     return { uid, name: fallbackName || "Athlete", photo: "", lastSeen: 0 };
   };
 
-  // ─── 2. ACCURATE REALTIME PRESENCE ───
   const getPartnerPresence = (partnerUid) => {
     if (!partnerUid) return { isOnline: false, text: "Offline", color: "#94a3b8" };
     const athlete = getAthlete(partnerUid);
@@ -187,7 +228,7 @@ export default function CommunityTab({
     return { isOnline: false, text: "Offline", color: "#94a3b8" };
   };
 
-  // ─── 3. ROBUST AVATAR RENDERER (SUPPORTS BASE64, HTTP, HTTPS) ───
+  // ─── 2. ROBUST AVATAR RENDERER (SUPPORTS BASE64, HTTP, HTTPS) ───
   const renderAvatar = (photoUrl, name = "Athlete", size = 34, border = "none") => {
     const pStr = typeof photoUrl === "string" ? photoUrl.trim() : "";
     const hasValidPhoto = pStr &&
@@ -227,7 +268,6 @@ export default function CommunityTab({
     );
   };
 
-  // ─── 4. PROFILE ROUTING ───
   const handleOpenAthleteProfile = (targetUid, fallbackObj = null) => {
     if (!targetUid) return;
     if (targetUid === user?.uid) {
@@ -240,7 +280,7 @@ export default function CommunityTab({
     if (typeof setActivePanel === "function") setActivePanel("visitor_profile");
   };
 
-  // ─── 5. DRAFT POST SYNC (NO AUTOFOCUS) ───
+  // ─── 3. DRAFT POST SYNC (NO AUTOFOCUS) ───
   useEffect(() => {
     if (draftSocialPost) {
       setActiveSubTab("feed");
@@ -251,7 +291,7 @@ export default function CommunityTab({
     }
   }, [draftSocialPost]);
 
-  // ─── 6. REAL-TIME CHATS & MESSAGES ───
+  // ─── 4. REAL-TIME CHATS & MESSAGES ───
   useEffect(() => {
     if (!user?.uid) return;
     const q = query(collection(db, "chats"), where("participants", "array-contains", user.uid));
@@ -282,7 +322,7 @@ export default function CommunityTab({
     return () => unsub();
   }, [user?.uid, activeChatPartner]);
 
-  // ─── 7. REAL-TIME COMMENTS LISTENER (posts/{postId}/comments) ───
+  // ─── 5. REAL-TIME COMMENTS LISTENER ───
   useEffect(() => {
     if (!activeHuddlePost?.id) {
       setHuddleComments([]);
@@ -297,7 +337,7 @@ export default function CommunityTab({
     return () => unsub();
   }, [activeHuddlePost?.id]);
 
-  // ─── UNREAD COUNTS ───
+  // ─── UNREAD BADGES ───
   const unreadMsgCount = useMemo(() => {
     const list = liveChats.length > 0 ? liveChats : inboxChats;
     if (!Array.isArray(list)) return 0;
@@ -309,7 +349,7 @@ export default function CommunityTab({
     return allUserNotifs.filter(n => (n.timestamp || 0) > (lastSeenNotifTime || 0)).length;
   }, [allUserNotifs, lastSeenNotifTime]);
 
-  // ─── SEARCH RESULTS (CLEAN: ZERO RESULTS KUNG WALANG QUERY) ───
+  // ─── SEARCH RESULTS (ZERO KUNG WALANG QUERY) ───
   const searchResults = useMemo(() => {
     if (!searchQuery.trim()) return [];
     const q = searchQuery.toLowerCase().trim();
@@ -502,14 +542,16 @@ export default function CommunityTab({
     }
   };
 
-  // COMMON DRAWER STYLES NA WALANG GUWANG SA KALIWA SA MOBILE AT NAKASANDAL SA KANAN SA TABLET
+  // FULL-BLEED MOBILE AT CENTERED TABLET DRAWER
   const getDrawerStyle = (isOpen) => ({
     position: "fixed",
     top: 0,
     bottom: 0,
+    left: 0,
     right: 0,
     width: "100%",
-    maxWidth: "500px",
+    maxWidth: "480px",
+    margin: "0 auto",
     height: "100dvh",
     backgroundColor: "#ffffff",
     zIndex: 4000,
@@ -550,6 +592,8 @@ export default function CommunityTab({
           height: "50px",
           padding: "0 16px",
           width: "100%",
+          maxWidth: "480px",
+          margin: "0 auto",
           boxSizing: "border-box"
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
@@ -580,7 +624,7 @@ export default function CommunityTab({
             {/* 🔍 SEARCH */}
             <button
               type="button"
-              onClick={() => openDrawerWithHistory(() => setShowSearchDrawer(true))}
+              onClick={() => openLayer("search", () => setShowSearchDrawer(true))}
               style={{ width: "32px", height: "32px", background: "none", border: "none", borderRadius: "8px", cursor: "pointer", color: "#334155", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}
               title="Search Athletes"
             >
@@ -590,7 +634,7 @@ export default function CommunityTab({
             {/* 💬 MESSAGES */}
             <button
               type="button"
-              onClick={() => openDrawerWithHistory(() => {
+              onClick={() => openLayer("inbox", () => {
                 setShowInboxDrawer(true);
                 setActiveChatPartner(null);
                 if (typeof setLastSeenMsgTime === "function") setLastSeenMsgTime(Date.now());
@@ -609,7 +653,7 @@ export default function CommunityTab({
             {/* 🔔 NOTIFICATIONS */}
             <button
               type="button"
-              onClick={() => openDrawerWithHistory(() => {
+              onClick={() => openLayer("notif", () => {
                 setShowNotifDrawer(true);
                 if (typeof setLastSeenNotifTime === "function") setLastSeenNotifTime(Date.now());
               })}
@@ -635,7 +679,7 @@ export default function CommunityTab({
         </div>
 
         {/* Row 2: Fixed Switcher */}
-        <div style={{ padding: "0 16px 8px 16px", maxWidth: "560px", margin: "0 auto", boxSizing: "border-box" }}>
+        <div style={{ padding: "0 16px 8px 16px", maxWidth: "480px", margin: "0 auto", boxSizing: "border-box" }}>
           <div style={{ display: "flex", background: "#f1f5f9", borderRadius: "10px", padding: "2.5px" }}>
             <button
               type="button"
@@ -691,7 +735,7 @@ export default function CommunityTab({
       </div>
 
       {/* ─── BODY WRAPPER ─── */}
-      <div style={{ paddingTop: "104px" }}>
+      <div style={{ paddingTop: "104px", maxWidth: "480px", margin: "0 auto" }}>
 
         {/* 🏆 LEADERBOARD VIEW */}
         {activeSubTab === "leaderboard" && (
@@ -906,6 +950,8 @@ export default function CommunityTab({
               bottom: "65px",
               left: "14px",
               right: "14px",
+              maxWidth: "452px",
+              margin: "0 auto",
               background: "linear-gradient(90deg, #f0f9ff 0%, #e0f2fe 100%)",
               borderRadius: "12px",
               padding: "10px 14px",
@@ -939,7 +985,7 @@ export default function CommunityTab({
         {activeSubTab === "feed" && (
           <div style={{ padding: "0 16px" }}>
 
-            {/* Post Composer Card (NO AUTOFOCUS) */}
+            {/* Post Composer Card */}
             <div style={{ background: "#ffffff", borderRadius: "14px", padding: "14px", border: "1px solid #f1f5f9", boxShadow: "0 2px 6px rgba(0,0,0,0.02)", marginBottom: "16px" }}>
               <h3 style={{ margin: "0 0 8px 0", fontSize: "13.5px", fontWeight: 800, color: "#0f172a" }}>
                 Share Athletic Activity
@@ -1120,9 +1166,9 @@ export default function CommunityTab({
                       )}
                     </div>
 
-                    {/* TAP TO OPEN HUDDLE DETAILS */}
+                    {/* TAP POST TEXT TO OPEN ACTIVITY HUDDLE */}
                     <div
-                      onClick={() => openDrawerWithHistory(() => {
+                      onClick={() => openLayer("huddle", () => {
                         setActiveHuddlePost(post);
                         if (typeof setSelectedPost === "function") setSelectedPost(post);
                       })}
@@ -1165,18 +1211,22 @@ export default function CommunityTab({
                           </div>
                         </div>
                       )}
-
-                      {/* BUO AT HINDI PUTOL NA LARAWAN */}
-                      {post.imageUrl && (
-                        <div style={{ borderRadius: "10px", overflow: "hidden", marginBottom: "10px", border: "1px solid #f1f5f9", background: "#0f172a" }}>
-                          <img
-                            src={post.imageUrl}
-                            alt="Activity"
-                            style={{ width: "100%", maxHeight: "360px", objectFit: "contain", display: "block", margin: "0 auto" }}
-                          />
-                        </div>
-                      )}
                     </div>
+
+                    {/* TAP IMAGE DIRECTLY TO OPEN FULLSCREEN PHOTO LIGHTBOX */}
+                    {post.imageUrl && (
+                      <div
+                        onClick={() => openLayer("photo", () => setViewingPhoto(post.imageUrl))}
+                        style={{ borderRadius: "10px", overflow: "hidden", marginBottom: "10px", border: "1px solid #f1f5f9", background: "#0b0f19", cursor: "zoom-in" }}
+                        title="Tap to zoom full picture"
+                      >
+                        <img
+                          src={post.imageUrl}
+                          alt="Activity"
+                          style={{ width: "100%", maxHeight: "360px", objectFit: "contain", display: "block", margin: "0 auto" }}
+                        />
+                      </div>
+                    )}
 
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid #f8fafc", paddingTop: "10px" }}>
                       <button
@@ -1202,7 +1252,7 @@ export default function CommunityTab({
 
                       <button
                         type="button"
-                        onClick={() => openDrawerWithHistory(() => {
+                        onClick={() => openLayer("huddle", () => {
                           setActiveHuddlePost(post);
                           if (typeof setSelectedPost === "function") setSelectedPost(post);
                         })}
@@ -1238,7 +1288,7 @@ export default function CommunityTab({
       </div>
 
       {/* ============================================================== */}
-      {/* 💬 1. 1-ON-1 CHAT DRAWER (FULL-WIDTH SA MOBILE, ZERO GAP)        */}
+      {/* 💬 1. 1-ON-1 CHAT DRAWER                                       */}
       {/* ============================================================== */}
       <div style={getDrawerStyle(showInboxDrawer)}>
         <div style={{
@@ -1285,7 +1335,7 @@ export default function CommunityTab({
 
           <button
             type="button"
-            onClick={() => closeAllDrawers()}
+            onClick={closeCurrentLayer}
             style={{ background: "#f1f5f9", border: "none", width: "28px", height: "28px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#64748b", fontSize: "14px", fontWeight: 800 }}
           >
             ✕
@@ -1407,7 +1457,7 @@ export default function CommunityTab({
                 type="button"
                 onClick={() => {
                   setShowInboxDrawer(false);
-                  setShowSearchDrawer(true);
+                  openLayer("search", () => setShowSearchDrawer(true));
                 }}
                 style={{ background: "none", border: "none", color: "#0284c7", fontSize: "11px", fontWeight: 800, cursor: "pointer", padding: 0 }}
               >
@@ -1424,7 +1474,7 @@ export default function CommunityTab({
                   return (
                     <div
                       key={chat.id}
-                      onClick={() => setActiveChatPartner(recipient)}
+                      onClick={() => openLayer("chat", () => setActiveChatPartner(recipient))}
                       style={{
                         display: "flex",
                         alignItems: "center",
@@ -1462,7 +1512,7 @@ export default function CommunityTab({
                     type="button"
                     onClick={() => {
                       setShowInboxDrawer(false);
-                      setShowSearchDrawer(true);
+                      openLayer("search", () => setShowSearchDrawer(true));
                     }}
                     style={{
                       padding: "8px 16px",
@@ -1485,7 +1535,7 @@ export default function CommunityTab({
       </div>
 
       {/* ============================================================== */}
-      {/* 🔍 2. SEARCH ATHLETES DRAWER (ZERO RESULTS KUNG EMPTY)          */}
+      {/* 🔍 2. SEARCH ATHLETES DRAWER                                   */}
       {/* ============================================================== */}
       <div style={getDrawerStyle(showSearchDrawer)}>
         <div style={{ height: "54px", padding: "0 16px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #f1f5f9", backgroundColor: "#ffffff", flexShrink: 0 }}>
@@ -1497,7 +1547,7 @@ export default function CommunityTab({
           </div>
           <button
             type="button"
-            onClick={() => closeAllDrawers()}
+            onClick={closeCurrentLayer}
             style={{ background: "#f1f5f9", border: "none", width: "28px", height: "28px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#64748b", fontSize: "14px", fontWeight: 800 }}
           >
             ✕
@@ -1559,7 +1609,7 @@ export default function CommunityTab({
                 >
                   <div
                     onClick={() => {
-                      closeAllDrawers();
+                      closeCurrentLayer();
                       handleOpenAthleteProfile(aUid, athlete);
                     }}
                     style={{ display: "flex", alignItems: "center", gap: "10px", minWidth: 0, flex: 1, cursor: "pointer" }}
@@ -1581,8 +1631,10 @@ export default function CommunityTab({
                         type="button"
                         onClick={() => {
                           setShowSearchDrawer(false);
-                          setActiveChatPartner({ uid: aUid, id: aUid, userName: aName, avatarUrl: aPhoto });
-                          setShowInboxDrawer(true);
+                          openLayer("chat", () => {
+                            setActiveChatPartner({ uid: aUid, id: aUid, userName: aName, avatarUrl: aPhoto });
+                            setShowInboxDrawer(true);
+                          });
                         }}
                         style={{
                           background: "#f0f9ff",
@@ -1607,7 +1659,7 @@ export default function CommunityTab({
                     <button
                       type="button"
                       onClick={() => {
-                        closeAllDrawers();
+                        closeCurrentLayer();
                         handleOpenAthleteProfile(aUid, athlete);
                       }}
                       style={{
@@ -1649,7 +1701,7 @@ export default function CommunityTab({
           </div>
           <button
             type="button"
-            onClick={() => closeAllDrawers()}
+            onClick={closeCurrentLayer}
             style={{ background: "#f1f5f9", border: "none", width: "28px", height: "28px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#64748b", fontSize: "14px", fontWeight: 800 }}
           >
             ✕
@@ -1683,9 +1735,9 @@ export default function CommunityTab({
                     if (notif.postId && Array.isArray(publicCommunityPosts)) {
                       const targetPost = publicCommunityPosts.find(p => p.id === notif.postId);
                       if (targetPost) {
-                        openDrawerWithHistory(() => {
+                        setShowNotifDrawer(false);
+                        openLayer("huddle", () => {
                           setActiveHuddlePost(targetPost);
-                          setShowNotifDrawer(false);
                         });
                       } else if (showToast) {
                         showToast("Post may have been removed.");
@@ -1693,10 +1745,10 @@ export default function CommunityTab({
                     } else if (notif.type === "chat" || notif.chatPartnerUid) {
                       const partnerUid = notif.chatPartnerUid || notif.senderUid;
                       const partner = getAthlete(partnerUid);
-                      openDrawerWithHistory(() => {
+                      setShowNotifDrawer(false);
+                      openLayer("chat", () => {
                         setActiveChatPartner({ uid: partnerUid, userName: partner.name, avatarUrl: partner.photo });
                         setShowInboxDrawer(true);
-                        setShowNotifDrawer(false);
                       });
                     }
                   }}
@@ -1740,7 +1792,7 @@ export default function CommunityTab({
       </div>
 
       {/* ============================================================== */}
-      {/* 💬 4. POST HUDDLE (COMMENTS) DRAWER (BUONG IMAGE, EDIT/DELETE) */}
+      {/* 💬 4. POST HUDDLE (COMMENTS & DETAIL) DRAWER                   */}
       {/* ============================================================== */}
       <div style={getDrawerStyle(Boolean(activeHuddlePost))}>
         <div style={{ height: "54px", padding: "0 16px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #f1f5f9", backgroundColor: "#ffffff", flexShrink: 0 }}>
@@ -1752,7 +1804,7 @@ export default function CommunityTab({
           </div>
           <button
             type="button"
-            onClick={() => closeAllDrawers()}
+            onClick={closeCurrentLayer}
             style={{ background: "#f1f5f9", border: "none", width: "28px", height: "28px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#64748b", fontSize: "14px", fontWeight: 800 }}
           >
             ✕
@@ -1762,10 +1814,10 @@ export default function CommunityTab({
         {activeHuddlePost && (() => {
           const author = getAthlete(activeHuddlePost.userId, activeHuddlePost.userName);
           return (
-            <div style={{ padding: "14px 16px", background: "#f8fafc", borderBottom: "1px solid #f1f5f9", flexShrink: 0, maxHeight: "50vh", overflowY: "auto" }}>
+            <div style={{ padding: "14px 16px", background: "#f8fafc", borderBottom: "1px solid #f1f5f9", flexShrink: 0, maxHeight: "55vh", overflowY: "auto" }}>
               <div
                 onClick={() => {
-                  closeAllDrawers();
+                  closeCurrentLayer();
                   handleOpenAthleteProfile(activeHuddlePost.userId, author);
                 }}
                 style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px", cursor: "pointer" }}
@@ -1787,13 +1839,17 @@ export default function CommunityTab({
                 </p>
               )}
 
-              {/* BUONG-BUO AT HINDI PUTOL NA LARAWAN O MAPA */}
+              {/* TAP POST IMAGE TO ZOOM IN FULLSCREEN LIGHTBOX */}
               {activeHuddlePost.imageUrl && (
-                <div style={{ borderRadius: "10px", overflow: "hidden", border: "1px solid #e2e8f0", background: "#0f172a", marginBottom: "8px" }}>
+                <div
+                  onClick={() => openLayer("photo", () => setViewingPhoto(activeHuddlePost.imageUrl))}
+                  style={{ borderRadius: "10px", overflow: "hidden", border: "1px solid #e2e8f0", background: "#0b0f19", marginBottom: "8px", cursor: "zoom-in" }}
+                  title="Tap to zoom picture"
+                >
                   <img
                     src={activeHuddlePost.imageUrl}
                     alt="Activity Graphic"
-                    style={{ width: "100%", height: "auto", maxHeight: "380px", objectFit: "contain", display: "block", margin: "0 auto" }}
+                    style={{ width: "100%", maxHeight: "360px", objectFit: "contain", display: "block", margin: "0 auto" }}
                   />
                 </div>
               )}
@@ -1816,12 +1872,11 @@ export default function CommunityTab({
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "4px" }}>
                     <div
                       onClick={() => {
-                        closeAllDrawers();
+                        closeCurrentLayer();
                         handleOpenAthleteProfile(c.userId || c.uid, commenter);
                       }}
                       style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer" }}
                     >
-                      {/* DYNAMIC AVATAR LOOKUP */}
                       {renderAvatar(commenterAvatar, commenter.name, 28)}
                       <div>
                         <span style={{ fontSize: "12px", fontWeight: 800, color: "#0f172a" }}>{commenter.name}</span>
@@ -1956,10 +2011,71 @@ export default function CommunityTab({
         </form>
       </div>
 
-      {/* 🌑 UNIVERSAL BACKDROP OVERLAY */}
-      {hasOpenDrawer && (
+      {/* ============================================================== */}
+      {/* 🖼️ 5. FULLSCREEN PHOTO LIGHTBOX VIEWER                         */}
+      {/* ============================================================== */}
+      {viewingPhoto && (
         <div
-          onClick={() => closeAllDrawers()}
+          onClick={closeCurrentLayer}
+          style={{
+            position: "fixed",
+            inset: 0,
+            width: "100vw",
+            height: "100dvh",
+            backgroundColor: "rgba(0, 0, 0, 0.94)",
+            zIndex: 99999,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "16px",
+            boxSizing: "border-box",
+            backdropFilter: "blur(6px)"
+          }}
+        >
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); closeCurrentLayer(); }}
+            style={{
+              position: "absolute",
+              top: "16px",
+              right: "16px",
+              background: "rgba(255, 255, 255, 0.2)",
+              border: "none",
+              width: "36px",
+              height: "36px",
+              borderRadius: "50%",
+              color: "#ffffff",
+              fontSize: "18px",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              zIndex: 100000
+            }}
+          >
+            ✕
+          </button>
+          <img
+            src={viewingPhoto}
+            alt="Full Photo"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              maxWidth: "100%",
+              maxHeight: "92dvh",
+              objectFit: "contain",
+              display: "block",
+              margin: "0 auto",
+              borderRadius: "8px",
+              boxShadow: "0 10px 40px rgba(0, 0, 0, 0.6)"
+            }}
+          />
+        </div>
+      )}
+
+      {/* 🌑 UNIVERSAL BACKDROP OVERLAY */}
+      {hasAnyDrawerOpen && !viewingPhoto && (
+        <div
+          onClick={closeCurrentLayer}
           style={{
             position: "fixed",
             inset: 0,
