@@ -108,11 +108,68 @@ export default function App() {
   // syncedAppData ang ipapasa sa lahat ng Tabs upang 100% magkatugma ang streak
   const syncedAppData = useMemo(() => {
     if (!appData) return null;
+
+    // 1. Sentralisadong Hakbang (Steps)
+    const computedSteps = Number(appData?.todaySteps ?? appData?.steps ?? 0);
+
+    // 2. Sentralisadong Active Burn (Calories Burned mula sa workouts, GPS, at steps)
+    const workoutBurn = (appData?.workoutLogs || []).reduce((acc, w) => acc + (Number(w.burnedCal || w.calories) || 0), 0);
+    const routeBurn = (appData?.gpsRoutes || appData?.activities || []).reduce((acc, r) => acc + (Number(r.burnedCal || r.calories) || 0), 0);
+    const stepBurn = Math.round(computedSteps * 0.045);
+    const baseBurn = Number(appData?.todayBurnedCal || appData?.caloriesBurned || 0);
+    const computedBurn = Math.max(workoutBurn, routeBurn, stepBurn, baseBurn);
+
+    // 3. Sentralisadong Distansya (Distance sa KM mula sa GPS, workouts, at steps)
+    const workoutDist = (appData?.workoutLogs || []).reduce((acc, w) => acc + (Number(w.distanceKm || w.distance) || 0), 0);
+    const routeDist = (appData?.gpsRoutes || appData?.activities || []).reduce((acc, r) => acc + (Number(r.distanceKm || r.distance) || 0), 0);
+    const stepDist = Number((computedSteps * 0.00075).toFixed(2));
+    const baseDist = Number(appData?.totalDistance || appData?.distanceKm || 0);
+    const computedDist = Number(Math.max(workoutDist, routeDist, stepDist, baseDist).toFixed(2));
+
     return {
       ...appData,
-      streakDays: accurateStreak
+      // Streak Sync
+      streakDays: accurateStreak,
+      streak: accurateStreak,
+      // Steps Sync (Parehong sinusuportahan ang steps at todaySteps)
+      steps: computedSteps,
+      todaySteps: computedSteps,
+      // Active Burn Sync (Lahat ng alias ay may parehong halaga)
+      todayBurnedCal: computedBurn,
+      caloriesBurned: computedBurn,
+      burnedCalories: computedBurn,
+      totalBurnedCalories: computedBurn,
+      burnedCal: computedBurn,
+      // Distance Sync (Lahat ng alias ay may parehong halaga)
+      totalDistance: computedDist,
+      distanceKm: computedDist,
+      totalDistanceKm: computedDist
     };
   }, [appData, accurateStreak]);
+  // Auto-persist synced metrics to Firestore for persistent Leaderboard visibility
+  useEffect(() => {
+    if (!user?.uid || !syncedAppData) return;
+    const timer = setTimeout(() => {
+      const userDocRef = doc(db, "users", user.uid);
+      setDoc(userDocRef, {
+        totalDistance: syncedAppData.totalDistance,
+        distanceKm: syncedAppData.distanceKm,
+        totalDistanceKm: syncedAppData.totalDistanceKm,
+        todayBurnedCal: syncedAppData.todayBurnedCal,
+        todaySteps: syncedAppData.todaySteps,
+        steps: syncedAppData.steps,
+        streakDays: syncedAppData.streakDays
+      }, { merge: true }).catch(() => {});
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [
+    user?.uid,
+    syncedAppData?.totalDistance,
+    syncedAppData?.todayBurnedCal,
+    syncedAppData?.todaySteps,
+    syncedAppData?.streakDays
+  ]);
+
   const [activeTab, setActiveTab] = useState("home");
 
   // AUTO-SCROLL TO TOP ON TAB SWITCH
@@ -1753,7 +1810,7 @@ export default function App() {
         {activeTab === "diary" && (
           <DiaryTab
               user={user}
-              appData={appData}
+              appData={syncedAppData || appData}
               saveToCloud={saveToCloud}
               showToast={showToast}
               totalCal={totalCal}

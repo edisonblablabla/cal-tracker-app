@@ -385,12 +385,21 @@ export default function CommunityTab({
 
     const processed = list.map(u => {
       const uid = u.uid || u.id;
-      const rawDist = Number(u.totalDistance || u.distanceKm || u.totalDistanceKm || 0);
-      const stepsDist = Number(u.steps || 0) * 0.00075;
+      const isSelf = user && (uid === user.uid || uid === user.id);
+      const rawDist = isSelf && appData?.totalDistance !== undefined
+        ? Number(appData.totalDistance)
+        : Number(u.totalDistance || u.distanceKm || u.totalDistanceKm || 0);
+      const stepsDist = isSelf && (appData?.steps !== undefined || appData?.todaySteps !== undefined)
+        ? Number(appData?.todaySteps ?? appData?.steps ?? 0) * 0.00075
+        : Number(u.steps || u.todaySteps || 0) * 0.00075;
       const dist = Math.max(rawDist, stepsDist);
 
-      const cal = Number(u.todayBurnedCal || u.totalBurnedCalories || u.burnedCal || u.calories || (dist > 0 ? dist * 60 : 0)) || 0;
-      const streak = Number(u.streakDays || u.streak || 0);
+      const cal = isSelf && appData?.todayBurnedCal !== undefined
+        ? Number(appData.todayBurnedCal)
+        : Number(u.todayBurnedCal || u.totalBurnedCalories || u.burnedCal || u.calories || (dist > 0 ? dist * 60 : 0)) || 0;
+      const streak = isSelf && appData?.streakDays !== undefined
+        ? Number(appData.streakDays)
+        : Number(u.streakDays || u.streak || 0);
       const name = u.userName || u.displayName || u.name || "Athlete";
       const photo = u.avatarUrl || u.photoURL || u.photo || "";
 

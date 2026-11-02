@@ -163,8 +163,9 @@ export default function ProfileTab({
 
   const totalDistance = useMemo(() => {
     const rawDist = Number(appData?.totalDistance || appData?.distanceKm || 0);
-    const stepDist = (Number(appData?.steps || 0) * 0.00075);
-    return Math.max(rawDist, stepDist).toFixed(1);
+    const stepDist = (Number(appData?.steps || appData?.todaySteps || 0) * 0.00075);
+    const maxD = Math.max(rawDist, stepDist);
+    return maxD > 0 && maxD < 10 ? maxD.toFixed(2) : maxD.toFixed(1);
   }, [appData?.totalDistance, appData?.distanceKm, appData?.steps]);
 
   const totalCalories = useMemo(() => {
