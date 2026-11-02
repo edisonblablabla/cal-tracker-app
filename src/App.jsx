@@ -10,6 +10,7 @@ import {
 } from "./constants/data";
 import ExpandableText from "./components/ExpandableText";
 import AuthScreen from "./components/AuthScreen";
+import AthleteOnboardingWizard from "./components/AthleteOnboardingWizard";
 import HomeTab from "./components/HomeTab";
 import MapTracker from "./components/MapTracker";
 import DiaryTab from "./components/DiaryTab";
@@ -179,6 +180,8 @@ export default function App() {
 
   const [onboardStep, setOnboardStep] = useState(0);
   const [setupName, setSetupName] = useState("");
+  const [signupName, setSignupName] = useState("");
+  const [isAuthLoading, setIsAuthLoading] = useState(false);
   const [setupHeight, setSetupHeight] = useState("165");
   const [setupWeight, setSetupWeight] = useState("60");
   const [setupActivity, setSetupActivity] = useState("1.55");
@@ -1267,37 +1270,45 @@ export default function App() {
   };
 
   const handleEmailAuth = async (e) => {
-    e.preventDefault();
+    if (e && e.preventDefault) e.preventDefault();
     setErrorMessage("");
-    setShowSettingsModal(false);
+    setIsAuthLoading(true);
+
     if (!email || !password) {
-      setErrorMessage("Please enter your email and password.");
+      setErrorMessage("Please enter both email and password.");
+      setIsAuthLoading(false);
       return;
     }
+
     try {
       let userCredential;
       if (authMode === "signup") {
         userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        if (userCredential?.user && signupName) {
+          try {
+            await updateProfile(userCredential.user, { displayName: signupName.trim() });
+          } catch (pErr) {}
+        }
       } else {
         userCredential = await signInWithEmailAndPassword(auth, email, password);
       }
+
       if (userCredential?.user) {
         setUser(userCredential.user);
       }
       setShowAuthForm(false);
-      setOnboardStep(0);
-      setActiveTab("home");
-      setActivePanel(null);
     } catch (error) {
       if (error.code === "auth/invalid-credential" || error.code === "auth/user-not-found" || error.code === "auth/wrong-password") {
         setErrorMessage("Invalid email or password. Please try again.");
       } else if (error.code === "auth/email-already-in-use") {
-        setErrorMessage("An account is already registered with this email.");
+        setErrorMessage("An account is already registered with this email. Please sign in instead.");
       } else if (error.code === "auth/weak-password") {
         setErrorMessage("Password must be at least 6 characters long.");
       } else {
         setErrorMessage(error.message);
       }
+    } finally {
+      setIsAuthLoading(false);
     }
   };
 
@@ -1608,85 +1619,35 @@ export default function App() {
   if (!user) {
     return (
       <AuthScreen
-        showAuthForm={showAuthForm}
-        setShowAuthForm={setShowAuthForm}
-        onboardSlideIdx={onboardSlideIdx}
-        setOnboardSlideIdx={setOnboardSlideIdx}
-        authMode={authMode}
-        setAuthMode={setAuthMode}
-        email={email}
-        setEmail={setEmail}
-        password={password}
-        setPassword={setPassword}
-        errorMessage={errorMessage}
-        setErrorMessage={setErrorMessage}
-        handleEmailAuth={handleEmailAuth}
-        handleGoogleSignIn={handleGoogleSignIn}
+          showAuthForm={showAuthForm}
+          setShowAuthForm={setShowAuthForm}
+          onboardSlideIdx={onboardSlideIdx}
+          setOnboardSlideIdx={setOnboardSlideIdx}
+          authMode={authMode}
+          setAuthMode={setAuthMode}
+          email={email}
+          setEmail={setEmail}
+          password={password}
+          setPassword={setPassword}
+          signupName={signupName}
+          setSignupName={setSignupName}
+          errorMessage={errorMessage}
+          setErrorMessage={setErrorMessage}
+          handleEmailAuth={handleEmailAuth}
+          handleGoogleSignIn={handleGoogleSignIn}
+          isAuthLoading={isAuthLoading}
+        />
+    );
+  }
+
+  if (user && (!appData || !appData.onboardingCompleted)) {
+    return (
+      <AthleteOnboardingWizard
+        user={user}
+        initialName={signupName || user.displayName || ""}
+        onComplete={completeOnboardingFromWizard}
+        isSaving={isSavingOnboarding}
       />
-    );
-  }
-
-  if (onboardStep === 1) {
-    return (
-      <div className="mobile-frame" style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}>
-        <div className="card" style={{ maxWidth: "360px", width: "100%", padding: "24px", textAlign: "center" }}>
-          <h3 style={{ fontSize: "18px", fontWeight: 800, marginBottom: "12px" }}>Health & Safety Disclaimer</h3>
-          <p style={{ fontSize: "12px", color: "var(--text-muted)", lineHeight: 1.5, marginBottom: "20px" }}>
-            NutriPulse is designed for general fitness and informational tracking only. It does not provide medical advice. Please consult a physician before starting any diet or training program.
-          </p>
-          <button className="btn-block" onClick={() => setOnboardStep(2)}>
-            I Understand & Agree
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  if (onboardStep === 2) {
-    return (
-      <div className="mobile-frame" style={{ padding: "20px", overflowY: "auto" }}>
-        <div className="card" style={{ maxWidth: "360px", margin: "0 auto", padding: "24px" }}>
-          <h3 style={{ fontSize: "18px", fontWeight: 800, textAlign: "center", marginBottom: "6px" }}>Setup Fitness Profile</h3>
-          <p style={{ fontSize: "11px", color: "var(--text-muted)", textAlign: "center", marginBottom: "16px" }}>Customize your physical metrics for accurate target calculations.</p>
-
-          <label style={{ fontSize: "11px", fontWeight: 700 }}>Your Name</label>
-          <input type="text" className="form-input" placeholder="e.g. Edison" value={setupName} onChange={e => setSetupName(e.target.value)} />
-
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
-            <div>
-              <label style={{ fontSize: "11px", fontWeight: 700 }}>Height (cm)</label>
-              <input type="number" className="form-input" value={setupHeight} onChange={e => setSetupHeight(e.target.value)} />
-            </div>
-            <div>
-              <label style={{ fontSize: "11px", fontWeight: 700 }}>Weight (kg)</label>
-              <input type="number" className="form-input" value={setupWeight} onChange={e => setSetupWeight(e.target.value)} />
-            </div>
-          </div>
-
-          <label style={{ fontSize: "11px", fontWeight: 700 }}>Activity Level</label>
-          <select className="form-select" value={setupActivity} onChange={e => setSetupActivity(e.target.value)}>
-            <option value="1.2">Sedentary (Little or no exercise)</option>
-            <option value="1.375">Light Exercise (1-3 days/week)</option>
-            <option value="1.55">Moderate Exercise (3-5 days/week)</option>
-            <option value="1.725">Heavy Athlete (6-7 days/week)</option>
-          </select>
-
-          <label style={{ fontSize: "11px", fontWeight: 700 }}>Primary Objective</label>
-          <select className="form-select" value={setupGoalType} onChange={e => setSetupGoalType(e.target.value)}>
-            <option value="jogger">Daily Jogger / Casual Runner</option>
-            <option value="marathon">Endurance & Marathon Prep</option>
-            <option value="steps">Daily 10k Steps / Fat Loss</option>
-            <option value="bulk">Lean Bulk (Clean Muscle Gain)</option>
-            <option value="cut">Aggressive Cut (Fast Fat Loss)</option>
-            <option value="recomp">Body Recomposition</option>
-            <option value="dirty">Heavy Mass Gain</option>
-          </select>
-
-          <button className="btn-block" onClick={completeOnboarding} disabled={isSavingOnboarding} style={{ marginTop: "10px" }}>
-            {isSavingOnboarding ? "Saving Profile..." : "Save & Continue"}
-          </button>
-        </div>
-      </div>
     );
   }
 
