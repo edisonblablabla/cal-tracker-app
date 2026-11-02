@@ -19,7 +19,7 @@ import CommunityTab from "./components/CommunityTab";
 import ProfileTab from "./components/ProfileTab";
 import AdminTab from "./components/AdminTab";
 import ModalsLayer from "./components/ModalsLayer";
-import React, { useState, useEffect, useRef } from "react";
+import React, {  useState, useEffect, useRef , useMemo } from "react";
 import { 
   signInWithPopup, 
   createUserWithEmailAndPassword,
@@ -53,6 +53,66 @@ export default function App() {
   const [confirmModal, setConfirmModal] = useState(null);
 
   const [appData, setAppData] = useState(null);
+
+  // ─── 🌐 SENTRAL NA STREAK ENGINE (SINGLE SOURCE OF TRUTH) ───
+  const accurateStreak = useMemo(() => {
+    if (!appData) return 0;
+    const activeDates = new Set();
+    (appData.meals || []).forEach((m) => {
+      const d = m.dateLogged || m.date;
+      if (d) activeDates.add(String(d).slice(0, 10));
+    });
+    (appData.workoutLogs || []).forEach((w) => {
+      const d = w.dateLogged || w.date;
+      if (d) activeDates.add(String(d).slice(0, 10));
+    });
+    (appData.waterLogs || []).forEach((wt) => {
+      const d = wt.dateLogged || wt.date;
+      if (d) activeDates.add(String(d).slice(0, 10));
+    });
+    (appData.weightHistory || []).forEach((wh) => {
+      const d = wh.dateLogged || wh.date;
+      if (d) activeDates.add(String(d).slice(0, 10));
+    });
+
+    const storedStreak = Number(appData.streakDays) || 0;
+    if (activeDates.size === 0) return storedStreak;
+
+    let streak = 0;
+    const today = new Date();
+    const todayISO = today.toLocaleDateString("en-CA");
+    const yesterday = new Date();
+    yesterday.setDate(today.getDate() - 1);
+    const yesterdayISO = yesterday.toLocaleDateString("en-CA");
+
+    let checkDate = activeDates.has(todayISO)
+      ? new Date()
+      : activeDates.has(yesterdayISO)
+        ? yesterday
+        : null;
+
+    if (!checkDate) return storedStreak > 0 ? storedStreak : 0;
+
+    while (checkDate) {
+      const iso = checkDate.toLocaleDateString("en-CA");
+      if (activeDates.has(iso)) {
+        streak++;
+        checkDate.setDate(checkDate.getDate() - 1);
+      } else {
+        break;
+      }
+    }
+    return Math.max(streak, storedStreak);
+  }, [appData]);
+
+  // syncedAppData ang ipapasa sa lahat ng Tabs upang 100% magkatugma ang streak
+  const syncedAppData = useMemo(() => {
+    if (!appData) return null;
+    return {
+      ...appData,
+      streakDays: accurateStreak
+    };
+  }, [appData, accurateStreak]);
   const [activeTab, setActiveTab] = useState("home");
 
   // AUTO-SCROLL TO TOP ON TAB SWITCH
@@ -1635,7 +1695,7 @@ export default function App() {
       <div className="screen-container" style={{ padding: "16px", paddingBottom: "120px" }}>
         {/* TAB 1: HOME */}
         {activeTab === "home" && (
-          <HomeTab
+          <HomeTab appData={syncedAppData || appData}
               setActiveTab={setActiveTab}
               setPostText={setPostText}
               setImagePreview={setImagePreview}
@@ -1690,7 +1750,7 @@ export default function App() {
             lastSeenMsgTime={lastSeenMsgTime}
             setLastSeenMsgTime={setLastSeenMsgTime}
             user={user}
-            appData={appData}
+            appData={syncedAppData || appData}
             avatarPreview={avatarPreview}
             setShowSearchModal={setShowSearchModal}
             setActivePanel={setActivePanel}
@@ -1726,7 +1786,7 @@ export default function App() {
         {/* TAB 4: PROGRESS TAB */}
         {activeTab === "progress" && (
           <ProgressTab
-            appData={appData}
+            appData={syncedAppData || appData}
             currentWeight={currentWeight}
             newLogWeight={newLogWeight}
             setNewLogWeight={setNewLogWeight}
@@ -1756,7 +1816,7 @@ export default function App() {
         {activeTab === "profile" && (
           <ProfileTab
             user={user}
-            appData={appData}
+            appData={syncedAppData || appData}
             avatarPreview={avatarPreview}
             coverPreview={coverPreview}
             handleDirectCoverChange={handleDirectCoverChange}
