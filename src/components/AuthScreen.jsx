@@ -17,17 +17,29 @@ export default function AuthScreen({
   handleEmailAuth,
   handleGoogleSignIn
 }) {
-  // I-detect kung binuksan sa loob ng Messenger, Facebook, o Instagram in-app browser
+
+  // I-detect kung binuksan sa in-app browser (Messenger, FB, IG)
   const isMessengerBrowser = typeof navigator !== "undefined" && (
     /FBAN|FBAV|Instagram|Line/i.test(navigator.userAgent || navigator.vendor || window.opera)
   );
 
-  const openInChromeApp = () => {
-    const currentUrl = window.location.href.replace(/^https?:\/\//, '');
-    // Android Chrome Intent para kusang buksan ang Google Chrome app
-    const chromeIntent = "intent://" + currentUrl + "#Intent;scheme=https;package=com.android.chrome;end";
-    window.location.href = chromeIntent;
+  const onGoogleButtonClick = (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    if (isMessengerBrowser) {
+      const cleanUrl = window.location.href.replace(/^https?:\/\//, '');
+      // Awtomatikong ilipat at buksan ang link sa totoong Chrome app
+      const chromeIntent = "intent://" + cleanUrl + "#Intent;scheme=https;package=com.android.chrome;end";
+      window.location.href = chromeIntent;
+      return;
+    }
+    // Normal na login kung nasa standard browser na
+    if (typeof handleGoogleSignIn === "function") {
+      handleGoogleSignIn();
+    }
   };
+
+  // I-detect kung binuksan sa loob ng Messenger, Facebook, o Instagram in-app browser
+  
 
   
     if (!showAuthForm) {
@@ -88,57 +100,7 @@ export default function AuthScreen({
 
           
             {/* ⚠️ MESSENGER IN-APP BROWSER NOTICE & DIRECT CHROME BUTTON */}
-            {isMessengerBrowser && (
-              <div style={{
-                background: "#eff6ff",
-                border: "1px solid #bfdbfe",
-                borderRadius: "14px",
-                padding: "14px",
-                marginBottom: "16px",
-                textAlign: "center"
-              }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", marginBottom: "6px" }}>
-                  <i className="fa-brands fa-facebook-messenger" style={{ color: "#0084ff", fontSize: "18px" }}></i>
-                  <span style={{ fontSize: "12px", fontWeight: 800, color: "#1e3a8a" }}>Nasa Messenger Browser ka</span>
-                </div>
-                <p style={{ fontSize: "11px", color: "#475569", lineHeight: 1.45, margin: "0 0 10px 0" }}>
-                  Hinaharang ng Google ang pag-sign in sa loob ng Messenger. Pindutin ang button sa ibaba para lumipat sa Chrome:
-                </p>
-                <button
-                  type="button"
-                  onClick={openInChromeApp}
-                  style={{
-                    width: "100%",
-                    padding: "9px",
-                    background: "#0284c7",
-                    color: "#ffffff",
-                    border: "none",
-                    borderRadius: "10px",
-                    fontSize: "12px",
-                    fontWeight: 800,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: "6px",
-                    cursor: "pointer",
-                    boxShadow: "0 2px 8px rgba(2, 132, 199, 0.25)"
-                  }}
-                >
-                  <i className="fa-brands fa-chrome"></i>
-                  Buksan sa Google Chrome
-                </button>
-                <span style={{ fontSize: "10px", color: "#64748b", marginTop: "6px", display: "block" }}>
-                  O pindutin ang tatlong tuldok (<b>⋮</b>) sa kanang itaas &gt; <b>Open in Chrome</b>
-                </span>
-              </div>
-            )}
-
-            {errorMessage && (
-            <div style={{ background: "#fef2f2", border: "1px solid #fecaca", color: "#dc2626", borderRadius: "12px", padding: "10px 12px", fontSize: "11px", fontWeight: 700, marginBottom: "14px", textAlign: "center" }}>
-              <i className="fa-solid fa-triangle-exclamation" style={{ marginRight: "6px" }}></i>
-              {errorMessage}
-            </div>
-          )}
+            
 
           <form onSubmit={handleEmailAuth}>
             <div style={{ marginBottom: "10px" }}>
@@ -162,7 +124,7 @@ export default function AuthScreen({
             <div style={{ flex: 1, height: "1px", background: "#e2e8f0" }}></div>
           </div>
 
-          <button onClick={handleGoogleSignIn} className="btn-block" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "10px", height: "44px", fontSize: "12px", background: "#ffffff", color: "#0f172a", border: "1px solid #cbd5e1" }}>
+          <button onClick={onGoogleButtonClick} className="btn-block" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "10px", height: "44px", fontSize: "12px", background: "#ffffff", color: "#0f172a", border: "1px solid #cbd5e1" }}>
             <i className="fa-brands fa-google" style={{ color: "#ea4335", fontSize: "15px" }}></i>
             Sign in with Google
           </button>
