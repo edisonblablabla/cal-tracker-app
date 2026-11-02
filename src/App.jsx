@@ -1196,12 +1196,17 @@ export default function App() {
       return;
     }
     try {
+      let userCredential;
       if (authMode === "signup") {
-        await createUserWithEmailAndPassword(auth, email, password);
+        userCredential = await createUserWithEmailAndPassword(auth, email, password);
       } else {
-        await signInWithEmailAndPassword(auth, email, password);
-        setActivePanel(null);
+        userCredential = await signInWithEmailAndPassword(auth, email, password);
       }
+      if (userCredential?.user) {
+        setUser(userCredential.user);
+      }
+      setShowAuthForm(false);
+      setOnboardStep(0);
       setActiveTab("home"); 
       setActivePanel(null);
     } catch (error) {
@@ -1221,8 +1226,12 @@ export default function App() {
     setErrorMessage("");
     setShowSettingsModal(false);
     try {
-      await signInWithPopup(auth, googleProvider);
-      setActivePanel(null);
+      const result = await signInWithPopup(auth, googleProvider);
+      if (result?.user) {
+        setUser(result.user);
+      }
+      setShowAuthForm(false);
+      setOnboardStep(0);
       setActiveTab("home"); 
       setActivePanel(null);
     } catch (error) {
