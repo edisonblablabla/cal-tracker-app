@@ -44,9 +44,6 @@ export default function ProfileTab({
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
   const [viewingPhoto, setViewingPhoto] = useState(null);
 
-  // Built-in Visitor Athlete Profile Drawer
-  const [activeVisitorProfile, setActiveVisitorProfile] = useState(null);
-
   // Edit Profile form states
   const [editName, setEditName] = useState(appData?.userName || user?.displayName || "");
   const [editTitle, setEditTitle] = useState(appData?.userTitle || "Fitness Enthusiast");
@@ -60,7 +57,6 @@ export default function ProfileTab({
       if (!drawer) {
         setViewingPhoto(null);
         setActiveHuddlePost(null);
-        setActiveVisitorProfile(null);
         setIsEditingProfile(false);
         setEditingPost(null);
         setActivePostMenuId(null);
@@ -81,7 +77,7 @@ export default function ProfileTab({
     }
     if (viewingPhoto) { setViewingPhoto(null); return; }
     if (activeHuddlePost) { setActiveHuddlePost(null); return; }
-    if (activeVisitorProfile) { setActiveVisitorProfile(null); return; }
+    if (activeVisitorProfile) { return; }
     if (isEditingProfile) { setIsEditingProfile(false); return; }
     if (editingPost) { setEditingPost(null); return; }
   };
@@ -208,10 +204,10 @@ export default function ProfileTab({
   // ─── HANDLERS ───
   const handleOpenAthlete = (athlete) => {
     if (!athlete) return;
+    const targetUid = athlete.uid || athlete.id;
+    if (targetUid === user?.uid) return;
     if (typeof setSelectedVisitor === "function") setSelectedVisitor(athlete);
     if (typeof setActivePanel === "function") setActivePanel("visitor_profile");
-    // Laging buksan ang slide-over fallback para sigurado
-    openLayer("visitor", () => setActiveVisitorProfile(athlete));
   };
 
   const handleOpenHuddle = (post) => {
@@ -977,82 +973,6 @@ export default function ProfileTab({
             Send
           </button>
         </form>
-      </div>
-
-      {/* 👤 BUILT-IN VISITOR ATHLETE PASSPORT DRAWER */}
-      <div style={getDrawerStyle(Boolean(activeVisitorProfile))}>
-        <div style={{ height: "54px", padding: "0 16px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #f1f5f9", backgroundColor: "#ffffff", flexShrink: 0 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <div style={{ width: "28px", height: "28px", borderRadius: "7px", background: "rgba(56, 189, 248, 0.15)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <i className="fa-regular fa-id-badge" style={{ color: "#0284c7", fontSize: "14px" }}></i>
-            </div>
-            <h3 style={{ margin: 0, color: "#0f172a", fontSize: "15px", fontWeight: 900 }}>Athlete Passport</h3>
-          </div>
-          <button
-            type="button"
-            onClick={closeCurrentLayer}
-            style={{ background: "#f1f5f9", border: "none", width: "28px", height: "28px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#64748b", fontSize: "14px", fontWeight: 800 }}
-          >
-            ✕
-          </button>
-        </div>
-
-        {activeVisitorProfile && (
-          <div style={{ flex: 1, overflowY: "auto", padding: "16px" }}>
-            <div style={{ background: "#ffffff", borderRadius: "16px", padding: "16px", border: "1px solid #e2e8f0", textAlign: "center", marginBottom: "14px" }}>
-              <div style={{ display: "flex", justifyContent: "center", marginBottom: "10px" }}>
-                {renderAvatar(activeVisitorProfile.avatarUrl || activeVisitorProfile.photoURL, activeVisitorProfile.userName || activeVisitorProfile.displayName, 64, "3px solid #38bdf8")}
-              </div>
-              <h2 style={{ margin: 0, fontSize: "17px", fontWeight: 900, color: "#0f172a" }}>
-                {activeVisitorProfile.userName || activeVisitorProfile.displayName || "Athlete"}
-              </h2>
-              <span style={{ fontSize: "11.5px", fontWeight: 800, color: "#0284c7", display: "inline-block", background: "rgba(56, 189, 248, 0.1)", padding: "2px 8px", borderRadius: "10px", marginTop: "3px" }}>
-                {activeVisitorProfile.userTitle || "Fitness Enthusiast"}
-              </span>
-              <p style={{ margin: "8px 0 14px 0", fontSize: "12px", color: "#475569" }}>
-                {activeVisitorProfile.userBio || "Active athlete in NutriPulse."}
-              </p>
-
-              <div style={{ display: "flex", gap: "8px", justifyContent: "center" }}>
-                <button
-                  type="button"
-                  onClick={() => handleToggleBoostAthlete(activeVisitorProfile.uid || activeVisitorProfile.id)}
-                  style={{
-                    padding: "8px 16px",
-                    borderRadius: "20px",
-                    border: "none",
-                    background: (appData?.boosting || []).includes(activeVisitorProfile.uid || activeVisitorProfile.id)
-                      ? "#f1f5f9"
-                      : "linear-gradient(135deg, #4f46e5 0%, #38bdf8 100%)",
-                    color: (appData?.boosting || []).includes(activeVisitorProfile.uid || activeVisitorProfile.id)
-                      ? "#475569"
-                      : "#ffffff",
-                    fontSize: "12px",
-                    fontWeight: 800,
-                    cursor: "pointer"
-                  }}
-                >
-                  {(appData?.boosting || []).includes(activeVisitorProfile.uid || activeVisitorProfile.id) ? "✓ Boosted" : "+ Boost Athlete"}
-                </button>
-              </div>
-            </div>
-
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px", marginBottom: "16px" }}>
-              <div style={{ background: "#f8fafc", borderRadius: "12px", padding: "10px", textAlign: "center", border: "1px solid #e2e8f0" }}>
-                <span style={{ fontSize: "15px", fontWeight: 900, color: "#f97316", display: "block" }}>🔥 {activeVisitorProfile.streakDays || 0}</span>
-                <span style={{ fontSize: "9.5px", fontWeight: 800, color: "#64748b" }}>STREAK</span>
-              </div>
-              <div style={{ background: "#f8fafc", borderRadius: "12px", padding: "10px", textAlign: "center", border: "1px solid #e2e8f0" }}>
-                <span style={{ fontSize: "15px", fontWeight: 900, color: "#0284c7", display: "block" }}>{Number(activeVisitorProfile.totalDistance || 0).toFixed(1)} km</span>
-                <span style={{ fontSize: "9.5px", fontWeight: 800, color: "#64748b" }}>DISTANCE</span>
-              </div>
-              <div style={{ background: "#f8fafc", borderRadius: "12px", padding: "10px", textAlign: "center", border: "1px solid #e2e8f0" }}>
-                <span style={{ fontSize: "15px", fontWeight: 900, color: "#0f172a", display: "block" }}>{activeVisitorProfile.todayBurnedCal || 0}</span>
-                <span style={{ fontSize: "9.5px", fontWeight: 800, color: "#64748b" }}>BURNED</span>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* 📝 EDIT PROFILE MODAL */}
