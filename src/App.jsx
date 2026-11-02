@@ -21,7 +21,9 @@ import AdminTab from "./components/AdminTab";
 import ModalsLayer from "./components/ModalsLayer";
 import React, {  useState, useEffect, useRef , useMemo } from "react";
 import { 
-  signInWithPopup, 
+  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult, 
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signOut, 
@@ -476,7 +478,19 @@ export default function App() {
     document.title = "NutriPulse - Health Dashboard";
     let heartbeatInterval = null;
 
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+    getRedirectResult(auth)
+        .then((result) => {
+          if (result?.user) {
+            setUser(result.user);
+            setShowAuthForm(false);
+            setOnboardStep(0);
+            setActiveTab("home");
+            setActivePanel(null);
+          }
+        })
+        .catch((e) => console.error("Redirect auth error:", e));
+
+      const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
       setShowSettingsModal(false);
       if (currentUser) {
@@ -1229,18 +1243,9 @@ export default function App() {
     setErrorMessage("");
     setShowSettingsModal(false);
     try {
-      // Tiyaking nakatutok ang kasalukuyang window bago mag-popup
-      if (typeof window !== "undefined" && window.focus) window.focus();
-      const result = await signInWithPopup(auth, googleProvider);
-      if (typeof window !== "undefined" && window.focus) window.focus();
-      if (result?.user) {
-        setUser(result.user);
-      }
-      setShowAuthForm(false);
-      setOnboardStep(0);
-      setActiveTab("home");
-      setActivePanel(null);
+      await signInWithRedirect(auth, googleProvider);
     } catch (error) {
+      console.error("Google sign-in redirect error:", error);
       setErrorMessage("Google Login Error: " + error.message);
     }
   };
@@ -1717,7 +1722,6 @@ export default function App() {
               setActivePanel={setActivePanel}
               allUserNotifs={allUserNotifs}
               lastSeenNotifTime={lastSeenNotifTime}
-              appData={appData}
             activeTab={activeTab}
             setShowAboutModal={setShowAboutModal}
             quote={quote}
