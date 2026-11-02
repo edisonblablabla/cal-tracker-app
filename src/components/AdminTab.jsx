@@ -30,7 +30,7 @@ function formatAdminCreated(ts) {
   const d = new Date(ms);
   const dateStr = d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
   const timeStr = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
-  return `${dateStr}, ${timeStr}`;
+  return dateStr + ", " + timeStr;
 }
 
 function formatAdminLastOnline(ts, now) {
@@ -41,10 +41,10 @@ function formatAdminLastOnline(ts, now) {
   const timeStr = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
 
   if (diff < ONLINE_THRESHOLD) return "Active Now";
-  if (diff < 3600000) return `${Math.max(1, Math.floor(diff / 60000))}m ago (${timeStr})`;
-  if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago (${timeStr})`;
+  if (diff < 3600000) return Math.max(1, Math.floor(diff / 60000)) + "m ago (" + timeStr + ")";
+  if (diff < 86400000) return Math.floor(diff / 3600000) + "h ago (" + timeStr + ")";
   const dateStr = d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-  return `${dateStr}, ${timeStr}`;
+  return dateStr + ", " + timeStr;
 }
 
 export default function AdminTab({
@@ -67,16 +67,16 @@ export default function AdminTab({
   const [searchQuery, setSearchQuery] = useState("");
   const [userFilter, setUserFilter] = useState("all");
 
-  // ─── INVESTIGATION & CHAT VAULT STATES ───
+  // ─── INVESTIGATION & FORENSIC SUITE STATES ───
   const [investigatingUser, setInvestigatingUser] = useState(null);
+  const [investigationTab, setInvestigationTab] = useState("overview"); // 'overview', 'posts', 'chats', 'health'
   const [userChats, setUserChats] = useState([]);
   const [isLoadingChats, setIsLoadingChats] = useState(false);
   const [activeChatThread, setActiveChatThread] = useState(null);
   const [chatTranscript, setChatTranscript] = useState([]);
   const [isLoadingTranscript, setIsLoadingTranscript] = useState(false);
-  const [ruleHelpRequired, setRuleHelpRequired] = useState(false);
 
-  // ─── IN-APP FLOATING NOTIFICATION (NO BROWSER ALERT) ───
+  // ─── IN-APP FLOATING NOTIFICATION ───
   const [internalToast, setInternalToast] = useState(null);
   const toastTimeoutRef = useRef(null);
 
@@ -126,7 +126,7 @@ export default function AdminTab({
   const onlineUsers = useMemo(() => {
     return userList.filter(u => {
       const ms = parseMs(u.lastSeen);
-      return ms && (now - ms < ONLINE_THRESHOLD);
+      return ms && ms > 1 && (now - ms < ONLINE_THRESHOLD);
     });
   }, [userList, now]);
 
@@ -150,7 +150,7 @@ export default function AdminTab({
       if (!matchesSearch) return false;
       if (userFilter === "online") {
         const ms = parseMs(u.lastSeen);
-        return ms && (now - ms < ONLINE_THRESHOLD);
+        return ms && ms > 1 && (now - ms < ONLINE_THRESHOLD);
       }
       if (userFilter === "blocked") return !!u.isBlocked;
       return true;
@@ -167,15 +167,15 @@ export default function AdminTab({
     );
   }, [posts, searchQuery]);
 
-  // ─── FORENSIC INVESTIGATION: FETCH CHATS ───
+  // ─── FORENSIC INVESTIGATION: LAUNCH AUDIT DOSSIER ───
   const startInvestigation = async (userObj) => {
     if (!userObj || !userObj.uid) return;
     setInvestigatingUser(userObj);
     handleSubTabChange("vault");
+    setInvestigationTab("overview");
     setActiveChatThread(null);
     setChatTranscript([]);
     setIsLoadingChats(true);
-    setRuleHelpRequired(false);
 
     try {
       const q = query(collection(db, "chats"), where("participants", "array-contains", userObj.uid));
@@ -187,10 +187,10 @@ export default function AdminTab({
       if (threads.length === 0) {
         notify("Walang nakitang aktibong chat logs para sa account na ito.", "info");
       } else {
-        notify(`🕵️‍♂️ Natagpuan ang ${threads.length} chat threads!`, "success");
+        notify("Natagpuan ang " + threads.length + " chat threads para kay " + (userObj.userName || "User") + "!", "success");
       }
     } catch (err) {
-      console.warn("Array query failed, trying pairwise fallback scan...", err);
+      console.warn("Primary chat query failed, trying partner lookup...", err);
       try {
         const potentialPartnerUids = (userList || [])
           .map(u => u.uid)
@@ -212,15 +212,13 @@ export default function AdminTab({
         if (foundThreads.length > 0) {
           foundThreads.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
           setUserChats(foundThreads);
-          notify(`🕵️‍♂️ Natagpuan ang ${foundThreads.length} chat threads gamit ang direct scan!`, "success");
+          notify("Natagpuan ang " + foundThreads.length + " chat threads gamit ang direct scan!", "success");
         } else {
-          setRuleHelpRequired(true);
-          notify("Kinakailangan ng Admin Permission sa Firebase Rules.", "warning");
+          notify("Walang natagpuang chat threads para sa account na ito.", "info");
         }
       } catch (fallbackErr) {
         console.error("Forensic chat fetch failed:", fallbackErr);
-        setRuleHelpRequired(true);
-        notify("Kinakailangan ng Admin Permission sa Firebase Rules.", "error");
+        notify("Nabigong makuha ang chat logs.", "error");
       }
     } finally {
       setIsLoadingChats(false);
@@ -250,7 +248,7 @@ export default function AdminTab({
     if (!window.confirm("Sigurado ka bang nais mong BURAHIN nang permanente ang post na ito sa database?")) return;
     try {
       await deleteDoc(doc(db, "posts", postId));
-      notify("🗑️ Matagumpay na nabura ang post sa database!", "success");
+      notify("Matagumpay na nabura ang post sa database!", "success");
       if (typeof fetchPosts === "function") fetchPosts();
     } catch (err) {
       console.error("Error deleting post:", err);
@@ -260,7 +258,7 @@ export default function AdminTab({
 
   const copyToClipboard = (text, label) => {
     navigator.clipboard.writeText(text);
-    notify(`📋 Na-copy ang ${label} sa clipboard!`, "success");
+    notify("Na-copy ang " + label + " sa clipboard!", "success");
   };
 
   return (
@@ -476,7 +474,7 @@ export default function AdminTab({
           }}
         >
           <i className="fa-solid fa-user-secret" style={{ color: activeTab === "vault" ? "#7c3aed" : "inherit" }}></i>
-          <span>Chat Vault 🕵️‍♂️</span>
+          <span>Forensic Dossier 🕵️‍♂️</span>
         </button>
       </div>
 
@@ -677,7 +675,7 @@ export default function AdminTab({
                             cursor: "pointer"
                           }}
                         >
-                          🕵️‍♂️ View Chats
+                          🕵️‍♂️ Investigate Dossier
                         </button>
 
                         <button
@@ -761,30 +759,26 @@ export default function AdminTab({
             <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
               {filteredUsers.map(u => {
                 // 🔍 SMART LAST ONLINE RESOLUTION
-    const lastSeenRaw = parseMs(u.lastSeen);
-    const loggedOutRaw = parseMs(u.lastLoggedOutAt);
+                const lastSeenRaw = parseMs(u.lastSeen);
+                const loggedOutRaw = parseMs(u.lastLoggedOutAt);
 
-    // Online lamang kung may heartbeat at mas malaki sa 1 at nasa loob ng 75s
-    const isOnline = lastSeenRaw && lastSeenRaw > 1 && (now - lastSeenRaw < ONLINE_THRESHOLD);
+                const isOnline = lastSeenRaw && lastSeenRaw > 1 && (now - lastSeenRaw < ONLINE_THRESHOLD);
 
-    // Kuhanin ang pinakabagong timestamp sa pagitan ng heartbeat at logout
-    let effectiveLastOnline = null;
-    if (lastSeenRaw && lastSeenRaw > 1) effectiveLastOnline = lastSeenRaw;
-    if (loggedOutRaw && loggedOutRaw > (effectiveLastOnline || 0)) effectiveLastOnline = loggedOutRaw;
+                let effectiveLastOnline = null;
+                if (lastSeenRaw && lastSeenRaw > 1) effectiveLastOnline = lastSeenRaw;
+                if (loggedOutRaw && loggedOutRaw > (effectiveLastOnline || 0)) effectiveLastOnline = loggedOutRaw;
 
-    // Fallback para sa lumang accounts: Hanapin ang pinakabagong post
-    if (!effectiveLastOnline) {
-      const userPosts = (posts || []).filter(p => p.userId === u.uid);
-      if (userPosts.length > 0) {
-        const sorted = [...userPosts].sort((a, b) => (parseMs(b.createdAt) || 0) - (parseMs(a.createdAt) || 0));
-        effectiveLastOnline = sorted[0]?.createdAt || null;
-      }
-    }
+                if (!effectiveLastOnline) {
+                  const userPosts = (posts || []).filter(p => p.userId === u.uid);
+                  if (userPosts.length > 0) {
+                    const sorted = [...userPosts].sort((a, b) => (parseMs(b.createdAt) || 0) - (parseMs(a.createdAt) || 0));
+                    effectiveLastOnline = sorted[0]?.createdAt || null;
+                  }
+                }
 
-    // Panghuling fallback: gamitin ang createdAt kung mayroon
-    if (!effectiveLastOnline && u.createdAt) {
-      effectiveLastOnline = u.createdAt;
-    }
+                if (!effectiveLastOnline && u.createdAt) {
+                  effectiveLastOnline = u.createdAt;
+                }
 
                 return (
                   <div
@@ -915,91 +909,47 @@ export default function AdminTab({
         </div>
       )}
 
-      {/* ─── 5. TAB CONTENT: EVIDENCE & CHAT INVESTIGATION VAULT ─── */}
+      {/* ─── 5. TAB CONTENT: FULL ATHLETE FORENSIC DOSSIER ─── */}
       {activeTab === "vault" && (
         <div>
           {/* Security & Compliance Banner */}
           <div style={{
-            background: "#4c1d95",
+            background: "linear-gradient(135deg, #3b0764 0%, #1e1b4b 100%)",
             color: "#ffffff",
-            padding: "12px 16px",
-            borderRadius: "14px",
+            padding: "14px 18px",
+            borderRadius: "16px",
             marginBottom: "14px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: "10px",
-            boxShadow: "0 4px 15px rgba(76, 29, 149, 0.3)"
+            boxShadow: "0 6px 20px rgba(59, 7, 100, 0.35)",
+            border: "1px solid rgba(255, 255, 255, 0.12)"
           }}>
-            <div>
-              <div style={{ fontWeight: 800, fontSize: "13px", display: "flex", alignItems: "center", gap: "6px" }}>
-                <i className="fa-solid fa-lock"></i>
-                <span>Strict Security & Trust/Safety Investigation Vault</span>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <div style={{
+                width: "32px",
+                height: "32px",
+                borderRadius: "10px",
+                background: "rgba(239, 68, 68, 0.2)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                border: "1px solid rgba(239, 68, 68, 0.4)"
+              }}>
+                <i className="fa-solid fa-fingerprint" style={{ color: "#f87171", fontSize: "16px" }}></i>
               </div>
-              <div style={{ fontSize: "11px", opacity: 0.9, marginTop: "2px" }}>
-                Gamitin lamang ito sa pag-imbestiga ng mga ulat ng pambabastos, scam, o panloloko sa komunidad.
+              <div>
+                <div style={{ fontWeight: 900, fontSize: "14px", letterSpacing: "-0.2px" }}>
+                  Athlete Security & Trust Forensic Dossier
+                </div>
+                <div style={{ fontSize: "11px", color: "#cbd5e1", marginTop: "2px" }}>
+                  Komprehensibong pag-audit sa pagkakakilanlan, mga aktibidad, posts, at pribadong komunikasyon.
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Firebase Rules Helper Card if needed */}
-          {ruleHelpRequired && (
-            <div style={{
-              background: "#fffbeb",
-              border: "1px solid #fde68a",
-              borderRadius: "14px",
-              padding: "14px",
-              marginBottom: "14px",
-              color: "#92400e"
-            }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "8px", fontWeight: 800, fontSize: "13px" }}>
-                <i className="fa-solid fa-key" style={{ color: "#d97706" }}></i>
-                <span>Pahintulutan ang Chat Evidence Vault sa Firebase</span>
-              </div>
-              <p style={{ fontSize: "11px", margin: "6px 0 10px 0", lineHeight: 1.5 }}>
-                Pinoprotektahan ng Firestore ang pribadong mensahe. I-paste ang rule na ito sa <strong>Firebase Console ➜ Firestore Rules</strong>:
-              </p>
-              <pre style={{ background: "#1e293b", color: "#38bdf8", padding: "10px", borderRadius: "8px", fontSize: "10px", margin: 0, overflowX: "auto" }}>
-{`match /chats/{chatId} {
-  allow read: if (isAuthenticated() && request.auth.uid in resource.data.participants) || isAdmin();
-  allow write: if (isAuthenticated() && (
-    request.auth.uid in request.resource.data.participants ||
-    request.auth.uid in resource.data.participants
-  )) || isAdmin();
-
-  match /messages/{messageId} {
-    allow read, write: if isAuthenticated();
-  }
-}`}
-              </pre>
-              <div style={{ marginTop: "8px", display: "flex", justifyContent: "flex-end" }}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    navigator.clipboard.writeText(`match /chats/{chatId} {\n  allow read: if (isAuthenticated() && request.auth.uid in resource.data.participants) || isAdmin();\n  allow write: if (isAuthenticated() && (request.auth.uid in request.resource.data.participants || request.auth.uid in resource.data.participants)) || isAdmin();\n  match /messages/{messageId} {\n    allow read, write: if isAuthenticated();\n  }\n}`);
-                    notify("Na-kopya ang Firestore rule sa clipboard! 📋", "success");
-                  }}
-                  style={{
-                    background: "#d97706",
-                    color: "#ffffff",
-                    border: "none",
-                    borderRadius: "6px",
-                    padding: "5px 10px",
-                    fontSize: "10px",
-                    fontWeight: 800,
-                    cursor: "pointer"
-                  }}
-                >
-                  <i className="fa-regular fa-copy"></i> Kopyahin ang Rule
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Select User to Investigate */}
-          <div style={{ background: "#ffffff", padding: "14px", borderRadius: "14px", border: "1px solid #e2e8f0", marginBottom: "14px" }}>
-            <label style={{ fontSize: "11px", fontWeight: 800, color: "#475569", display: "block", marginBottom: "6px", textTransform: "uppercase" }}>
-              Pumili ng Account na Iniimbestigahan:
+          {/* Select User Dropdown */}
+          <div style={{ background: "#ffffff", padding: "14px 16px", borderRadius: "16px", border: "1px solid #e2e8f0", marginBottom: "14px", boxShadow: "0 2px 6px rgba(0,0,0,0.02)" }}>
+            <label style={{ fontSize: "11px", fontWeight: 800, color: "#475569", display: "block", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+              🎯 Pumili ng Account na Susuriin:
             </label>
             <select
               value={investigatingUser?.uid || ""}
@@ -1009,166 +959,396 @@ export default function AdminTab({
               }}
               style={{
                 width: "100%",
-                padding: "9px 12px",
-                borderRadius: "10px",
+                padding: "10px 14px",
+                borderRadius: "12px",
                 border: "1px solid #cbd5e1",
                 fontSize: "12px",
                 fontWeight: 700,
                 outline: "none",
-                background: "#f8fafc"
+                background: "#f8fafc",
+                color: "#0f172a"
               }}
             >
-              <option value="">-- Pumili mula sa listahan ng Athletes ({userList.length}) --</option>
+              <option value="">-- Pumili ng Athlete mula sa Database ({userList.length}) --</option>
               {userList.map(u => (
                 <option key={u.uid} value={u.uid}>
-                  {u.userName || "Athlete"} ({u.userEmail || u.uid}) {u.isBlocked ? "⛔ [BLOCKED]" : ""}
+                  {u.userName || "Athlete"} ({u.userEmail || "No Email"}) {u.isBlocked ? "⛔ [BLOCKED]" : ""}
                 </option>
               ))}
             </select>
 
+            {/* Target Account Summary Banner */}
             {investigatingUser && (
-              <div style={{ marginTop: "12px", padding: "10px 12px", background: "#f8fafc", borderRadius: "10px", border: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "8px" }}>
-                <div>
-                  <div style={{ fontSize: "12px", fontWeight: 800, color: "#0f172a" }}>
-                    Paksa: {investigatingUser.userName} ({investigatingUser.userEmail || "No Email"})
+              <div style={{
+                marginTop: "12px",
+                padding: "12px 14px",
+                background: "#f1f5f9",
+                borderRadius: "12px",
+                border: "1px solid #cbd5e1",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                flexWrap: "wrap",
+                gap: "10px"
+              }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                  <div style={{
+                    width: "40px",
+                    height: "40px",
+                    borderRadius: "50%",
+                    background: investigatingUser.avatarUrl ? "none" : "#e0e7ff",
+                    overflow: "hidden",
+                    border: "1px solid #cbd5e1",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontWeight: 800,
+                    color: "#4f46e5",
+                    fontSize: "14px"
+                  }}>
+                    {investigatingUser.avatarUrl ? (
+                      <img src={investigatingUser.avatarUrl} alt="Avatar" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                    ) : (
+                      (investigatingUser.userName || "A").slice(0, 1).toUpperCase()
+                    )}
                   </div>
-                  <div style={{ fontSize: "10px", color: "#64748b", marginTop: "1px" }}>
-                    UID: <code>{investigatingUser.uid}</code>
+                  <div>
+                    <div style={{ fontSize: "13px", fontWeight: 900, color: "#0f172a" }}>
+                      {investigatingUser.userName || "Athlete"}
+                      {investigatingUser.isBlocked && (
+                        <span style={{ marginLeft: "6px", fontSize: "9px", background: "#ef4444", color: "#fff", padding: "1px 6px", borderRadius: "4px", fontWeight: 800 }}>
+                          BLOCKED
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: "11px", color: "#64748b" }}>
+                      {investigatingUser.userEmail || "No Email"} • UID: <code style={{ background: "#e2e8f0", padding: "1px 4px", borderRadius: "4px" }}>{investigatingUser.uid.slice(0, 12)}...</code>
+                    </div>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => toggleBlockUser(investigatingUser.uid, investigatingUser.isBlocked)}
-                  style={{
-                    background: investigatingUser.isBlocked ? "#10b981" : "#ef4444",
-                    color: "#ffffff",
-                    border: "none",
-                    padding: "4px 10px",
-                    borderRadius: "6px",
-                    fontSize: "11px",
-                    fontWeight: 800,
-                    cursor: "pointer"
-                  }}
-                >
-                  {investigatingUser.isBlocked ? "Unblock Account" : "Block Account Agad"}
-                </button>
+
+                <div style={{ display: "flex", gap: "8px" }}>
+                  <button
+                    type="button"
+                    onClick={() => copyToClipboard(investigatingUser.uid, "User UID")}
+                    style={{ background: "#e2e8f0", border: "none", color: "#334155", padding: "6px 10px", borderRadius: "8px", fontSize: "11px", fontWeight: 800, cursor: "pointer" }}
+                  >
+                    <i className="fa-regular fa-copy"></i> UID
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => toggleBlockUser(investigatingUser.uid, investigatingUser.isBlocked)}
+                    style={{
+                      background: investigatingUser.isBlocked ? "#10b981" : "#ef4444",
+                      color: "#ffffff",
+                      border: "none",
+                      padding: "6px 12px",
+                      borderRadius: "8px",
+                      fontSize: "11px",
+                      fontWeight: 800,
+                      cursor: "pointer"
+                    }}
+                  >
+                    {investigatingUser.isBlocked ? "Unblock Account" : "⛔ Block Account Agad"}
+                  </button>
+                </div>
               </div>
             )}
           </div>
 
-          {/* Investigation Chat Threads */}
-          {isLoadingChats ? (
-            <div style={{ textAlign: "center", padding: "30px", color: "#64748b" }}>
-              <i className="fa-solid fa-spinner fa-spin" style={{ fontSize: "24px", color: "#7c3aed", marginBottom: "8px" }}></i>
-              <div style={{ fontSize: "12px", fontWeight: 700 }}>Kinukuha ang mga mensahe mula sa cloud database...</div>
-            </div>
-          ) : userChats.length > 0 ? (
-            <div style={{ display: "grid", gridTemplateColumns: activeChatThread ? "1fr 1fr" : "1fr", gap: "12px" }}>
-              {/* Left Column: Chat Threads List */}
-              <div style={{ background: "#ffffff", padding: "12px", borderRadius: "14px", border: "1px solid #e2e8f0" }}>
-                <div style={{ fontSize: "11px", fontWeight: 800, color: "#64748b", marginBottom: "8px", textTransform: "uppercase" }}>
-                  Natagpuang Chat Threads ({userChats.length})
-                </div>
-
-                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                  {userChats.map(c => {
-                    const otherUid = c.participants?.find(p => p !== investigatingUser?.uid);
-                    const otherUser = userList.find(u => u.uid === otherUid);
-                    const isSelected = activeChatThread?.id === c.id;
-
-                    return (
-                      <div
-                        key={c.id}
-                        onClick={() => loadChatTranscript(c)}
-                        style={{
-                          padding: "10px",
-                          borderRadius: "10px",
-                          border: isSelected ? "1.5px solid #7c3aed" : "1px solid #e2e8f0",
-                          background: isSelected ? "#f5f3ff" : "#f8fafc",
-                          cursor: "pointer",
-                          transition: "all 0.15s ease"
-                        }}
-                      >
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                          <span style={{ fontSize: "12px", fontWeight: 800, color: "#0f172a" }}>
-                            {otherUser?.userName || "Athlete (" + (otherUid?.slice(0, 6) || "ID") + ")"}
-                          </span>
-                          <span style={{ fontSize: "9px", color: "#94a3b8" }}>
-                            {c.updatedAt ? new Date(c.updatedAt).toLocaleDateString() : ""}
-                          </span>
-                        </div>
-                        <div style={{ fontSize: "11px", color: "#64748b", marginTop: "3px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                          {c.lastMessage || "(Walang text preview)"}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+          {/* 4-IN-1 FORENSIC DOSSIER TABS */}
+          {investigatingUser ? (
+            <div>
+              {/* Internal Mini Switcher */}
+              <div style={{ display: "flex", gap: "6px", marginBottom: "14px", flexWrap: "wrap" }}>
+                {[
+                  { id: "overview", label: "Identity & Footprint", icon: "fa-shield-halved" },
+                  { id: "posts", label: "Posts History (" + posts.filter(p => p.userId === investigatingUser.uid).length + ")", icon: "fa-newspaper" },
+                  { id: "chats", label: "Chat Vault (" + userChats.length + ")", icon: "fa-comments" },
+                  { id: "health", label: "Health & Telemetry", icon: "fa-heart-pulse" }
+                ].map(tab => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setInvestigationTab(tab.id)}
+                    style={{
+                      padding: "8px 14px",
+                      borderRadius: "10px",
+                      border: "none",
+                      fontSize: "11px",
+                      fontWeight: 800,
+                      cursor: "pointer",
+                      background: investigationTab === tab.id ? "#1e293b" : "#e2e8f0",
+                      color: investigationTab === tab.id ? "#ffffff" : "#475569",
+                      boxShadow: investigationTab === tab.id ? "0 2px 6px rgba(0,0,0,0.15)" : "none",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "6px"
+                    }}
+                  >
+                    <i className={"fa-solid " + tab.icon}></i>
+                    <span>{tab.label}</span>
+                  </button>
+                ))}
               </div>
 
-              {/* Right Column: Chat Transcript Inspector */}
-              {activeChatThread && (
-                <div style={{ background: "#ffffff", padding: "14px", borderRadius: "14px", border: "1px solid #e2e8f0", display: "flex", flexDirection: "column" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingBottom: "8px", borderBottom: "1px solid #f1f5f9", marginBottom: "10px" }}>
-                    <span style={{ fontSize: "12px", fontWeight: 900, color: "#0f172a" }}>
-                      Transcript Viewer
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setActiveChatThread(null)}
-                      style={{ background: "none", border: "none", color: "#94a3b8", cursor: "pointer", fontSize: "14px" }}
-                    >
-                      ✕
-                    </button>
+              {/* SECTION A: IDENTITY & DIGITAL FOOTPRINT */}
+              {investigationTab === "overview" && (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "10px" }}>
+                  <div style={{ background: "#ffffff", padding: "14px", borderRadius: "14px", border: "1px solid #e2e8f0" }}>
+                    <div style={{ fontSize: "10px", fontWeight: 800, color: "#94a3b8", textTransform: "uppercase" }}>Registration Date</div>
+                    <div style={{ fontSize: "13px", fontWeight: 800, color: "#0f172a", marginTop: "4px" }}>
+                      {formatAdminCreated(investigatingUser.createdAt)}
+                    </div>
+                    <div style={{ fontSize: "10px", color: "#64748b", marginTop: "2px" }}>
+                      {investigatingUser.createdAt ? "May opisyal na creation timestamp" : "Legacy account (walang naisulat na date)"}
+                    </div>
                   </div>
 
-                  {isLoadingTranscript ? (
-                    <div style={{ textAlign: "center", padding: "30px", color: "#64748b" }}>
-                      <i className="fa-solid fa-spinner fa-spin" style={{ fontSize: "20px", color: "#7c3aed", marginBottom: "6px" }}></i>
-                      <div style={{ fontSize: "11px" }}>Binubuksan ang transcript...</div>
+                  <div style={{ background: "#ffffff", padding: "14px", borderRadius: "14px", border: "1px solid #e2e8f0" }}>
+                    <div style={{ fontSize: "10px", fontWeight: 800, color: "#94a3b8", textTransform: "uppercase" }}>Last Session / Activity</div>
+                    <div style={{ fontSize: "13px", fontWeight: 800, color: "#0f172a", marginTop: "4px" }}>
+                      {formatAdminLastOnline(
+                        investigatingUser.lastSeen > 1 ? investigatingUser.lastSeen : (investigatingUser.lastLoggedOutAt || investigatingUser.updatedAt),
+                        now
+                      )}
                     </div>
-                  ) : chatTranscript.length === 0 ? (
-                    <div style={{ textAlign: "center", padding: "20px", color: "#94a3b8", fontSize: "11px" }}>
-                      Walang nakitang laman sa chat thread na ito.
+                    <div style={{ fontSize: "10px", color: "#64748b", marginTop: "2px" }}>
+                      Huling naitalang logout o activity ping
+                    </div>
+                  </div>
+
+                  <div style={{ background: "#ffffff", padding: "14px", borderRadius: "14px", border: "1px solid #e2e8f0" }}>
+                    <div style={{ fontSize: "10px", fontWeight: 800, color: "#94a3b8", textTransform: "uppercase" }}>Community Footprint</div>
+                    <div style={{ fontSize: "13px", fontWeight: 800, color: "#0f172a", marginTop: "4px" }}>
+                      {posts.filter(p => p.userId === investigatingUser.uid).length} Posts Published
+                    </div>
+                    <div style={{ fontSize: "10px", color: "#64748b", marginTop: "2px" }}>
+                      {posts.filter(p => p.userId === investigatingUser.uid && p.isHidden).length} Hidden ng Admin
+                    </div>
+                  </div>
+
+                  <div style={{ background: "#ffffff", padding: "14px", borderRadius: "14px", border: "1px solid #e2e8f0" }}>
+                    <div style={{ fontSize: "10px", fontWeight: 800, color: "#94a3b8", textTransform: "uppercase" }}>Full Security UID</div>
+                    <div style={{ fontSize: "11px", fontWeight: 800, color: "#0f172a", marginTop: "4px", wordBreak: "break-all", fontFamily: "monospace" }}>
+                      {investigatingUser.uid}
+                    </div>
+                    <div style={{ fontSize: "10px", color: "#64748b", marginTop: "2px" }}>
+                      Permanent Unique Cloud Identifier
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* SECTION B: USER POSTS & CONTENT HISTORY */}
+              {investigationTab === "posts" && (
+                <div>
+                  {(() => {
+                    const userPosts = posts.filter(p => p.userId === investigatingUser.uid);
+                    if (userPosts.length === 0) {
+                      return (
+                        <div style={{ textAlign: "center", padding: "30px", background: "#ffffff", borderRadius: "14px", border: "1px dashed #cbd5e1", color: "#64748b" }}>
+                          <i className="fa-regular fa-newspaper" style={{ fontSize: "28px", color: "#cbd5e1", marginBottom: "8px" }}></i>
+                          <div style={{ fontSize: "12px", fontWeight: 700 }}>Walang anumang naitalang post ang user na ito sa komunidad.</div>
+                        </div>
+                      );
+                    }
+                    return (
+                      <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                        {userPosts.map(p => (
+                          <div key={p.id} style={{ background: p.isHidden ? "#fffbeb" : "#ffffff", padding: "12px 14px", borderRadius: "14px", border: p.isHidden ? "1px solid #fcd34d" : "1px solid #e2e8f0" }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "6px" }}>
+                              <div>
+                                <span style={{ fontSize: "10px", color: "#94a3b8" }}>{formatAdminCreated(p.createdAt)}</span>
+                                {p.isHidden && (
+                                  <span style={{ marginLeft: "6px", fontSize: "9px", background: "#f59e0b", color: "#fff", padding: "1px 6px", borderRadius: "4px", fontWeight: 800 }}>
+                                    🔒 HIDDEN
+                                  </span>
+                                )}
+                              </div>
+                              <div style={{ display: "flex", gap: "5px" }}>
+                                <button
+                                  type="button"
+                                  onClick={() => toggleHidePost(p.id, p.isHidden)}
+                                  style={{ background: p.isHidden ? "#10b981" : "#f59e0b", color: "#fff", border: "none", borderRadius: "6px", padding: "3px 8px", fontSize: "10px", fontWeight: 800, cursor: "pointer" }}
+                                >
+                                  {p.isHidden ? "Unhide" : "Hide"}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeletePostPermanently(p.id)}
+                                  style={{ background: "#fee2e2", color: "#dc2626", border: "1px solid #fca5a5", borderRadius: "6px", padding: "3px 8px", fontSize: "10px", fontWeight: 800, cursor: "pointer" }}
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            </div>
+                            <div style={{ fontSize: "12px", color: "#0f172a", marginBottom: "6px" }}>
+                              {p.text}
+                            </div>
+                            {p.imageUrl && (
+                              <img src={p.imageUrl} alt="Attached" style={{ maxHeight: "120px", borderRadius: "8px", objectFit: "cover" }} />
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+
+              {/* SECTION C: CHAT VAULT */}
+              {investigationTab === "chats" && (
+                <div>
+                  {isLoadingChats ? (
+                    <div style={{ textAlign: "center", padding: "30px", color: "#64748b" }}>
+                      <i className="fa-solid fa-spinner fa-spin" style={{ fontSize: "24px", color: "#7c3aed", marginBottom: "8px" }}></i>
+                      <div style={{ fontSize: "12px", fontWeight: 700 }}>Kinukuha ang mga mensahe mula sa cloud database...</div>
+                    </div>
+                  ) : userChats.length > 0 ? (
+                    <div style={{ display: "grid", gridTemplateColumns: activeChatThread ? "1fr 1fr" : "1fr", gap: "12px" }}>
+                      <div style={{ background: "#ffffff", padding: "12px", borderRadius: "14px", border: "1px solid #e2e8f0" }}>
+                        <div style={{ fontSize: "11px", fontWeight: 800, color: "#64748b", marginBottom: "8px", textTransform: "uppercase" }}>
+                          Natagpuang Chat Threads ({userChats.length})
+                        </div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                          {userChats.map(c => {
+                            const otherUid = c.participants?.find(p => p !== investigatingUser?.uid);
+                            const otherUser = userList.find(u => u.uid === otherUid);
+                            const isSelected = activeChatThread?.id === c.id;
+
+                            return (
+                              <div
+                                key={c.id}
+                                onClick={() => loadChatTranscript(c)}
+                                style={{
+                                  padding: "10px",
+                                  borderRadius: "10px",
+                                  border: isSelected ? "1.5px solid #7c3aed" : "1px solid #e2e8f0",
+                                  background: isSelected ? "#f5f3ff" : "#f8fafc",
+                                  cursor: "pointer"
+                                }}
+                              >
+                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                  <span style={{ fontSize: "12px", fontWeight: 800, color: "#0f172a" }}>
+                                    {otherUser?.userName || "Athlete (" + (otherUid?.slice(0, 6) || "ID") + ")"}
+                                  </span>
+                                  <span style={{ fontSize: "9px", color: "#94a3b8" }}>
+                                    {c.updatedAt ? new Date(c.updatedAt).toLocaleDateString() : ""}
+                                  </span>
+                                </div>
+                                <div style={{ fontSize: "11px", color: "#64748b", marginTop: "3px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                  {c.lastMessage || "(Walang text preview)"}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {activeChatThread && (
+                        <div style={{ background: "#ffffff", padding: "14px", borderRadius: "14px", border: "1px solid #e2e8f0", display: "flex", flexDirection: "column" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingBottom: "8px", borderBottom: "1px solid #f1f5f9", marginBottom: "10px" }}>
+                            <span style={{ fontSize: "12px", fontWeight: 900, color: "#0f172a" }}>
+                              Transcript Viewer
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setActiveChatThread(null)}
+                              style={{ background: "none", border: "none", color: "#94a3b8", cursor: "pointer", fontSize: "14px" }}
+                            >
+                              ✕
+                            </button>
+                          </div>
+
+                          {isLoadingTranscript ? (
+                            <div style={{ textAlign: "center", padding: "30px", color: "#64748b" }}>
+                              <i className="fa-solid fa-spinner fa-spin" style={{ fontSize: "20px", color: "#7c3aed", marginBottom: "6px" }}></i>
+                              <div style={{ fontSize: "11px" }}>Binubuksan ang transcript...</div>
+                            </div>
+                          ) : chatTranscript.length === 0 ? (
+                            <div style={{ textAlign: "center", padding: "20px", color: "#94a3b8", fontSize: "11px" }}>
+                              Walang laman ang thread na ito.
+                            </div>
+                          ) : (
+                            <div style={{ maxHeight: "320px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "8px" }}>
+                              {chatTranscript.map((m, idx) => {
+                                const isTarget = m.senderUid === investigatingUser?.uid;
+                                return (
+                                  <div
+                                    key={m.id || idx}
+                                    style={{
+                                      alignSelf: isTarget ? "flex-end" : "flex-start",
+                                      maxWidth: "85%",
+                                      background: isTarget ? "#ede9fe" : "#f1f5f9",
+                                      border: isTarget ? "1px solid #ddd6fe" : "1px solid #e2e8f0",
+                                      padding: "8px 12px",
+                                      borderRadius: "12px"
+                                    }}
+                                  >
+                                    <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", fontSize: "9px", fontWeight: 800, color: isTarget ? "#6d28d9" : "#475569", marginBottom: "2px" }}>
+                                      <span>{m.senderName || (isTarget ? investigatingUser.userName : "Partner")}</span>
+                                      <span>{m.createdAt ? new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ""}</span>
+                                    </div>
+                                    <div style={{ fontSize: "12px", color: "#0f172a", wordBreak: "break-word" }}>
+                                      {m.text}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   ) : (
-                    <div style={{ maxHeight: "350px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "8px", paddingRight: "4px" }}>
-                      {chatTranscript.map((m, idx) => {
-                        const isTarget = m.senderUid === investigatingUser?.uid;
-
-                        return (
-                          <div
-                            key={m.id || idx}
-                            style={{
-                              alignSelf: isTarget ? "flex-end" : "flex-start",
-                              maxWidth: "85%",
-                              background: isTarget ? "#ede9fe" : "#f1f5f9",
-                              border: isTarget ? "1px solid #ddd6fe" : "1px solid #e2e8f0",
-                              padding: "8px 12px",
-                              borderRadius: "12px"
-                            }}
-                          >
-                            <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", fontSize: "9px", fontWeight: 800, color: isTarget ? "#6d28d9" : "#475569", marginBottom: "2px" }}>
-                              <span>{m.senderName || (isTarget ? investigatingUser.userName : "Partner")}</span>
-                              <span>{m.createdAt ? new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ""}</span>
-                            </div>
-                            <div style={{ fontSize: "12px", color: "#0f172a", wordBreak: "break-word" }}>
-                              {m.text}
-                            </div>
-                          </div>
-                        );
-                      })}
+                    <div style={{ textAlign: "center", padding: "30px", background: "#ffffff", borderRadius: "14px", border: "1px dashed #cbd5e1", color: "#64748b" }}>
+                      <i className="fa-regular fa-comment-slash" style={{ fontSize: "28px", color: "#cbd5e1", marginBottom: "8px" }}></i>
+                      <div style={{ fontSize: "12px", fontWeight: 700 }}>Walang naitalang personal chat ang account na ito sa cloud.</div>
                     </div>
                   )}
                 </div>
               )}
+
+              {/* SECTION D: HEALTH & TELEMETRY */}
+              {investigationTab === "health" && (
+                <div style={{ background: "#ffffff", padding: "16px", borderRadius: "14px", border: "1px solid #e2e8f0" }}>
+                  <div style={{ fontSize: "12px", fontWeight: 800, color: "#0f172a", marginBottom: "12px" }}>
+                    Athlete Health Parameters & Stored Goals
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "10px" }}>
+                    <div style={{ background: "#f8fafc", padding: "10px", borderRadius: "10px", border: "1px solid #e2e8f0" }}>
+                      <div style={{ fontSize: "10px", color: "#64748b", fontWeight: 700 }}>Current / Starting Weight</div>
+                      <div style={{ fontSize: "16px", fontWeight: 900, color: "#0f172a", marginTop: "2px" }}>
+                        {investigatingUser.currentWeight || investigatingUser.weight || "N/A"} <span style={{ fontSize: "10px" }}>kg</span>
+                      </div>
+                    </div>
+                    <div style={{ background: "#f8fafc", padding: "10px", borderRadius: "10px", border: "1px solid #e2e8f0" }}>
+                      <div style={{ fontSize: "10px", color: "#64748b", fontWeight: 700 }}>Target Goal Weight</div>
+                      <div style={{ fontSize: "16px", fontWeight: 900, color: "#3b82f6", marginTop: "2px" }}>
+                        {investigatingUser.targetWeight || "N/A"} <span style={{ fontSize: "10px" }}>kg</span>
+                      </div>
+                    </div>
+                    <div style={{ background: "#f8fafc", padding: "10px", borderRadius: "10px", border: "1px solid #e2e8f0" }}>
+                      <div style={{ fontSize: "10px", color: "#64748b", fontWeight: 700 }}>Daily Calorie Target</div>
+                      <div style={{ fontSize: "16px", fontWeight: 900, color: "#10b981", marginTop: "2px" }}>
+                        {investigatingUser.dailyCalorieTarget || investigatingUser.calorieGoal || "N/A"} <span style={{ fontSize: "10px" }}>kcal</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
-          ) : investigatingUser ? (
-            <div style={{ textAlign: "center", padding: "30px", background: "#ffffff", borderRadius: "14px", border: "1px dashed #cbd5e1", color: "#64748b" }}>
-              <i className="fa-regular fa-comment-slash" style={{ fontSize: "28px", color: "#cbd5e1", marginBottom: "8px" }}></i>
-              <div style={{ fontSize: "12px", fontWeight: 700 }}>Walang anumang naitalang personal chat ang account na ito sa cloud.</div>
+          ) : (
+            <div style={{ textAlign: "center", padding: "40px 20px", background: "#ffffff", borderRadius: "16px", border: "1px dashed #cbd5e1", color: "#64748b" }}>
+              <i className="fa-solid fa-magnifying-glass-arrow-right" style={{ fontSize: "32px", color: "#cbd5e1", marginBottom: "10px" }}></i>
+              <div style={{ fontSize: "13px", fontWeight: 800, color: "#0f172a" }}>Walang Kasalukuyang Iniimbestigahan</div>
+              <div style={{ fontSize: "11px", color: "#64748b", marginTop: "4px" }}>
+                Pumili ng isang atleta sa dropdown menu sa itaas o pindutin ang <strong>Investigate</strong> sa Athletes list upang buksan ang buong audit dossier.
+              </div>
             </div>
-          ) : null}
+          )}
         </div>
       )}
     </div>
