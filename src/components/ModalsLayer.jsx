@@ -273,86 +273,117 @@ export default function ModalsLayer({
           boxSizing: "border-box",
           boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)"
         }}>
-          {/* Header */}
+          {/* SINGLE UNIFIED MASTER HEADER (NO ARROW BACK, TOP-RIGHT CIRCULAR ✕) */}
           <div style={{
-            padding: "5px",
+            height: "54px",
+            padding: "0 16px",
             borderBottom: "1px solid #e2e8f0",
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
-            background: "#ffffff"
+            background: "#ffffff",
+            flexShrink: 0
           }}>
-            {/* MESSENGER STYLE SLIDE-OVER TOP BAR */}
-            <div style={{ 
-              display: "flex", 
-              alignItems: "center", 
-              justifyContent: "space-between", 
-              padding: "5px 10px", 
-              background: "#ffffff", 
-              minHeight: "56px",
-              boxSizing: "border-box",
-              position: "sticky",
-              top: 0,
-              zIndex: 100
-            }}>
-            {/* ULTRA-SLIM MESSENGER TOP BAR (44px COMPACT) */}
-            {/* MINIMALIST TOP BAR (BACK ARROW + NAME ONLY) */}
-            <div style={{ 
-              display: "flex", 
-              alignItems: "center", 
-              padding: "4px 10px", 
-              background: "#ffffff", 
-              minHeight: "34px",
-              boxSizing: "border-box", 
-              position: "sticky", 
-              top: 0, 
-              zIndex: 100 
-            }}>
-              {/* BACK BUTTON (<) */}
-              <button 
-                onClick={() => {
-                  if (activePanel === "chat") { if (typeof setActiveChatPartner === "function") setActiveChatPartner(null); setActivePanel("inbox"); }
-                  else setActivePanel(null);
-                }} 
-                style={{ 
-                  background: "none", 
-                  border: "none", 
-                  color: "#0f172a", 
-                  fontSize: "18px", 
-                  cursor: "pointer", 
-                  padding: "4px 8px 4px 0", 
-                  display: "flex", 
-                  alignItems: "center",
-                  marginRight: "4px"
-                }} 
-              >
-                <i className="fa-solid fa-arrow-left"></i>
-              </button>
-
-              {/* PANEL TITLE (Just text, no avatars) */}
-              <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 800, color: "#0f172a", flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                {activePanel === "chat" && (activeChatPartner?.userName || "Athlete")}
-                {activePanel === "inbox" && "Messages"}
-                {activePanel === "notif" && "Notifications"}
-                {activePanel === "post_detail" && "Post Pulse"}
-                {activePanel === "visitor_profile" && (selectedVisitor?.userName || "Athlete Profile")}
-                {activePanel === "profile_settings" && "Profile Settings"}
-                {activePanel === "boosters_list" && "Boosters"}
-                {activePanel === "boosting_list" && "Boosting"}
-              </h3>
-            </div>
-
-              {/* CLOSE BUTTON */}
-              {/* Inalis ang X icon */}
-            </div>
-            {activePanel === 'notif' && (
-              <span style={{ fontSize: "11px", fontWeight: 700, color: "#ef4444", background: "#fef2f2", border: "1px solid #fee2e2", padding: "4px 10px", borderRadius: "12px" }}>
-                {allUserNotifs.filter(n => (n.timestamp || 0) > lastSeenNotifTime).length} New
-              </span>
+            {/* LEFT SIDE: DYNAMIC ICON BADGE / AVATAR + TITLE */}
+            {activePanel === "chat" ? (
+              <div style={{ display: "flex", alignItems: "center", gap: "10px", minWidth: 0 }}>
+                <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: "#4f46e5", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: "13px", overflow: "hidden", flexShrink: 0 }}>
+                  {(() => {
+                    const photo = activeChatPartner?.avatarUrl || activeChatPartner?.photoURL || activeChatPartner?.photo || "";
+                    const valid = photo && (photo.startsWith("http") || photo.startsWith("data:image/")) && !photo.includes("pravatar");
+                    return valid ? (
+                      <img src={photo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                    ) : (
+                      (activeChatPartner?.userName || "A").charAt(0).toUpperCase()
+                    );
+                  })()}
+                </div>
+                <div style={{ minWidth: 0 }}>
+                  <strong style={{ fontSize: "14px", color: "#0f172a", display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {activeChatPartner?.userName || "Athlete"}
+                  </strong>
+                  {(() => {
+                    const presence = calculatePresence(activeChatPartner, userList);
+                    return (
+                      <span style={{ fontSize: "10px", color: presence.color, fontWeight: 700 }}>
+                        ● {presence.text}
+                      </span>
+                    );
+                  })()}
+                </div>
+              </div>
+            ) : activePanel === "visitor_profile" ? (
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: 0 }}>
+                <div style={{ width: "28px", height: "28px", borderRadius: "7px", background: "rgba(56, 189, 248, 0.15)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <i className="fa-regular fa-user" style={{ color: "#0284c7", fontSize: "13px" }}></i>
+                </div>
+                <h3 style={{ margin: 0, fontSize: "15px", fontWeight: 900, color: "#0f172a", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {selectedVisitor?.userName || "Athlete Passport"}
+                </h3>
+              </div>
+            ) : activePanel === "inbox" ? (
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <div style={{ width: "28px", height: "28px", borderRadius: "7px", background: "rgba(99, 102, 241, 0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <i className="fa-solid fa-comment-dots" style={{ color: "#6366f1", fontSize: "13px" }}></i>
+                </div>
+                <h3 style={{ margin: 0, fontSize: "15px", fontWeight: 900, color: "#0f172a" }}>Huddle Messages</h3>
+              </div>
+            ) : activePanel === "notif" ? (
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <div style={{ width: "28px", height: "28px", borderRadius: "7px", background: "rgba(239, 68, 68, 0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <i className="fa-solid fa-bell" style={{ color: "#ef4444", fontSize: "13px" }}></i>
+                </div>
+                <h3 style={{ margin: 0, fontSize: "15px", fontWeight: 900, color: "#0f172a" }}>Notifications</h3>
+              </div>
+            ) : activePanel === "post_detail" ? (
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <div style={{ width: "28px", height: "28px", borderRadius: "7px", background: "rgba(16, 185, 129, 0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <i className="fa-solid fa-comments" style={{ color: "#10b981", fontSize: "13px" }}></i>
+                </div>
+                <h3 style={{ margin: 0, fontSize: "15px", fontWeight: 900, color: "#0f172a" }}>Activity Huddle</h3>
+              </div>
+            ) : activePanel === "settings" || activePanel === "profile_settings" ? (
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <div style={{ width: "28px", height: "28px", borderRadius: "7px", background: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <i className="fa-solid fa-gear" style={{ color: "#64748b", fontSize: "13px" }}></i>
+                </div>
+                <h3 style={{ margin: 0, fontSize: "15px", fontWeight: 900, color: "#0f172a" }}>Profile Settings</h3>
+              </div>
+            ) : (
+              <h3 style={{ margin: 0, fontSize: "15px", fontWeight: 900, color: "#0f172a" }}>NutriPulse</h3>
             )}
+
+            {/* RIGHT SIDE: TOP-RIGHT CIRCULAR ✕ BUTTON ONLY */}
+            <button
+              type="button"
+              onClick={() => {
+                if (activePanel === "chat") {
+                  if (typeof setActiveChatPartner === "function") setActiveChatPartner(null);
+                }
+                if (typeof setActivePanel === "function") setActivePanel(null);
+                if (typeof setSelectedVisitor === "function") setSelectedVisitor(null);
+              }}
+              style={{
+                background: "#f1f5f9",
+                border: "none",
+                width: "28px",
+                height: "28px",
+                borderRadius: "50%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                cursor: "pointer",
+                color: "#64748b",
+                fontSize: "14px",
+                fontWeight: 800
+              }}
+              title="Close Panel"
+            >
+              ✕
+            </button>
           </div>
 
-          {/* Panel Body */}
+          }
           <div style={{ flex: 1, overflowY: "auto", padding: "16px", paddingBottom: "140px", WebkitOverflowScrolling: "touch" }}>
             {/* NOTIFICATION PANEL */}
             {activePanel === 'notif' && (
@@ -594,56 +625,7 @@ export default function ModalsLayer({
             {/* DIRECT 1-ON-1 CHAT PANEL (UNIFIED DESIGN: NO ARROW BACK, TOP-RIGHT CIRCULAR ✕) */}
             {activePanel === 'chat' && (
               <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "#f8fafc" }}>
-                {/* Modern Unified Chat Header */}
-                <div style={{
-                  height: "54px",
-                  padding: "0 16px",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  background: "#ffffff",
-                  borderBottom: "1px solid #e2e8f0",
-                  flexShrink: 0
-                }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "10px", minWidth: 0 }}>
-                    <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: "#4f46e5", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: "13px", overflow: "hidden", flexShrink: 0 }}>
-                      {activeChatPartner?.avatarUrl ? (
-                        <img src={activeChatPartner.avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                      ) : (
-                        (activeChatPartner?.userName || "A").charAt(0).toUpperCase()
-                      )}
-                    </div>
-                    <div style={{ minWidth: 0 }}>
-                      <strong style={{ fontSize: "14px", color: "#0f172a", display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {activeChatPartner?.userName || "Athlete"}
-                      </strong>
-                      <span style={{ fontSize: "10px", color: "#10b981", fontWeight: 700 }}>● Active Conversation</span>
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={() => {
-                      if (typeof setActiveChatPartner === "function") setActiveChatPartner(null);
-                      if (typeof setActivePanel === "function") setActivePanel(null);
-                    }}
-                    style={{
-                      background: "#f1f5f9",
-                      border: "none",
-                      width: "28px",
-                      height: "28px",
-                      borderRadius: "50%",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      cursor: "pointer",
-                      color: "#64748b",
-                      fontSize: "14px",
-                      fontWeight: 800
-                    }}
-                  >
-                    ✕
-                  </button>
-                </div>
+                
 
                 {/* Messages List with Auto-scroll */}
                 <div
