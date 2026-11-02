@@ -177,14 +177,6 @@ export default function App() {
   React.useEffect(() => {
     window.scrollTo(0, 0);
   }, [activeTab]);
-
-  const [onboardStep, setOnboardStep] = useState(0);
-  const [setupName, setSetupName] = useState("");
-  const [signupName, setSignupName] = useState("");
-  const [isAuthLoading, setIsAuthLoading] = useState(false);
-  const [setupHeight, setSetupHeight] = useState("165");
-  const [setupWeight, setSetupWeight] = useState("60");
-  const [setupActivity, setSetupActivity] = useState("1.55");
   const [setupGoalType, setSetupGoalType] = useState("jogger");
 
   const [quote, setQuote] = useState(() => FITNESS_QUOTES[Math.floor(Math.random() * FITNESS_QUOTES.length)]);
@@ -610,16 +602,15 @@ export default function App() {
               if (data?.avatarUrl) setAvatarPreview(data.avatarUrl);
               if (data?.coverUrl) setCoverPreview(data.coverUrl);
 
-              setOnboardStep(0);
               setShowAuthForm(false);
 
-              if (!data?.onboardingCompleted) {
-                setDoc(userDocRef, { onboardingCompleted: true }, { merge: true }).catch(() => {});
-              }
-            } else {
-              setOnboardStep(0);
-              setShowAuthForm(false);
-            }
+              // Safety check: tanging mga datihang profile lamang na may existing height/weight ang minamarkang completed
+if (!data?.onboardingCompleted && data?.height && data?.weight && (data?.baseGoal || data?.goal)) {
+  setDoc(userDocRef, { onboardingCompleted: true }, { merge: true }).catch(() => {});
+}
+} else {
+  setShowAuthForm(false);
+}
             setLoading(false);
           }, (err) => {
             console.error("Firestore user onSnapshot error:", err);
@@ -1252,80 +1243,12 @@ export default function App() {
       if (typeof setProfHeight === "function") setProfHeight(initialData.height);
       if (typeof setProfWeight === "function") setProfWeight(initialData.weight);
       if (typeof setProfActivity === "function") setProfActivity(initialData.activityLevel);
-      if (typeof setOnboardStep === "function") setOnboardStep(0);
-      if (typeof setShowSettingsModal === "function") setShowSettingsModal(false);
+      if (typeof setOnboardStep === "function") if (typeof setShowSettingsModal === "function") setShowSettingsModal(false);
       if (typeof setActiveTab === "function") setActiveTab("home");
       if (typeof setActivePanel === "function") setActivePanel(null);
     } catch (err) {
       console.error("Onboarding saving error:", err);
       alert("Error saving profile: " + err.message);
-    } finally {
-      setIsSavingOnboarding(false);
-    }
-  };
-
-  const completeOnboarding = async () => {
-    setIsSavingOnboarding(true);
-    try {
-      const w = parseFloat(setupWeight) || 60;
-      const h = parseFloat(setupHeight) || 160;
-      const act = parseFloat(setupActivity) || 1.55;
-      const todayShort = new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" });
-      const todayStr = new Date().toDateString();
-
-      let bmr = (10 * w) + (6.25 * h) - (5 * 25) + 5;
-      let tdee = Math.round(bmr * act);
-
-      let baseGoal = tdee;
-      let pGoal = Math.round(w * 2.0);
-      let cGoal = Math.round(w * 3.2);
-      let fGoal = Math.round(w * 0.9);
-
-      if (setupGoalType === "jogger") baseGoal = tdee + 100;
-      else if (setupGoalType === "marathon") baseGoal = tdee + 400;
-      else if (setupGoalType === "steps") baseGoal = Math.max(1200, tdee - 250);
-      else if (setupGoalType === "bulk") baseGoal = tdee + 250;
-      else if (setupGoalType === "cut") baseGoal = Math.max(1200, tdee - 450);
-
-      const initialData = {
-        userName: setupName || user.displayName || "Athlete",
-        userEmail: user.email || "",
-        userTitle: "Fitness Enthusiast",
-        avatarUrl: "",
-        coverUrl: "",
-        height: h,
-        weight: w,
-        prevWeight: w,
-        weightHistory: [{ val: w, date: todayShort }],
-        activityLevel: act,
-        dayMode: "workout",
-        streakDays: 1,
-        lastLogDate: todayStr,
-        activeGoalType: setupGoalType,
-        baseGoal, goal: baseGoal, pGoal, cGoal, fGoal,
-        todayBurnedCal: 0,
-        todayWaterMl: 0,
-        isBlocked: false,
-        isPrivateAccount: false,
-        boosting: [],
-        myBoosters: [],
-        pendingBoosterRequests: [],
-        onboardingCompleted: true,
-        createdAt: Date.now(),
-        weeklyLogs: { mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 },
-        meals: []
-      };
-
-      await saveToCloud(initialData);
-      setProfName(initialData.userName);
-      setProfTitle(initialData.userTitle);
-      setProfHeight(h);
-      setProfWeight(w);
-      setProfActivity(act);
-      setOnboardStep(0);
-      setShowSettingsModal(false);
-      setActiveTab("home"); 
-      setActivePanel(null);
     } finally {
       setIsSavingOnboarding(false);
     }
@@ -1383,7 +1306,6 @@ export default function App() {
         setUser(result.user);
       }
       setShowAuthForm(false);
-      setOnboardStep(0);
       setActiveTab("home");
       setActivePanel(null);
 
@@ -1420,8 +1342,7 @@ export default function App() {
     setCoverPreview("");
     setProfPostText("");
     setProfImagePreview(null);
-    setOnboardStep(0);
-              setShowAuthForm(false);
+    setShowAuthForm(false);
     setIsLoggingOut(false);
   };
 
