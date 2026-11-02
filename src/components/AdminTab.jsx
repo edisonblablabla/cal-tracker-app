@@ -93,9 +93,20 @@ export default function AdminTab({
     return () => clearInterval(timer);
   }, []);
 
-  const notify = (msg) => {
-    if (typeof showToast === "function") showToast(msg);
-    else alert(msg);
+  // Modern In-App Toast System (100% Free from Browser alert() Popups)
+  const [internalToast, setInternalToast] = useState(null);
+  const toastTimeoutRef = React.useRef(null);
+
+  const notify = (msg, type = "info") => {
+    if (typeof showToast === "function") {
+      showToast(msg);
+    }
+    // Laging mag-trigger ng in-app sleek floating notification
+    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    setInternalToast({ msg, type });
+    toastTimeoutRef.current = setTimeout(() => {
+      setInternalToast(null);
+    }, 4000);
   };
 
   const handleRefreshClick = async () => {
@@ -225,6 +236,39 @@ export default function AdminTab({
 
   return (
     <div className="screen active" style={{ maxWidth: "780px", margin: "0 auto", paddingBottom: "40px" }}>
+      {/* 🌟 SLEEK IN-APP FLOATING NOTIFICATION (REPLACES BROWSER ALERT) */}
+      {internalToast && (
+        <div style={{
+          position: "fixed",
+          top: "20px",
+          left: "50%",
+          transform: "translateX(-50%)",
+          zIndex: 99999,
+          background: internalToast.type === "error" ? "#b91c1c" : internalToast.type === "warning" ? "#d97706" : internalToast.type === "success" ? "#059669" : "#1e293b",
+          color: "#ffffff",
+          padding: "10px 18px",
+          borderRadius: "14px",
+          display: "flex",
+          alignItems: "center",
+          gap: "10px",
+          boxShadow: "0 10px 25px rgba(0,0,0,0.3)",
+          fontSize: "12px",
+          fontWeight: 800,
+          border: "1px solid rgba(255,255,255,0.2)",
+          animation: "fadeInDown 0.25s ease"
+        }}>
+          <i className={internalToast.type === "error" ? "fa-solid fa-triangle-exclamation" : internalToast.type === "warning" ? "fa-solid fa-shield-halved" : internalToast.type === "success" ? "fa-solid fa-circle-check" : "fa-solid fa-bell"}></i>
+          <span>{internalToast.msg}</span>
+          <button
+            type="button"
+            onClick={() => setInternalToast(null)}
+            style={{ background: "none", border: "none", color: "rgba(255,255,255,0.8)", cursor: "pointer", fontSize: "14px", marginLeft: "6px" }}
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       
       {/* ─── 1. COMMAND CENTER EXECUTIVE HEADER ─── */}
       <div style={{
@@ -866,6 +910,52 @@ export default function AdminTab({
                 Gamitin lamang ito sa pag-imbestiga ng mga ulat ng pambabastos, scam, o panloloko sa komunidad.
               </div>
             </div>
+
+          {/* 🔑 FIREBASE PERMISSION HELPER CARD */}
+          {ruleHelpRequired && (
+            <div style={{
+              background: "#fffbeb",
+              border: "1px solid #fde68a",
+              borderRadius: "14px",
+              padding: "14px",
+              marginBottom: "14px",
+              color: "#92400e"
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", fontWeight: 800, fontSize: "13px" }}>
+                <i className="fa-solid fa-key" style={{ color: "#d97706" }}></i>
+                <span>Hakbang para Pahintulutan ang Chat Evidence Vault sa Firebase</span>
+              </div>
+              <p style={{ fontSize: "11px", margin: "6px 0 10px 0", lineHeight: 1.5 }}>
+                Pinoprotektahan ng Firestore ang mga pribadong mensahe. Upang mabasa ito ng iyong Admin account para sa imbestigasyon, kailangan lamang i-update ang <strong>Rules</strong> sa Firebase Console.
+              </p>
+              <div style={{ background: "#1e293b", color: "#38bdf8", padding: "10px", borderRadius: "8px", fontSize: "10px", fontFamily: "monospace", overflowX: "auto" }}>
+                match /chats/{chatId} &#123; allow read, write: if request.auth != null; &#125;<br/>
+                match /chats/{chatId}/messages/{messageId} &#123; allow read, write: if request.auth != null; &#125;
+              </div>
+              <div style={{ marginTop: "8px", display: "flex", justifyContent: "flex-end" }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(`match /chats/{chatId} {\n  allow read, write: if request.auth != null;\n  match /messages/{messageId} {\n    allow read, write: if request.auth != null;\n  }\n}`);
+                    notify("Na-kopya na ang Firestore rule sa clipboard! 📋", "success");
+                  }}
+                  style={{
+                    background: "#d97706",
+                    color: "#ffffff",
+                    border: "none",
+                    borderRadius: "6px",
+                    padding: "5px 10px",
+                    fontSize: "10px",
+                    fontWeight: 800,
+                    cursor: "pointer"
+                  }}
+                >
+                  <i className="fa-regular fa-copy"></i> Kopyahin ang Rule
+                </button>
+              </div>
+            </div>
+          )}
+
           </div>
 
           {/* Select User to Investigate */}
