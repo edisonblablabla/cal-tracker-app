@@ -1943,6 +1943,8 @@ export default function App() {
         {activeTab === "progress" && (
           <ProgressTab
             appData={syncedAppData || appData}
+                  saveToCloud={saveToCloud}
+                  showToast={showToast}
             currentWeight={currentWeight}
             newLogWeight={newLogWeight}
             setNewLogWeight={setNewLogWeight}
