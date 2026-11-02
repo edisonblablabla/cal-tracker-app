@@ -12,7 +12,7 @@ export default function AuthScreen({
   setEmail,
   password,
   setPassword,
-  signupName,
+  signupName = "",
   setSignupName,
   errorMessage,
   setErrorMessage,
@@ -39,139 +39,91 @@ export default function AuthScreen({
     }
   };
 
-  // ─── HERO CAROUSEL VIEW ──────────────────────────────────────────
+  // ─── 1. HERO CAROUSEL VIEW (CLEAN, NO FAKE BADGES) ───────────────
   if (!showAuthForm) {
     const currentSlide = ONBOARDING_SLIDES[onboardSlideIdx] || ONBOARDING_SLIDES[0];
-
-    const previewBadges = [
-      { icon: "fa-solid fa-fire", label: "2,200 kcal", sub: "Daily Target", bg: "#fef3c7", text: "#d97706" },
-      { icon: "fa-solid fa-drumstick-bite", label: "150g Protein", sub: "Muscle Fuel", bg: "#e0e7ff", text: "#4338ca" },
-      { icon: "fa-solid fa-person-running", label: "8.5 km", sub: "GPS Tracked", bg: "#e0f2fe", text: "#0369a1" }
-    ];
 
     return (
       <div className="mobile-frame" style={{
         display: "flex",
         flexDirection: "column",
         justifyContent: "space-between",
-        padding: "clamp(24px, 5vw, 36px) clamp(18px, 4vw, 28px)",
-        background: "linear-gradient(180deg, #090d16 0%, #0f172a 100%)",
-        color: "#ffffff",
+        padding: "36px 24px",
+        background: "linear-gradient(180deg, #f8fafc 0%, #edf2f7 100%)",
         minHeight: "100dvh",
         boxSizing: "border-box"
       }}>
-        {/* Top Header */}
+        {/* Official Brand Header */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <div style={{ width: "32px", height: "32px", borderRadius: "10px", background: "linear-gradient(135deg, #6366f1, #38bdf8)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 12px rgba(99, 102, 241, 0.4)" }}>
-              <i className="fa-solid fa-bolt" style={{ color: "#ffffff", fontSize: "16px" }}></i>
-            </div>
-            <span style={{ fontSize: "18px", fontWeight: 900, letterSpacing: "-0.5px", background: "linear-gradient(135deg, #ffffff, #cbd5e1)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-              NUTRIPULSE
-            </span>
-          </div>
+          <h2 style={{ fontSize: "20px", fontWeight: 900, color: "var(--primary)", letterSpacing: "-0.5px", margin: 0 }}>
+            NUTRIPULSE
+          </h2>
           <button
             onClick={() => { setAuthMode("login"); setShowAuthForm(true); }}
             style={{
-              background: "rgba(255, 255, 255, 0.08)",
-              border: "1px solid rgba(255, 255, 255, 0.15)",
-              color: "#e2e8f0",
+              background: "transparent",
+              border: "none",
+              color: "#64748b",
               fontWeight: 800,
-              fontSize: "12px",
-              padding: "6px 14px",
-              borderRadius: "20px",
+              fontSize: "12.5px",
               cursor: "pointer",
-              backdropFilter: "blur(6px)"
+              padding: "4px 8px"
             }}
           >
             Sign In
           </button>
         </div>
 
-        {/* Dynamic Center Hero Card */}
-        <div style={{ textAlign: "center", margin: "auto 0", padding: "10px 0" }}>
-          {/* Animated Glowing Orb / Icon */}
-          <div style={{ position: "relative", width: "120px", height: "120px", margin: "0 auto 26px auto" }}>
-            <div style={{
-              position: "absolute",
-              inset: "-10px",
-              borderRadius: "50%",
-              background: `radial-gradient(circle, ${currentSlide.color}50 0%, transparent 70%)`,
-              filter: "blur(14px)",
-              animation: "pulse 3s infinite alternate"
-            }}></div>
-            <div style={{
-              position: "relative",
-              width: "100%",
-              height: "100%",
-              borderRadius: "50%",
-              background: "linear-gradient(145deg, #1e293b, #0f172a)",
-              border: `2px solid ${currentSlide.color}80`,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: "44px",
-              color: currentSlide.color,
-              boxShadow: `0 10px 30px ${currentSlide.color}30`
-            }}>
-              <i className={currentSlide.icon}></i>
-            </div>
+        {/* Clean Center Feature Focus */}
+        <div style={{ textAlign: "center", margin: "auto 0" }}>
+          {/* Authentic Icon Badge */}
+          <div style={{
+            width: "96px",
+            height: "96px",
+            borderRadius: "50%",
+            background: (currentSlide.color || "var(--primary)") + "18",
+            color: currentSlide.color || "var(--primary)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            margin: "0 auto 24px auto",
+            fontSize: "40px"
+          }}>
+            <i className={currentSlide.icon}></i>
           </div>
 
-          <h1 style={{
-            fontSize: "clamp(22px, 5.5vw, 26px)",
+          <h3 style={{
+            fontSize: "22px",
             fontWeight: 900,
-            color: "#ffffff",
+            color: "#0f172a",
             marginBottom: "10px",
             lineHeight: 1.25,
-            letterSpacing: "-0.5px"
+            letterSpacing: "-0.4px"
           }}>
             {currentSlide.title}
-          </h1>
+          </h3>
 
           <p style={{
-            fontSize: "clamp(12.5px, 3.2vw, 14px)",
-            color: "#94a3b8",
+            fontSize: "13.5px",
+            color: "#64748b",
             lineHeight: 1.6,
-            maxWidth: "310px",
-            margin: "0 auto 22px auto"
+            maxWidth: "290px",
+            margin: "0 auto"
           }}>
             {currentSlide.desc}
           </p>
 
-          {/* Interactive Metric Preview Pills */}
-          <div style={{ display: "flex", justifyContent: "center", gap: "8px", flexWrap: "wrap", marginBottom: "26px" }}>
-            {previewBadges.map((badge, idx) => (
-              <div key={idx} style={{
-                background: "rgba(30, 41, 59, 0.7)",
-                border: "1px solid rgba(255, 255, 255, 0.1)",
-                borderRadius: "12px",
-                padding: "6px 12px",
-                display: "flex",
-                alignItems: "center",
-                gap: "6px",
-                backdropFilter: "blur(8px)"
-              }}>
-                <i className={badge.icon} style={{ color: badge.text, fontSize: "11px" }}></i>
-                <div style={{ textAlign: "left" }}>
-                  <div style={{ fontSize: "11px", fontWeight: 800, color: "#f8fafc", lineHeight: 1 }}>{badge.label}</div>
-                  <div style={{ fontSize: "8.5px", color: "#94a3b8", fontWeight: 600 }}>{badge.sub}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Carousel Slide Indicators */}
-          <div style={{ display: "flex", justifyContent: "center", gap: "8px" }}>
+          {/* Dots Indicator */}
+          <div style={{ display: "flex", justifyContent: "center", gap: "6px", marginTop: "26px" }}>
             {ONBOARDING_SLIDES.map((_, idx) => (
               <div
                 key={idx}
                 onClick={() => setOnboardSlideIdx(idx)}
                 style={{
-                  width: onboardSlideIdx === idx ? "28px" : "8px",
-                  height: "7px",
-                  borderRadius: "4px",
-                  background: onboardSlideIdx === idx ? "linear-gradient(90deg, #6366f1, #38bdf8)" : "rgba(255, 255, 255, 0.2)",
+                  width: onboardSlideIdx === idx ? "22px" : "6px",
+                  height: "6px",
+                  borderRadius: "3px",
+                  background: onboardSlideIdx === idx ? "var(--primary)" : "#cbd5e1",
                   cursor: "pointer",
                   transition: "all 0.3s ease"
                 }}
@@ -180,7 +132,7 @@ export default function AuthScreen({
           </div>
         </div>
 
-        {/* Bottom Action Section */}
+        {/* Actions */}
         <div>
           <button
             onClick={() => {
@@ -191,27 +143,10 @@ export default function AuthScreen({
                 setShowAuthForm(true);
               }
             }}
-            style={{
-              width: "100%",
-              height: "50px",
-              borderRadius: "14px",
-              border: "none",
-              background: "linear-gradient(135deg, #6366f1 0%, #38bdf8 100%)",
-              color: "#ffffff",
-              fontSize: "14px",
-              fontWeight: 800,
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: "8px",
-              boxShadow: "0 8px 24px rgba(99, 102, 241, 0.35)",
-              marginBottom: "12px",
-              transition: "transform 0.15s ease"
-            }}
+            className="btn-block"
+            style={{ height: "48px", fontSize: "13.5px", fontWeight: 800, marginBottom: "10px" }}
           >
-            <span>{onboardSlideIdx < ONBOARDING_SLIDES.length - 1 ? "Next Step" : "Start Your Athlete Journey ⚡"}</span>
-            <i className="fa-solid fa-arrow-right" style={{ fontSize: "12px" }}></i>
+            {onboardSlideIdx < ONBOARDING_SLIDES.length - 1 ? "Next Step" : "Get Started"}
           </button>
 
           <button
@@ -220,68 +155,64 @@ export default function AuthScreen({
               width: "100%",
               background: "transparent",
               border: "none",
-              color: "#94a3b8",
-              fontWeight: 700,
+              color: "#0f172a",
+              fontWeight: 800,
               fontSize: "12.5px",
               cursor: "pointer",
               padding: "8px 0"
             }}
           >
-            Already an athlete? <span style={{ color: "#38bdf8", fontWeight: 800 }}>Sign In</span>
+            Already an athlete? <span style={{ color: "var(--primary)" }}>Sign In</span>
           </button>
         </div>
       </div>
     );
   }
 
-  // ─── AUTH FORM VIEW (SIGN IN / SIGN UP) ──────────────────────────
+  // ─── 2. AUTH FORM VIEW (CLEAN WHITE CARD, SYSTEM COMPATIBLE) ─────
   return (
     <div className="mobile-frame" style={{
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
-      padding: "clamp(16px, 4vw, 24px)",
+      padding: "20px",
       minHeight: "100dvh",
-      background: "#090d16",
+      background: "linear-gradient(180deg, #f8fafc 0%, #edf2f7 100%)",
       boxSizing: "border-box"
     }}>
-      <div style={{
-        background: "#0f172a",
-        borderRadius: "24px",
-        width: "100%",
+      <div className="card" style={{
         maxWidth: "380px",
+        width: "100%",
         padding: "26px 22px",
-        border: "1px solid rgba(255, 255, 255, 0.1)",
-        boxShadow: "0 20px 50px rgba(0, 0, 0, 0.4)",
-        boxSizing: "border-box",
-        color: "#ffffff"
+        borderRadius: "20px",
+        boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.06), 0 8px 10px -6px rgba(0, 0, 0, 0.04)"
       }}>
         {/* Header Bar */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "18px" }}>
           <button
             type="button"
             onClick={() => { setShowAuthForm(false); setErrorMessage(""); }}
             style={{
-              background: "rgba(255, 255, 255, 0.08)",
+              background: "#f1f5f9",
               border: "none",
               borderRadius: "50%",
               width: "32px",
               height: "32px",
-              color: "#cbd5e1",
               cursor: "pointer",
+              fontSize: "12px",
+              fontWeight: 800,
+              color: "#334155",
               display: "flex",
               alignItems: "center",
-              justifyContent: "center",
-              fontSize: "12px"
+              justifyContent: "center"
             }}
           >
             <i className="fa-solid fa-arrow-left"></i>
           </button>
 
-          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-            <i className="fa-solid fa-bolt" style={{ color: "#38bdf8", fontSize: "14px" }}></i>
-            <span style={{ fontSize: "16px", fontWeight: 900, letterSpacing: "-0.5px" }}>NUTRIPULSE</span>
-          </div>
+          <h2 style={{ fontSize: "19px", fontWeight: 900, color: "var(--primary)", letterSpacing: "-0.5px", margin: 0 }}>
+            NUTRIPULSE
+          </h2>
 
           <div style={{ width: "32px" }}></div>
         </div>
@@ -289,25 +220,25 @@ export default function AuthScreen({
         {/* Tab Switcher: Sign In vs Sign Up */}
         <div style={{
           display: "flex",
-          background: "rgba(255, 255, 255, 0.06)",
+          background: "#f1f5f9",
           padding: "4px",
           borderRadius: "12px",
-          marginBottom: "20px"
+          marginBottom: "18px"
         }}>
           <button
             type="button"
             onClick={() => { setAuthMode("login"); setErrorMessage(""); }}
             style={{
               flex: 1,
-              padding: "9px 0",
+              padding: "8px 0",
               borderRadius: "9px",
               border: "none",
               fontWeight: 800,
-              fontSize: "12.5px",
+              fontSize: "12px",
               cursor: "pointer",
-              background: authMode === "login" ? "linear-gradient(135deg, #6366f1, #4f46e5)" : "transparent",
-              color: authMode === "login" ? "#ffffff" : "#94a3b8",
-              boxShadow: authMode === "login" ? "0 4px 12px rgba(99, 102, 241, 0.3)" : "none",
+              background: authMode === "login" ? "#ffffff" : "transparent",
+              color: authMode === "login" ? "var(--primary)" : "#64748b",
+              boxShadow: authMode === "login" ? "0 2px 6px rgba(0,0,0,0.06)" : "none",
               transition: "all 0.2s ease"
             }}
           >
@@ -318,15 +249,15 @@ export default function AuthScreen({
             onClick={() => { setAuthMode("signup"); setErrorMessage(""); }}
             style={{
               flex: 1,
-              padding: "9px 0",
+              padding: "8px 0",
               borderRadius: "9px",
               border: "none",
               fontWeight: 800,
-              fontSize: "12.5px",
+              fontSize: "12px",
               cursor: "pointer",
-              background: authMode === "signup" ? "linear-gradient(135deg, #6366f1, #4f46e5)" : "transparent",
-              color: authMode === "signup" ? "#ffffff" : "#94a3b8",
-              boxShadow: authMode === "signup" ? "0 4px 12px rgba(99, 102, 241, 0.3)" : "none",
+              background: authMode === "signup" ? "#ffffff" : "transparent",
+              color: authMode === "signup" ? "var(--primary)" : "#64748b",
+              boxShadow: authMode === "signup" ? "0 2px 6px rgba(0,0,0,0.06)" : "none",
               transition: "all 0.2s ease"
             }}
           >
@@ -337,14 +268,14 @@ export default function AuthScreen({
         {/* Error Alert Box */}
         {errorMessage && (
           <div style={{
-            background: "rgba(239, 68, 68, 0.15)",
-            border: "1px solid rgba(239, 68, 68, 0.35)",
-            color: "#fca5a5",
+            background: "#fef2f2",
+            border: "1px solid #fecaca",
+            color: "#dc2626",
             borderRadius: "10px",
             padding: "10px 12px",
-            fontSize: "11.5px",
+            fontSize: "12px",
             lineHeight: 1.4,
-            marginBottom: "16px",
+            marginBottom: "14px",
             display: "flex",
             alignItems: "flex-start",
             gap: "8px"
@@ -358,83 +289,47 @@ export default function AuthScreen({
         <form onSubmit={handleEmailAuth}>
           {authMode === "signup" && (
             <div style={{ marginBottom: "12px" }}>
-              <label style={{ display: "block", fontSize: "11px", fontWeight: 700, color: "#cbd5e1", marginBottom: "5px" }}>
-                Full Name / Athlete Alias
+              <label style={{ display: "block", fontSize: "11px", fontWeight: 700, color: "#334155", marginBottom: "4px" }}>
+                Full Name / Alias
               </label>
-              <div style={{ position: "relative" }}>
-                <i className="fa-solid fa-user" style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: "#64748b", fontSize: "12px" }}></i>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Edison Valerio"
-                  value={signupName || ""}
-                  onChange={(e) => setSignupName && setSignupName(e.target.value)}
-                  style={{
-                    width: "100%",
-                    padding: "11px 12px 11px 36px",
-                    background: "rgba(255, 255, 255, 0.05)",
-                    border: "1px solid rgba(255, 255, 255, 0.15)",
-                    borderRadius: "10px",
-                    color: "#ffffff",
-                    fontSize: "12.5px",
-                    outline: "none",
-                    boxSizing: "border-box"
-                  }}
-                />
-              </div>
+              <input
+                type="text"
+                className="form-input"
+                required
+                placeholder="e.g. Edison Valerio"
+                value={signupName}
+                onChange={(e) => setSignupName && setSignupName(e.target.value)}
+              />
             </div>
           )}
 
           <div style={{ marginBottom: "12px" }}>
-            <label style={{ display: "block", fontSize: "11px", fontWeight: 700, color: "#cbd5e1", marginBottom: "5px" }}>
+            <label style={{ display: "block", fontSize: "11px", fontWeight: 700, color: "#334155", marginBottom: "4px" }}>
               Email Address
             </label>
-            <div style={{ position: "relative" }}>
-              <i className="fa-solid fa-envelope" style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: "#64748b", fontSize: "12px" }}></i>
-              <input
-                type="email"
-                required
-                placeholder="athlete@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                style={{
-                  width: "100%",
-                  padding: "11px 12px 11px 36px",
-                  background: "rgba(255, 255, 255, 0.05)",
-                  border: "1px solid rgba(255, 255, 255, 0.15)",
-                  borderRadius: "10px",
-                  color: "#ffffff",
-                  fontSize: "12.5px",
-                  outline: "none",
-                  boxSizing: "border-box"
-                }}
-              />
-            </div>
+            <input
+              type="email"
+              className="form-input"
+              required
+              placeholder="athlete@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
           </div>
 
           <div style={{ marginBottom: "18px" }}>
-            <label style={{ display: "block", fontSize: "11px", fontWeight: 700, color: "#cbd5e1", marginBottom: "5px" }}>
+            <label style={{ display: "block", fontSize: "11px", fontWeight: 700, color: "#334155", marginBottom: "4px" }}>
               Password
             </label>
             <div style={{ position: "relative" }}>
-              <i className="fa-solid fa-lock" style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: "#64748b", fontSize: "12px" }}></i>
               <input
                 type={showPassword ? "text" : "password"}
+                className="form-input"
                 required
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                style={{
-                  width: "100%",
-                  padding: "11px 38px 11px 36px",
-                  background: "rgba(255, 255, 255, 0.05)",
-                  border: "1px solid rgba(255, 255, 255, 0.15)",
-                  borderRadius: "10px",
-                  color: "#ffffff",
-                  fontSize: "12.5px",
-                  outline: "none",
-                  boxSizing: "border-box"
-                }}
+                style={{ paddingRight: "38px" }}
               />
               <button
                 type="button"
@@ -459,61 +354,45 @@ export default function AuthScreen({
           <button
             type="submit"
             disabled={isAuthLoading}
+            className="btn-block"
             style={{
-              width: "100%",
-              height: "46px",
-              borderRadius: "12px",
-              border: "none",
-              background: "linear-gradient(135deg, #6366f1 0%, #38bdf8 100%)",
-              color: "#ffffff",
+              height: "44px",
               fontSize: "13px",
               fontWeight: 800,
-              cursor: isAuthLoading ? "not-allowed" : "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: "8px",
-              boxShadow: "0 4px 16px rgba(99, 102, 241, 0.35)",
-              transition: "transform 0.15s ease"
+              cursor: isAuthLoading ? "not-allowed" : "pointer"
             }}
           >
             {isAuthLoading ? (
-              <>
-                <i className="fa-solid fa-spinner fa-spin"></i>
-                <span>Processing...</span>
-              </>
+              <span><i className="fa-solid fa-spinner fa-spin"></i> Processing...</span>
             ) : (
-              <span>{authMode === "login" ? "Sign In ⚡" : "Create Athlete Account ⚡"}</span>
+              <span>{authMode === "login" ? "Sign In" : "Create Account"}</span>
             )}
           </button>
         </form>
 
         {/* Divider */}
-        <div style={{ display: "flex", alignItems: "center", margin: "20px 0", gap: "10px" }}>
-          <div style={{ flex: 1, height: "1px", background: "rgba(255, 255, 255, 0.1)" }}></div>
-          <span style={{ fontSize: "10px", color: "#64748b", fontWeight: 700 }}>OR CONTINUE WITH</span>
-          <div style={{ flex: 1, height: "1px", background: "rgba(255, 255, 255, 0.1)" }}></div>
+        <div style={{ display: "flex", alignItems: "center", margin: "18px 0", gap: "8px" }}>
+          <div style={{ flex: 1, height: "1px", background: "#e2e8f0" }}></div>
+          <span style={{ fontSize: "10px", color: "var(--text-muted)", fontWeight: 700 }}>OR</span>
+          <div style={{ flex: 1, height: "1px", background: "#e2e8f0" }}></div>
         </div>
 
         {/* Google Sign In Button */}
         <button
           type="button"
           onClick={onGoogleButtonClick}
+          className="btn-block"
           style={{
-            width: "100%",
-            height: "44px",
-            borderRadius: "12px",
-            border: "1px solid rgba(255, 255, 255, 0.15)",
-            background: "#ffffff",
-            color: "#0f172a",
-            fontSize: "12.5px",
-            fontWeight: 800,
-            cursor: "pointer",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             gap: "10px",
-            boxShadow: "0 2px 8px rgba(0,0,0,0.1)"
+            height: "44px",
+            fontSize: "12.5px",
+            background: "#ffffff",
+            color: "#0f172a",
+            border: "1px solid #cbd5e1",
+            boxShadow: "0 1px 3px rgba(0,0,0,0.05)"
           }}
         >
           <i className="fa-brands fa-google" style={{ color: "#ea4335", fontSize: "15px" }}></i>
