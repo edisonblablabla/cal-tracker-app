@@ -39,6 +39,7 @@ export default function ProfileTab({
   isPublishing = false
 }) {
   const [profileSubTab, setProfileSubTab] = useState("activities");
+  const [showComposer, setShowComposer] = useState(false);
   const profFileInputRef = useRef(null); // "activities" | "boosters" | "boosting"
   const [myPosts, setMyPosts] = useState([]);
   const [allAthletes, setAllAthletes] = useState([]);
@@ -627,6 +628,179 @@ export default function ProfileTab({
         {/* ─── TAB 1: ACTIVITIES (MAY 3 DOTS MENU & TAP TO OPEN HUDDLE) ─── */}
         {profileSubTab === "activities" && (
           <div>
+              {/* ─── ✍️ PULSE FEED 1:1 COMPOSER (COLLAPSIBLE PILL TO EXPANDED) ─── */}
+              <div
+                style={{
+                  background: "#ffffff",
+                  borderRadius: "14px",
+                  padding: "12px 14px",
+                  marginBottom: "16px",
+                  border: "1px solid #f1f5f9",
+                  boxShadow: "0 1px 3px rgba(0,0,0,0.04)"
+                }}
+              >
+                {!showComposer ? (
+                  <div
+                    onClick={() => setShowComposer(true)}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "10px",
+                      cursor: "pointer"
+                    }}
+                  >
+                    {renderAvatar(avatarPreview || appData?.avatarUrl || user?.photoURL, appData?.userName || user?.displayName || "You", 28)}
+                    <span style={{ color: "#94a3b8", fontSize: "12.5px", flex: 1 }}>
+                      Share your latest sweat session... 🏃🚴
+                    </span>
+                    <i className="fa-solid fa-camera" style={{ color: "#4f46e5", fontSize: "16px" }}></i>
+                  </div>
+                ) : (
+                  <div>
+                    <textarea
+                      value={profPostText || ""}
+                      onChange={(e) => setProfPostText && setProfPostText(e.target.value)}
+                      placeholder="Tell the squad about your run or workout..."
+                      style={{
+                        width: "100%",
+                        minHeight: "75px",
+                        border: "1px solid #cbd5e1",
+                        borderRadius: "10px",
+                        padding: "10px",
+                        fontSize: "13px",
+                        outline: "none",
+                        resize: "none",
+                        fontFamily: "inherit",
+                        boxSizing: "border-box"
+                      }}
+                    />
+
+                    {profImagePreview && (
+                      <div style={{ position: "relative", marginTop: "8px", borderRadius: "10px", overflow: "hidden", border: "1px solid #e2e8f0" }}>
+                        <img
+                          src={profImagePreview}
+                          alt="Attached"
+                          style={{ width: "100%", maxHeight: "240px", objectFit: "contain", display: "block", background: "#0f172a" }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setProfImagePreview && setProfImagePreview(null)}
+                          style={{
+                            position: "absolute",
+                            top: "6px",
+                            right: "6px",
+                            background: "rgba(15,23,42,0.75)",
+                            color: "#ffffff",
+                            border: "none",
+                            borderRadius: "50%",
+                            width: "24px",
+                            height: "24px",
+                            cursor: "pointer",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center"
+                          }}
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    )}
+
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "10px", flexWrap: "wrap", gap: "8px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                        <label style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: "5px", color: "#64748b", fontSize: "12px", fontWeight: 700 }}>
+                          <i className="fa-solid fa-image" style={{ color: "#4f46e5", fontSize: "15px" }}></i>
+                          <span>Photo</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => {
+                              if (handleImageChange) {
+                                handleImageChange(e, true);
+                              }
+                              if (e.target.files && e.target.files[0]) {
+                                const reader = new FileReader();
+                                reader.onload = (ev) => setProfImagePreview && setProfImagePreview(ev.target.result);
+                                reader.readAsDataURL(e.target.files[0]);
+                              }
+                            }}
+                            style={{ display: "none" }}
+                          />
+                        </label>
+
+                        <select
+                          value={profPostVisibility || "public"}
+                          onChange={(e) => setProfPostVisibility && setProfPostVisibility(e.target.value)}
+                          style={{
+                            background: "#f8fafc",
+                            color: "#475569",
+                            border: "1px solid #e2e8f0",
+                            borderRadius: "6px",
+                            padding: "4px 8px",
+                            fontSize: "11px",
+                            fontWeight: 700,
+                            cursor: "pointer",
+                            outline: "none"
+                          }}
+                        >
+                          <option value="public">🌐 Public</option>
+                          <option value="boosters">👥 Boosters</option>
+                        </select>
+                      </div>
+
+                      <div style={{ display: "flex", gap: "8px" }}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowComposer(false);
+                            if (setProfPostText) setProfPostText("");
+                            if (setProfImagePreview) setProfImagePreview(null);
+                          }}
+                          style={{
+                            padding: "6px 12px",
+                            background: "transparent",
+                            color: "#64748b",
+                            border: "none",
+                            fontWeight: 700,
+                            borderRadius: "6px",
+                            cursor: "pointer",
+                            fontSize: "12px"
+                          }}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (createPost) {
+                              await createPost(true);
+                              setShowComposer(false);
+                            }
+                          }}
+                          disabled={isPublishing}
+                          style={{
+                            padding: "7px 16px",
+                            background: "linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)",
+                            color: "#ffffff",
+                            border: "none",
+                            fontWeight: 800,
+                            borderRadius: "8px",
+                            cursor: isPublishing ? "not-allowed" : "pointer",
+                            fontSize: "12px",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "5px",
+                            boxShadow: "0 2px 6px rgba(99,102,241,0.25)"
+                          }}
+                        >
+                          {isPublishing ? "Publishing..." : "Post ⚡"}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               {/* ─── ✍️ PROFILE QUICK POST COMPOSER ─── */}
               <div style={{
                 background: "#ffffff",
