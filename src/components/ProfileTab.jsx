@@ -557,15 +557,13 @@ export default function ProfileTab({
       </div>
 
       </div>
-      <div style={{ maxWidth: "480px", margin: "0 auto", padding: "14px 16px", paddingTop: "66px" }}>
+      <div style={{ maxWidth: "480px", margin: "0 auto", padding: "10px clamp(8px, 2.5vw, 14px)", paddingTop: "60px", boxSizing: "border-box" }}>
 
         {/* 🪪 CLEAN ATHLETE IDENTITY CARD (LIGHT SYSTEM THEME) */}
         <div style={{
           background: "#ffffff",
           borderRadius: "18px",
-          padding: "18px",
-          border: "1px solid #e2e8f0",
-          boxShadow: "0 2px 10px rgba(15, 23, 42, 0.04)"
+          padding: "14px clamp(10px, 3vw, 16px)", border: "1px solid #e2e8f0", boxShadow: "0 2px 10px rgba(15, 23, 42, 0.04)", boxSizing: "border-box"
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
             <div style={{
@@ -594,146 +592,151 @@ export default function ProfileTab({
             </div>
           </div>
 
-          {/* ⚡ 3 PERFORMANCE METRICS TILES */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px", marginTop: "16px" }}>
-            
-            {/* 1. STREAK TILE */}
-            <div style={{ background: "#f8fafc", borderRadius: "12px", padding: "10px 6px", border: "1px solid #e2e8f0", textAlign: "center" }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "4px" }}>
-                <i className="fa-solid fa-fire" style={{ color: currentStreak >= 3 ? "#f97316" : (currentStreak >= 1 ? "#eab308" : "#94a3b8"), fontSize: "14px" }}></i>
-                <span style={{ fontSize: "16px", fontWeight: 900, color: currentStreak >= 3 ? "#f97316" : "#0f172a" }}>
-                  {currentStreak}
-                </span>
+          {/* ⚡ 3 PERFORMANCE METRICS TILES (BULLETPROOF NO-OVERFLOW) */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "6px", marginTop: "14px" }}>
+              
+              {/* 1. STREAK TILE */}
+              <div style={{ background: "#f8fafc", borderRadius: "10px", padding: "8px 4px", border: "1px solid #e2e8f0", textAlign: "center", boxSizing: "border-box", minWidth: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "4px" }}>
+                  <i className="fa-solid fa-fire" style={{ color: currentStreak >= 3 ? "#f97316" : (currentStreak >= 1 ? "#eab308" : "#94a3b8"), fontSize: "13px" }}></i>
+                  <span style={{ fontSize: "clamp(14px, 3.8vw, 16px)", fontWeight: 900, color: currentStreak >= 3 ? "#f97316" : "#0f172a", lineHeight: 1 }}>
+                    {currentStreak}
+                  </span>
+                </div>
+                <div style={{ fontSize: "clamp(8.5px, 2.3vw, 9.5px)", fontWeight: 800, color: "#64748b", textTransform: "uppercase", marginTop: "3px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  STREAK
+                </div>
+                <div style={{ fontSize: "clamp(7.5px, 2vw, 8.5px)", color: isStreakActiveToday ? "#10b981" : "#f59e0b", fontWeight: 800, marginTop: "2px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  {isStreakActiveToday ? "● Active" : "○ Needs log"}
+                </div>
               </div>
-              <span style={{ fontSize: "9.5px", fontWeight: 800, color: "#64748b", textTransform: "uppercase", display: "block", marginTop: "2px" }}>
-                Streak (Days)
-              </span>
-              <span style={{ fontSize: "8.5px", color: isStreakActiveToday ? "#10b981" : "#f59e0b", fontWeight: 800, display: "block", marginTop: "2px" }}>
-                {isStreakActiveToday ? "● Active today" : "○ Needs log"}
-              </span>
-            </div>
 
-            {/* 2. TOTAL DISTANCE TILE (GPS + STEPS) */}
-            <div style={{ background: "#f8fafc", borderRadius: "12px", padding: "10px 6px", border: "1px solid #e2e8f0", textAlign: "center" }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "4px" }}>
-                <i className="fa-solid fa-person-running" style={{ color: "#0284c7", fontSize: "14px" }}></i>
-                <span style={{ fontSize: "16px", fontWeight: 900, color: "#0f172a" }}>
-                  {totalDistance}
-                </span>
+              {/* 2. TOTAL DISTANCE TILE (GPS + STEPS) */}
+              <div style={{ background: "#f8fafc", borderRadius: "10px", padding: "8px 4px", border: "1px solid #e2e8f0", textAlign: "center", boxSizing: "border-box", minWidth: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "4px" }}>
+                  <i className="fa-solid fa-person-running" style={{ color: "#0284c7", fontSize: "13px" }}></i>
+                  <span style={{ fontSize: "clamp(14px, 3.8vw, 16px)", fontWeight: 900, color: "#0f172a", lineHeight: 1 }}>
+                    {totalDistance}
+                  </span>
+                </div>
+                <div style={{ fontSize: "clamp(8.5px, 2.3vw, 9.5px)", fontWeight: 800, color: "#64748b", textTransform: "uppercase", marginTop: "3px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  DISTANCE
+                </div>
+                <div style={{ fontSize: "clamp(7.5px, 2vw, 8.5px)", color: "#64748b", fontWeight: 700, marginTop: "2px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  km (GPS/Steps)
+                </div>
               </div>
-              <span style={{ fontSize: "9.5px", fontWeight: 800, color: "#64748b", textTransform: "uppercase", display: "block", marginTop: "2px" }}>
-                Distance (KM)
-              </span>
-              <span style={{ fontSize: "8.5px", color: "#64748b", fontWeight: 700, display: "block", marginTop: "2px" }}>
-                GPS + Steps
-              </span>
-            </div>
 
-            {/* 3. CALORIES BURNED TILE */}
-            <div style={{ background: "#f8fafc", borderRadius: "12px", padding: "10px 6px", border: "1px solid #e2e8f0", textAlign: "center" }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "4px" }}>
-                <i className="fa-solid fa-bolt" style={{ color: "#f97316", fontSize: "14px" }}></i>
-                <span style={{ fontSize: "16px", fontWeight: 900, color: "#0f172a" }}>
-                  {totalCalories}
-                </span>
+              {/* 3. CALORIES BURNED TILE */}
+              <div style={{ background: "#f8fafc", borderRadius: "10px", padding: "8px 4px", border: "1px solid #e2e8f0", textAlign: "center", boxSizing: "border-box", minWidth: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "4px" }}>
+                  <i className="fa-solid fa-bolt" style={{ color: "#f97316", fontSize: "13px" }}></i>
+                  <span style={{ fontSize: "clamp(14px, 3.8vw, 16px)", fontWeight: 900, color: "#0f172a", lineHeight: 1 }}>
+                    {totalCalories}
+                  </span>
+                </div>
+                <div style={{ fontSize: "clamp(8.5px, 2.3vw, 9.5px)", fontWeight: 800, color: "#64748b", textTransform: "uppercase", marginTop: "3px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  ACTIVE BURN
+                </div>
+                <div style={{ fontSize: "clamp(7.5px, 2vw, 8.5px)", color: "#64748b", fontWeight: 700, marginTop: "2px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  kcal burned
+                </div>
               </div>
-              <span style={{ fontSize: "9.5px", fontWeight: 800, color: "#64748b", textTransform: "uppercase", display: "block", marginTop: "2px" }}>
-                Active Burn
-              </span>
-              <span style={{ fontSize: "8.5px", color: "#64748b", fontWeight: 700, display: "block", marginTop: "2px" }}>
-                kcal burned
-              </span>
-            </div>
 
+            </div>
           </div>
-        </div>
 
-        {/* 🎛️ SEGMENTED CONTROL TABS (ACTIVITIES, BOOSTERS, BOOSTING) */}
-        <div style={{
-          display: "flex",
-          background: "#f1f5f9",
-          borderRadius: "10px",
-          padding: "3px",
-          margin: "16px 0 14px 0",
-          border: "1px solid #e2e8f0"
-        }}>
-          <button
-            type="button"
-            onClick={() => setProfileSubTab("activities")}
-            style={{
-              flex: 1,
-              padding: "8px 0",
-              borderRadius: "8px",
-              border: "none",
-              fontSize: "12px",
-              fontWeight: 800,
-              cursor: "pointer",
-              display: "flex",
-              justifyContent: "center",
-              alignItems: "center",
-              gap: "6px",
-              background: profileSubTab === "activities" ? "#ffffff" : "transparent",
-              color: profileSubTab === "activities" ? "#0f172a" : "#64748b",
-              boxShadow: profileSubTab === "activities" ? "0 1px 4px rgba(0,0,0,0.06)" : "none",
-              transition: "all 0.15s ease"
-            }}
-          >
-            <i className="fa-solid fa-route" style={{ color: profileSubTab === "activities" ? "#0284c7" : "#94a3b8" }}></i>
-            Activities ({myPosts.length})
-          </button>
+          {/* 🎛️ SEGMENTED CONTROL TABS (SINGLE-LINE NO TEXT BREAK) */}
+          <div style={{
+            display: "flex",
+            background: "#f1f5f9",
+            borderRadius: "10px",
+            padding: "3px",
+            margin: "12px 0",
+            border: "1px solid #e2e8f0",
+            gap: "3px",
+            boxSizing: "border-box"
+          }}>
+            <button
+              type="button"
+              onClick={() => setProfileSubTab("activities")}
+              style={{
+                flex: 1,
+                padding: "7px 2px",
+                borderRadius: "8px",
+                border: "none",
+                fontSize: "clamp(10px, 2.7vw, 11.5px)",
+                fontWeight: 800,
+                cursor: "pointer",
+                display: "flex",
+                justifyContent: "center",
+                alignItems: "center",
+                gap: "4px",
+                background: profileSubTab === "activities" ? "#ffffff" : "transparent",
+                color: profileSubTab === "activities" ? "#0f172a" : "#64748b",
+                boxShadow: profileSubTab === "activities" ? "0 1px 4px rgba(0,0,0,0.06)" : "none",
+                whiteSpace: "nowrap",
+                transition: "all 0.15s ease"
+              }}
+            >
+              <i className="fa-solid fa-route" style={{ color: profileSubTab === "activities" ? "#0284c7" : "#94a3b8", fontSize: "11px" }}></i>
+              <span>Activities ({myPosts.length})</span>
+            </button>
 
-          <button
-            type="button"
-            onClick={() => setProfileSubTab("boosters")}
-            style={{
-              flex: 1,
-              padding: "8px 0",
-              borderRadius: "8px",
-              border: "none",
-              fontSize: "12px",
-              fontWeight: 800,
-              cursor: "pointer",
-              display: "flex",
-              justifyContent: "center",
-              alignItems: "center",
-              gap: "6px",
-              background: profileSubTab === "boosters" ? "#ffffff" : "transparent",
-              color: profileSubTab === "boosters" ? "#0f172a" : "#64748b",
-              boxShadow: profileSubTab === "boosters" ? "0 1px 4px rgba(0,0,0,0.06)" : "none",
-              transition: "all 0.15s ease"
-            }}
-          >
-            <i className="fa-solid fa-users" style={{ color: profileSubTab === "boosters" ? "#10b981" : "#94a3b8" }}></i>
-            Boosters ({myBoostersList.length})
-          </button>
+            <button
+              type="button"
+              onClick={() => setProfileSubTab("boosters")}
+              style={{
+                flex: 1,
+                padding: "7px 2px",
+                borderRadius: "8px",
+                border: "none",
+                fontSize: "clamp(10px, 2.7vw, 11.5px)",
+                fontWeight: 800,
+                cursor: "pointer",
+                display: "flex",
+                justifyContent: "center",
+                alignItems: "center",
+                gap: "4px",
+                background: profileSubTab === "boosters" ? "#ffffff" : "transparent",
+                color: profileSubTab === "boosters" ? "#0f172a" : "#64748b",
+                boxShadow: profileSubTab === "boosters" ? "0 1px 4px rgba(0,0,0,0.06)" : "none",
+                whiteSpace: "nowrap",
+                transition: "all 0.15s ease"
+              }}
+            >
+              <i className="fa-solid fa-users" style={{ color: profileSubTab === "boosters" ? "#10b981" : "#94a3b8", fontSize: "11px" }}></i>
+              <span>Boosters ({myBoostersList.length})</span>
+            </button>
 
-          <button
-            type="button"
-            onClick={() => setProfileSubTab("boosting")}
-            style={{
-              flex: 1,
-              padding: "8px 0",
-              borderRadius: "8px",
-              border: "none",
-              fontSize: "12px",
-              fontWeight: 800,
-              cursor: "pointer",
-              display: "flex",
-              justifyContent: "center",
-              alignItems: "center",
-              gap: "6px",
-              background: profileSubTab === "boosting" ? "#ffffff" : "transparent",
-              color: profileSubTab === "boosting" ? "#0f172a" : "#64748b",
-              boxShadow: profileSubTab === "boosting" ? "0 1px 4px rgba(0,0,0,0.06)" : "none",
-              transition: "all 0.15s ease"
-            }}
-          >
-            <i className="fa-solid fa-user-plus" style={{ color: profileSubTab === "boosting" ? "#6366f1" : "#94a3b8" }}></i>
-            Boosting ({myBoostingList.length})
-          </button>
-        </div>
+            <button
+              type="button"
+              onClick={() => setProfileSubTab("boosting")}
+              style={{
+                flex: 1,
+                padding: "7px 2px",
+                borderRadius: "8px",
+                border: "none",
+                fontSize: "clamp(10px, 2.7vw, 11.5px)",
+                fontWeight: 800,
+                cursor: "pointer",
+                display: "flex",
+                justifyContent: "center",
+                alignItems: "center",
+                gap: "4px",
+                background: profileSubTab === "boosting" ? "#ffffff" : "transparent",
+                color: profileSubTab === "boosting" ? "#0f172a" : "#64748b",
+                boxShadow: profileSubTab === "boosting" ? "0 1px 4px rgba(0,0,0,0.06)" : "none",
+                whiteSpace: "nowrap",
+                transition: "all 0.15s ease"
+              }}
+            >
+              <i className="fa-solid fa-user-plus" style={{ color: profileSubTab === "boosting" ? "#6366f1" : "#94a3b8", fontSize: "11px" }}></i>
+              <span>Boosting ({myBoostingList.length})</span>
+            </button>
+          </div>
 
-        {/* ─── TAB 1: ACTIVITIES (MAY 3 DOTS MENU & TAP TO OPEN HUDDLE) ─── */}
+          {/* ─── TAB 1: ACTIVITIES (MAY 3 DOTS MENU & TAP TO OPEN HUDDLE) ─── */}
         {profileSubTab === "activities" && (
           <div>
               {/* ─── ✍️ PULSE FEED 1:1 COMPOSER (COLLAPSIBLE PILL TO EXPANDED) ─── */}
