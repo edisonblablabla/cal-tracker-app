@@ -386,10 +386,20 @@ export default function CommunityTab({
     });
   }, [allAthletes, searchQuery]);
 
-  // ─── LEADERBOARD DATA ───
-  const sortedAthletes = useMemo(() => {
+  // ─── HIGH-RETENTION QUALIFIED LEADERBOARD ENGINE ───
+  const {
+    qualifiedAthletes,
+    isUserQualified,
+    currentUserRank,
+    currentUserScoreDisplay,
+    top1,
+    top2,
+    top3,
+    runnersUp
+  } = useMemo(() => {
     let list = [...allAthletes];
 
+    // Isama ang current user kung wala pa sa listahan
     if (user && !list.some(u => (u.uid === user.uid || u.id === user.uid))) {
       list.push({
         uid: user.uid,
@@ -398,42 +408,68 @@ export default function CommunityTab({
         avatarUrl: appData?.avatarUrl || avatarPreview || "",
         totalDistance: appData?.totalDistance || 0,
         todayBurnedCal: appData?.todayBurnedCal || 0,
-        streakDays: appData?.streakDays || 1
+        streakDays: appData?.streakDays || 0,
+        steps: appData?.steps || 0
       });
     }
 
-    return list.map(u => {
+    const processed = list.map(u => {
       const uid = u.uid || u.id;
-      const dist = Number(u.totalDistance || u.distanceKm || u.totalDistanceKm || (u.steps ? u.steps * 0.0008 : 0)) || 0;
-      const cal = Number(u.todayBurnedCal || u.totalBurnedCalories || u.burnedCal || u.calories || (dist > 0 ? dist * 65 : 0)) || 0;
-      const streak = Number(u.streakDays || u.streak || 1);
+      // KASAMA ANG WALKING / BRISK WALK STEPS SA DISTANCE
+      const rawDist = Number(u.totalDistance || u.distanceKm || u.totalDistanceKm || 0);
+      const stepsDist = (Number(u.steps || 0) * 0.00075);
+      const dist = Math.max(rawDist, stepsDist);
+
+      const cal = Number(u.todayBurnedCal || u.totalBurnedCalories || u.burnedCal || u.calories || (dist > 0 ? dist * 60 : 0)) || 0;
+      const streak = Number(u.streakDays || u.streak || 0);
       const name = u.userName || u.displayName || u.name || "Athlete";
       const photo = u.avatarUrl || u.photoURL || u.photo || "";
+
+      let score = 0;
+      if (leaderboardMetric === "distance") score = Math.round(dist * 10) / 10;
+      else if (leaderboardMetric === "calories") score = Math.round(cal);
+      else if (leaderboardMetric === "streak") score = streak;
 
       return {
         uid,
         name,
         photo,
+        score,
         dist: Math.round(dist * 10) / 10,
         cal: Math.round(cal),
         streak,
         isCurrent: uid === user?.uid
       };
-    }).sort((a, b) => {
-      if (leaderboardMetric === "calories") return b.cal - a.cal;
-      if (leaderboardMetric === "streak") return b.streak - a.streak;
-      return b.dist - a.dist;
     });
+
+    // 🎯 PANUNTUNAN SA QUALIFICATION:
+    // Tanging may aktibidad (> 0) ang mabibigyan ng official rank number!
+    const qualified = processed
+      .filter(a => a.score > 0)
+      .sort((a, b) => b.score - a.score);
+
+    const userQualifiedIndex = qualified.findIndex(a => a.isCurrent);
+    const qualifiedStatus = userQualifiedIndex !== -1;
+    const rank = qualifiedStatus ? userQualifiedIndex + 1 : null;
+
+    const me = processed.find(a => a.isCurrent) || { dist: 0, cal: 0, streak: 0 };
+    const scoreText = leaderboardMetric === "distance"
+      ? me.dist + " km"
+      : leaderboardMetric === "calories"
+      ? me.cal + " cal"
+      : me.streak + " days";
+
+    return {
+      qualifiedAthletes: qualified,
+      isUserQualified: qualifiedStatus,
+      currentUserRank: rank,
+      currentUserScoreDisplay: scoreText,
+      top1: qualified[0] || null,
+      top2: qualified[1] || null,
+      top3: qualified[2] || null,
+      runnersUp: qualified.slice(3)
+    };
   }, [allAthletes, user, appData, avatarPreview, leaderboardMetric]);
-
-  const top1 = sortedAthletes[0] || null;
-  const top2 = sortedAthletes[1] || null;
-  const top3 = sortedAthletes[2] || null;
-  const runnersUp = sortedAthletes.slice(3);
-
-  const currentUserIndex = sortedAthletes.findIndex(u => u.isCurrent);
-  const currentUserRank = currentUserIndex !== -1 ? currentUserIndex + 1 : sortedAthletes.length;
-  const currentAthlete = sortedAthletes[currentUserIndex] || { dist: 0, cal: 0, streak: 0 };
 
   // ─── ACTIONS ───
   const handleSendMessage = async (e) => {
@@ -831,8 +867,8 @@ export default function CommunityTab({
               </button>
             </div>
 
-            {/* Podium */}
-            {top1 && (
+            {/* Podium (Tanging may score > 0 ang makikita) */}
+            {top1 ? (
               <div style={{
                 display: "flex",
                 justifyContent: "center",
@@ -864,7 +900,7 @@ export default function CommunityTab({
                         {top2.name.split(" ")[0]}
                       </span>
                       <span style={{ fontSize: "13px", fontWeight: 900, color: "#0f172a" }}>
-                        {leaderboardMetric === "distance" ? top2.dist + "k" : leaderboardMetric === "calories" ? top2.cal : top2.streak + "d"}
+                        {leaderboardMetric === "distance" ? top2.dist + " km" : leaderboardMetric === "calories" ? top2.cal + " cal" : top2.streak + "d"}
                       </span>
                       <span style={{ fontSize: "10px", fontWeight: 800, color: "#64748b" }}>#2</span>
                     </div>
@@ -893,7 +929,7 @@ export default function CommunityTab({
                     <span style={{ fontSize: "12px", fontWeight: 900, color: "#713f12", maxWidth: "90%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {top1.name.split(" ")[0]}
                     </span>
-                    <span style={{ fontSize: "15px", fontWeight: 900, color: "#422006" }}>
+                    <span style={{ fontSize: "14.5px", fontWeight: 900, color: "#422006" }}>
                       {leaderboardMetric === "distance" ? top1.dist + " km" : leaderboardMetric === "calories" ? top1.cal + " cal" : top1.streak + " days"}
                     </span>
                     <span style={{ fontSize: "11px", fontWeight: 900, color: "#854d0e" }}>👑 #1</span>
@@ -923,12 +959,27 @@ export default function CommunityTab({
                         {top3.name.split(" ")[0]}
                       </span>
                       <span style={{ fontSize: "13px", fontWeight: 900, color: "#431407" }}>
-                        {leaderboardMetric === "distance" ? top3.dist + "k" : leaderboardMetric === "calories" ? top3.cal : top3.streak + "d"}
+                        {leaderboardMetric === "distance" ? top3.dist + " km" : leaderboardMetric === "calories" ? top3.cal + " cal" : top3.streak + "d"}
                       </span>
                       <span style={{ fontSize: "10px", fontWeight: 800, color: "#9a3412" }}>#3</span>
                     </div>
                   </div>
                 ) : <div style={{ flex: 1, maxWidth: "100px" }} />}
+              </div>
+            ) : (
+              <div style={{
+                textAlign: "center",
+                padding: "26px 16px",
+                background: "#ffffff",
+                borderRadius: "16px",
+                border: "1px dashed #cbd5e1",
+                margin: "16px 0"
+              }}>
+                <i className="fa-solid fa-trophy" style={{ fontSize: "32px", color: "#e2e8f0", marginBottom: "8px", display: "block" }}></i>
+                <div style={{ fontSize: "13.5px", fontWeight: 800, color: "#0f172a" }}>No qualified athletes yet</div>
+                <p style={{ fontSize: "11.5px", color: "#64748b", margin: "4px 0 0 0" }}>
+                  Be the first to record an activity and claim the #1 spot! 🏆
+                </p>
               </div>
             )}
 
@@ -970,7 +1021,7 @@ export default function CommunityTab({
               )}
             </div>
 
-            {/* Sticky Rank Bar */}
+            {/* Dynamic Sticky Rank Bar (Qualified vs. Unranked State) */}
             <div style={{
               position: "fixed",
               bottom: "65px",
@@ -978,29 +1029,44 @@ export default function CommunityTab({
               right: "14px",
               maxWidth: "452px",
               margin: "0 auto",
-              background: "linear-gradient(90deg, #f0f9ff 0%, #e0f2fe 100%)",
-              borderRadius: "12px",
+              background: isUserQualified
+                ? "linear-gradient(90deg, #f0f9ff 0%, #e0f2fe 100%)"
+                : "linear-gradient(90deg, #f8fafc 0%, #f1f5f9 100%)",
+              borderRadius: "14px",
               padding: "10px 14px",
               display: "flex",
               alignItems: "center",
-              border: "1px solid #bae6fd",
-              boxShadow: "0 4px 14px rgba(56, 189, 248, 0.2)",
+              border: "1px solid " + (isUserQualified ? "#bae6fd" : "#e2e8f0"),
+              boxShadow: isUserQualified ? "0 4px 14px rgba(56, 189, 248, 0.2)" : "0 2px 8px rgba(0,0,0,0.04)",
               zIndex: 90
             }}>
               <div style={{ marginRight: "10px" }}>
-                {renderAvatar(appData?.avatarUrl || avatarPreview || user?.photoURL, appData?.userName || user?.displayName || "You", 36, "2px solid #38bdf8")}
+                {renderAvatar(appData?.avatarUrl || avatarPreview || user?.photoURL, appData?.userName || user?.displayName || "You", 36, isUserQualified ? "2px solid #38bdf8" : "2px solid #cbd5e1")}
               </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: "13px", fontWeight: 900, color: "#0369a1" }}>
-                  Your Rank: #{currentUserRank}
-                </div>
-                <div style={{ fontSize: "10.5px", fontWeight: 700, color: "#0284c7" }}>
-                  Keep pushing your limits! ⚡
-                </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                {isUserQualified ? (
+                  <>
+                    <div style={{ fontSize: "13px", fontWeight: 900, color: "#0369a1" }}>
+                      Your Rank: #{currentUserRank}
+                    </div>
+                    <div style={{ fontSize: "10.5px", fontWeight: 700, color: "#0284c7" }}>
+                      Qualified in official rankings! ⚡
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div style={{ fontSize: "12.5px", fontWeight: 900, color: "#475569" }}>
+                      Status: Unranked
+                    </div>
+                    <div style={{ fontSize: "10.5px", fontWeight: 600, color: "#64748b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      Log a walk, run, or meal to enter! 🔥
+                    </div>
+                  </>
+                )}
               </div>
-              <div style={{ textAlign: "right" }}>
-                <div style={{ fontSize: "14px", fontWeight: 900, color: "#0f172a" }}>
-                  {leaderboardMetric === "distance" ? currentAthlete.dist + " km" : leaderboardMetric === "calories" ? currentAthlete.cal + " cal" : currentAthlete.streak + " days"}
+              <div style={{ textAlign: "right", marginLeft: "8px" }}>
+                <div style={{ fontSize: "13.5px", fontWeight: 900, color: isUserQualified ? "#0f172a" : "#94a3b8" }}>
+                  {currentUserScoreDisplay}
                 </div>
               </div>
             </div>
