@@ -64,6 +64,27 @@ export default function ProfileTab({
   const [editName, setEditName] = useState(appData?.userName || user?.displayName || "");
   const [editTitle, setEditTitle] = useState(appData?.userTitle || "Fitness Enthusiast");
   const [editBio, setEditBio] = useState(appData?.userBio || "Crushing daily fitness goals.");
+  const [settingsSubTab, setSettingsSubTab] = useState("identity"); // "identity" | "metrics" | "goals"
+  const [editHeight, setEditHeight] = useState(appData?.height || "165");
+  const [editWeight, setEditWeight] = useState(appData?.weight || "60");
+  const [editActivityLevel, setEditActivityLevel] = useState(appData?.activityLevel || "moderate");
+  const [editObjective, setEditObjective] = useState(appData?.primaryObjective || appData?.objective || "maintain");
+  const [editBurnGoal, setEditBurnGoal] = useState(appData?.targetBurn || appData?.dailyBurnGoal || 500);
+  const [editStepGoal, setEditStepGoal] = useState(appData?.stepGoal || 8000);
+
+  useEffect(() => {
+    if (isEditingProfile && appData) {
+      if (appData.userName || user?.displayName) setEditName(appData.userName || user?.displayName || "");
+      if (appData.userTitle) setEditTitle(appData.userTitle);
+      if (appData.userBio) setEditBio(appData.userBio);
+      if (appData.height) setEditHeight(String(appData.height));
+      if (appData.weight) setEditWeight(String(appData.weight));
+      if (appData.activityLevel) setEditActivityLevel(appData.activityLevel);
+      if (appData.primaryObjective || appData.objective) setEditObjective(appData.primaryObjective || appData.objective);
+      if (appData.targetBurn || appData.dailyBurnGoal) setEditBurnGoal(appData.targetBurn || appData.dailyBurnGoal);
+      if (appData.stepGoal) setEditStepGoal(appData.stepGoal);
+    }
+  }, [isEditingProfile, appData, user]);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
 
   // 🧭 BACK BUTTON NAVIGATION LISTENER
@@ -265,16 +286,40 @@ export default function ProfileTab({
     if (!user?.uid) return;
     setIsSavingProfile(true);
     try {
+      const numWeight = parseFloat(editWeight) || Number(appData?.weight) || 60;
+      const numHeight = parseFloat(editHeight) || Number(appData?.height) || 165;
+      const numBurnGoal = parseInt(editBurnGoal, 10) || 500;
+      const numStepGoal = parseInt(editStepGoal, 10) || 8000;
+
+      let updatedHistory = Array.isArray(appData?.weightHistory) ? [...appData.weightHistory] : [];
+      if (appData?.weight && Number(appData.weight) !== numWeight) {
+        updatedHistory.push({
+          val: numWeight,
+          date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+          timestamp: Date.now()
+        });
+      }
+
       await updateDoc(doc(db, "users", user.uid), {
         userName: editName.trim() || "Athlete",
         userTitle: editTitle.trim() || "Fitness Enthusiast",
-        userBio: editBio.trim() || ""
+        userBio: editBio.trim() || "",
+        weight: numWeight,
+        prevWeight: appData?.weight || numWeight,
+        height: numHeight,
+        activityLevel: editActivityLevel || "moderate",
+        primaryObjective: editObjective || "maintain",
+        targetBurn: numBurnGoal,
+        dailyBurnGoal: numBurnGoal,
+        stepGoal: numStepGoal,
+        weightHistory: updatedHistory
       });
+
       setIsEditingProfile(false);
-      if (showToast) showToast("Athlete Profile updated! ⚡");
+      if (showToast) showToast("Athlete Settings & Goals saved! ⚡");
     } catch (err) {
       console.error(err);
-      if (showToast) showToast("Failed to update profile.");
+      if (showToast) showToast("Failed to update profile: " + err.message);
     } finally {
       setIsSavingProfile(false);
     }
@@ -1253,103 +1298,340 @@ export default function ProfileTab({
             {/* Modal Scrollable Body */}
             <div style={{ padding: "16px 20px", overflowY: "auto", flex: 1 }}>
               <form onSubmit={handleSaveProfile} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-                
-                {/* Profile Identity Inputs */}
-                <div>
-                  <label style={{ fontSize: "11px", fontWeight: 800, color: "#64748b", display: "block", marginBottom: "5px", textTransform: "uppercase" }}>
-                    Athlete Name
-                  </label>
-                  <input
-                    type="text"
-                    value={editName}
-                    onChange={(e) => setEditName(e.target.value)}
-                    style={{ width: "100%", padding: "10px 12px", borderRadius: "10px", background: "#f8fafc", border: "1px solid #cbd5e1", color: "#0f172a", fontSize: "13px", outline: "none", boxSizing: "border-box" }}
-                    placeholder="e.g. Edison Valerio"
-                  />
-                </div>
+                  {/* Tab Switcher sa loob ng Modal */}
+                  <div style={{ display: "flex", gap: "6px", background: "#f1f5f9", padding: "4px", borderRadius: "10px", marginBottom: "4px" }}>
+                    <button
+                      type="button"
+                      onClick={() => setSettingsSubTab("identity")}
+                      style={{
+                        flex: 1,
+                        padding: "7px 0",
+                        borderRadius: "8px",
+                        border: "none",
+                        fontSize: "11.5px",
+                        fontWeight: 800,
+                        cursor: "pointer",
+                        background: settingsSubTab === "identity" ? "#ffffff" : "transparent",
+                        color: settingsSubTab === "identity" ? "#0284c7" : "#64748b",
+                        boxShadow: settingsSubTab === "identity" ? "0 1px 3px rgba(0,0,0,0.06)" : "none",
+                        transition: "all 0.15s ease"
+                      }}
+                    >
+                      👤 Identity
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSettingsSubTab("metrics")}
+                      style={{
+                        flex: 1,
+                        padding: "7px 0",
+                        borderRadius: "8px",
+                        border: "none",
+                        fontSize: "11.5px",
+                        fontWeight: 800,
+                        cursor: "pointer",
+                        background: settingsSubTab === "metrics" ? "#ffffff" : "transparent",
+                        color: settingsSubTab === "metrics" ? "#0284c7" : "#64748b",
+                        boxShadow: settingsSubTab === "metrics" ? "0 1px 3px rgba(0,0,0,0.06)" : "none",
+                        transition: "all 0.15s ease"
+                      }}
+                    >
+                      ⚖️ Body
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSettingsSubTab("goals")}
+                      style={{
+                        flex: 1,
+                        padding: "7px 0",
+                        borderRadius: "8px",
+                        border: "none",
+                        fontSize: "11.5px",
+                        fontWeight: 800,
+                        cursor: "pointer",
+                        background: settingsSubTab === "goals" ? "#ffffff" : "transparent",
+                        color: settingsSubTab === "goals" ? "#0284c7" : "#64748b",
+                        boxShadow: settingsSubTab === "goals" ? "0 1px 3px rgba(0,0,0,0.06)" : "none",
+                        transition: "all 0.15s ease"
+                      }}
+                    >
+                      🎯 Goals
+                    </button>
+                  </div>
 
-                <div>
-                  <label style={{ fontSize: "11px", fontWeight: 800, color: "#64748b", display: "block", marginBottom: "5px", textTransform: "uppercase" }}>
-                    Discipline / Title
-                  </label>
-                  <input
-                    type="text"
-                    value={editTitle}
-                    onChange={(e) => setEditTitle(e.target.value)}
-                    style={{ width: "100%", padding: "10px 12px", borderRadius: "10px", background: "#f8fafc", border: "1px solid #cbd5e1", color: "#0f172a", fontSize: "13px", outline: "none", boxSizing: "border-box" }}
-                    placeholder="e.g. Fitness Enthusiast"
-                  />
-                </div>
+                  {/* ─── TAB 1: IDENTITY ─── */}
+                  {settingsSubTab === "identity" && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                      <div>
+                        <label style={{ fontSize: "11px", fontWeight: 800, color: "#64748b", display: "block", marginBottom: "5px", textTransform: "uppercase" }}>
+                          Athlete Name
+                        </label>
+                        <input
+                          type="text"
+                          value={editName}
+                          onChange={(e) => setEditName(e.target.value)}
+                          style={{ width: "100%", padding: "10px 12px", borderRadius: "10px", background: "#f8fafc", border: "1px solid #cbd5e1", color: "#0f172a", fontSize: "13px", outline: "none", boxSizing: "border-box" }}
+                          placeholder="e.g. Edison Valerio"
+                        />
+                      </div>
 
-                <div>
-                  <label style={{ fontSize: "11px", fontWeight: 800, color: "#64748b", display: "block", marginBottom: "5px", textTransform: "uppercase" }}>
-                    Bio / Fitness Goal
-                  </label>
-                  <textarea
-                    value={editBio}
-                    onChange={(e) => setEditBio(e.target.value)}
-                    rows={3}
-                    style={{ width: "100%", padding: "10px 12px", borderRadius: "10px", background: "#f8fafc", border: "1px solid #cbd5e1", color: "#0f172a", fontSize: "13px", outline: "none", resize: "none", boxSizing: "border-box", fontFamily: "inherit" }}
-                    placeholder="Tell your fitness journey..."
-                  />
-                </div>
+                      <div>
+                        <label style={{ fontSize: "11px", fontWeight: 800, color: "#64748b", display: "block", marginBottom: "5px", textTransform: "uppercase" }}>
+                          Discipline / Title
+                        </label>
+                        <input
+                          type="text"
+                          value={editTitle}
+                          onChange={(e) => setEditTitle(e.target.value)}
+                          style={{ width: "100%", padding: "10px 12px", borderRadius: "10px", background: "#f8fafc", border: "1px solid #cbd5e1", color: "#0f172a", fontSize: "13px", outline: "none", boxSizing: "border-box" }}
+                          placeholder="e.g. Fitness Enthusiast"
+                        />
+                      </div>
 
-                {/* Account Details Box */}
-                <div style={{ background: "#f8fafc", borderRadius: "12px", padding: "12px", border: "1px solid #e2e8f0" }}>
-                  <span style={{ fontSize: "10.5px", fontWeight: 800, color: "#64748b", textTransform: "uppercase", display: "block" }}>
-                    Signed-in Account
-                  </span>
-                  <span style={{ fontSize: "13px", fontWeight: 800, color: "#0f172a", display: "block", marginTop: "3px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {user?.email || "Athlete User"}
-                  </span>
-                </div>
+                      <div>
+                        <label style={{ fontSize: "11px", fontWeight: 800, color: "#64748b", display: "block", marginBottom: "5px", textTransform: "uppercase" }}>
+                          Bio / Fitness Motto
+                        </label>
+                        <textarea
+                          value={editBio}
+                          onChange={(e) => setEditBio(e.target.value)}
+                          rows={3}
+                          style={{ width: "100%", padding: "10px 12px", borderRadius: "10px", background: "#f8fafc", border: "1px solid #cbd5e1", color: "#0f172a", fontSize: "13px", outline: "none", resize: "none", boxSizing: "border-box", fontFamily: "inherit" }}
+                          placeholder="Tell your fitness journey..."
+                        />
+                      </div>
 
-                {/* Action Buttons: Cancel & Save */}
-                <div style={{ display: "flex", gap: "8px", marginTop: "4px" }}>
-                  <button
-                    type="button"
-                    onClick={() => setIsEditingProfile(false)}
-                    style={{ flex: 1, padding: "10px", background: "#f1f5f9", color: "#64748b", border: "none", borderRadius: "10px", fontWeight: 800, fontSize: "12.5px", cursor: "pointer" }}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isSavingProfile}
-                    style={{ flex: 1, padding: "10px", background: "linear-gradient(135deg, #4f46e5 0%, #38bdf8 100%)", color: "#ffffff", border: "none", borderRadius: "10px", fontWeight: 800, fontSize: "12.5px", cursor: isSavingProfile ? "not-allowed" : "pointer" }}
-                  >
-                    {isSavingProfile ? "Saving..." : "Save Changes ⚡"}
-                  </button>
-                </div>
+                      <div style={{ background: "#f8fafc", borderRadius: "12px", padding: "12px", border: "1px solid #e2e8f0" }}>
+                        <span style={{ fontSize: "10.5px", fontWeight: 800, color: "#64748b", textTransform: "uppercase", display: "block" }}>
+                          Signed-in Account
+                        </span>
+                        <span style={{ fontSize: "13px", fontWeight: 800, color: "#0f172a", display: "block", marginTop: "3px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {user?.email || "Athlete User"}
+                        </span>
+                      </div>
+                    </div>
+                  )}
 
-                {/* 🔴 RESTORED PROMINENT SIGN OUT BUTTON */}
-                <div style={{ borderTop: "1px solid #f1f5f9", paddingTop: "12px", marginTop: "4px" }}>
-                  <button
-                    type="button"
-                    onClick={handleLogout}
-                    style={{
-                      width: "100%",
-                      padding: "11px",
-                      background: "#fef2f2",
-                      border: "1px solid #fecaca",
-                      borderRadius: "10px",
-                      color: "#dc2626",
-                      fontSize: "13px",
-                      fontWeight: 800,
-                      cursor: "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: "8px",
-                      transition: "all 0.15s ease"
-                    }}
-                  >
-                    <i className="fa-solid fa-right-from-bracket"></i>
-                    <span>Sign Out</span>
-                  </button>
-                </div>
+                  {/* ─── TAB 2: BODY METRICS ─── */}
+                  {settingsSubTab === "metrics" && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                        <div>
+                          <label style={{ fontSize: "11px", fontWeight: 800, color: "#64748b", display: "block", marginBottom: "5px", textTransform: "uppercase" }}>
+                            Weight (kg)
+                          </label>
+                          <input
+                            type="number"
+                            step="0.1"
+                            value={editWeight}
+                            onChange={(e) => setEditWeight(e.target.value)}
+                            style={{ width: "100%", padding: "10px 12px", borderRadius: "10px", background: "#f8fafc", border: "1px solid #cbd5e1", color: "#0f172a", fontSize: "13px", outline: "none", boxSizing: "border-box" }}
+                            placeholder="60"
+                          />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: "11px", fontWeight: 800, color: "#64748b", display: "block", marginBottom: "5px", textTransform: "uppercase" }}>
+                            Height (cm)
+                          </label>
+                          <input
+                            type="number"
+                            step="0.5"
+                            value={editHeight}
+                            onChange={(e) => setEditHeight(e.target.value)}
+                            style={{ width: "100%", padding: "10px 12px", borderRadius: "10px", background: "#f8fafc", border: "1px solid #cbd5e1", color: "#0f172a", fontSize: "13px", outline: "none", boxSizing: "border-box" }}
+                            placeholder="165"
+                          />
+                        </div>
+                      </div>
 
-              </form>
+                      {/* Live Calculated BMI */}
+                      {(() => {
+                        const w = parseFloat(editWeight);
+                        const h = parseFloat(editHeight) / 100;
+                        if (w > 0 && h > 0) {
+                          const bmi = (w / (h * h)).toFixed(1);
+                          let status = "Normal";
+                          let color = "#10b981";
+                          let bg = "rgba(16, 185, 129, 0.1)";
+                          if (bmi < 18.5) { status = "Underweight"; color = "#f59e0b"; bg = "rgba(245, 158, 11, 0.1)"; }
+                          else if (bmi >= 25 && bmi < 30) { status = "Overweight"; color = "#f97316"; bg = "rgba(249, 115, 22, 0.1)"; }
+                          else if (bmi >= 30) { status = "Obese"; color = "#ef4444"; bg = "rgba(239, 68, 68, 0.1)"; }
+
+                          return (
+                            <div style={{ background: bg, border: "1px solid " + color + "40", borderRadius: "12px", padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                              <div>
+                                <span style={{ fontSize: "11px", fontWeight: 800, color: "#475569", textTransform: "uppercase" }}>Calculated BMI</span>
+                                <div style={{ fontSize: "16px", fontWeight: 900, color }}>{bmi} <span style={{ fontSize: "12px", fontWeight: 700 }}>kg/m²</span></div>
+                              </div>
+                              <span style={{ fontSize: "12px", fontWeight: 800, padding: "4px 10px", borderRadius: "20px", background: color, color: "#ffffff" }}>
+                                {status}
+                              </span>
+                            </div>
+                          );
+                        }
+                        return null;
+                      })()}
+
+                      <div>
+                        <label style={{ fontSize: "11px", fontWeight: 800, color: "#64748b", display: "block", marginBottom: "5px", textTransform: "uppercase" }}>
+                          Activity Level
+                        </label>
+                        <select
+                          value={editActivityLevel}
+                          onChange={(e) => setEditActivityLevel(e.target.value)}
+                          style={{ width: "100%", padding: "10px 12px", borderRadius: "10px", background: "#f8fafc", border: "1px solid #cbd5e1", color: "#0f172a", fontSize: "13px", outline: "none", boxSizing: "border-box" }}
+                        >
+                          <option value="sedentary">🛋️ Sedentary (Minimal or no workout)</option>
+                          <option value="light">🚶 Lightly Active (1-3 workouts / week)</option>
+                          <option value="moderate">🏃 Moderately Active (3-5 workouts / week)</option>
+                          <option value="active">⚡ Very Active (6-7 intense sessions / week)</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label style={{ fontSize: "11px", fontWeight: 800, color: "#64748b", display: "block", marginBottom: "5px", textTransform: "uppercase" }}>
+                          Primary Objective
+                        </label>
+                        <select
+                          value={editObjective}
+                          onChange={(e) => setEditObjective(e.target.value)}
+                          style={{ width: "100%", padding: "10px 12px", borderRadius: "10px", background: "#f8fafc", border: "1px solid #cbd5e1", color: "#0f172a", fontSize: "13px", outline: "none", boxSizing: "border-box" }}
+                        >
+                          <option value="maintain">⚖️ Maintain Weight & Healthy Lifestyle</option>
+                          <option value="lose">🔥 Fat Loss / Calorie Deficit</option>
+                          <option value="muscle">💪 Muscle Hypertrophy & Strength</option>
+                          <option value="endurance">🚴 Athletic Stamina & Cardio Endurance</option>
+                        </select>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ─── TAB 3: DAILY GOALS ─── */}
+                  {settingsSubTab === "goals" && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+                      <div>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "5px" }}>
+                          <label style={{ fontSize: "11px", fontWeight: 800, color: "#64748b", textTransform: "uppercase" }}>
+                            Daily Active Burn Target (kcal)
+                          </label>
+                          <span style={{ fontSize: "12px", fontWeight: 900, color: "#0284c7" }}>{editBurnGoal} kcal</span>
+                        </div>
+                        <input
+                          type="number"
+                          value={editBurnGoal}
+                          onChange={(e) => setEditBurnGoal(e.target.value)}
+                          style={{ width: "100%", padding: "10px 12px", borderRadius: "10px", background: "#f8fafc", border: "1px solid #cbd5e1", color: "#0f172a", fontSize: "13px", outline: "none", boxSizing: "border-box" }}
+                          placeholder="500"
+                        />
+                        <div style={{ display: "flex", gap: "6px", marginTop: "6px" }}>
+                          {[300, 500, 750, 1000].map((val) => (
+                            <button
+                              key={val}
+                              type="button"
+                              onClick={() => setEditBurnGoal(val)}
+                              style={{
+                                flex: 1,
+                                padding: "5px 0",
+                                fontSize: "11px",
+                                fontWeight: 700,
+                                borderRadius: "6px",
+                                border: editBurnGoal == val ? "1px solid #0284c7" : "1px solid #e2e8f0",
+                                background: editBurnGoal == val ? "rgba(2,132,199,0.1)" : "#ffffff",
+                                color: editBurnGoal == val ? "#0284c7" : "#64748b",
+                                cursor: "pointer"
+                              }}
+                            >
+                              {val}k
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "5px" }}>
+                          <label style={{ fontSize: "11px", fontWeight: 800, color: "#64748b", textTransform: "uppercase" }}>
+                            Daily Step Goal
+                          </label>
+                          <span style={{ fontSize: "12px", fontWeight: 900, color: "#10b981" }}>{Number(editStepGoal).toLocaleString()} steps</span>
+                        </div>
+                        <input
+                          type="number"
+                          value={editStepGoal}
+                          onChange={(e) => setEditStepGoal(e.target.value)}
+                          style={{ width: "100%", padding: "10px 12px", borderRadius: "10px", background: "#f8fafc", border: "1px solid #cbd5e1", color: "#0f172a", fontSize: "13px", outline: "none", boxSizing: "border-box" }}
+                          placeholder="8000"
+                        />
+                        <div style={{ display: "flex", gap: "6px", marginTop: "6px" }}>
+                          {[6000, 8000, 10000, 12000].map((val) => (
+                            <button
+                              key={val}
+                              type="button"
+                              onClick={() => setEditStepGoal(val)}
+                              style={{
+                                flex: 1,
+                                padding: "5px 0",
+                                fontSize: "11px",
+                                fontWeight: 700,
+                                borderRadius: "6px",
+                                border: editStepGoal == val ? "1px solid #10b981" : "1px solid #e2e8f0",
+                                background: editStepGoal == val ? "rgba(16,185,129,0.1)" : "#ffffff",
+                                color: editStepGoal == val ? "#10b981" : "#64748b",
+                                cursor: "pointer"
+                              }}
+                            >
+                              {(val / 1000)}k
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Action Buttons: Cancel & Save */}
+                  <div style={{ display: "flex", gap: "8px", marginTop: "6px" }}>
+                    <button
+                      type="button"
+                      onClick={() => setIsEditingProfile(false)}
+                      style={{ flex: 1, padding: "10px", background: "#f1f5f9", color: "#64748b", border: "none", borderRadius: "10px", fontWeight: 800, fontSize: "12.5px", cursor: "pointer" }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isSavingProfile}
+                      style={{ flex: 1, padding: "10px", background: "linear-gradient(135deg, #4f46e5 0%, #38bdf8 100%)", color: "#ffffff", border: "none", borderRadius: "10px", fontWeight: 800, fontSize: "12.5px", cursor: isSavingProfile ? "not-allowed" : "pointer" }}
+                    >
+                      {isSavingProfile ? "Saving..." : "Save Changes ⚡"}
+                    </button>
+                  </div>
+
+                  {/* Prominent Red Sign Out */}
+                  <div style={{ borderTop: "1px solid #f1f5f9", paddingTop: "12px", marginTop: "4px" }}>
+                    <button
+                      type="button"
+                      onClick={handleLogout}
+                      style={{
+                        width: "100%",
+                        padding: "11px",
+                        background: "#fef2f2",
+                        border: "1px solid #fecaca",
+                        borderRadius: "10px",
+                        color: "#dc2626",
+                        fontSize: "13px",
+                        fontWeight: 800,
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: "8px",
+                        transition: "all 0.15s ease"
+                      }}
+                    >
+                      <i className="fa-solid fa-arrow-right-from-bracket"></i>
+                      Sign Out
+                    </button>
+                  </div>
+                </form>
             </div>
           </div>
         </div>
