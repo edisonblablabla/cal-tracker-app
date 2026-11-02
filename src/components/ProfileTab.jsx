@@ -346,22 +346,8 @@ export default function ProfileTab({
     <div style={{ backgroundColor: "#f8fafc", minHeight: "100vh", paddingBottom: "90px", margin: 0, padding: 0, fontFamily: "sans-serif" }}>
 
       {/* 📌 TOP HEADER: ATHLETE PROFILE + SETTINGS GEAR LOGO */}
-      <div style={{
-        position: "sticky",
-        top: 0,
-        zIndex: 100,
-        backgroundColor: "#ffffff",
-        borderBottom: "1px solid #e2e8f0",
-        boxShadow: "0 1px 4px rgba(15, 23, 42, 0.04)",
-        height: "52px",
-        padding: "0 16px",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        maxWidth: "480px",
-        margin: "0 auto",
-        boxSizing: "border-box"
-      }}>
+      <div style={{ position: "fixed", top: 0, left: 0, right: 0, width: "100%", backgroundColor: "#ffffff", borderBottom: "1px solid #e2e8f0", boxShadow: "0 1px 4px rgba(15, 23, 42, 0.04)", zIndex: 2000, margin: 0, padding: 0, boxSizing: "border-box" }}>
+        <div style={{ height: "52px", padding: "0 16px", display: "flex", alignItems: "center", justifyContent: "space-between", maxWidth: "480px", margin: "0 auto", boxSizing: "border-box" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "9px" }}>
           <div style={{
             width: "30px",
@@ -413,7 +399,8 @@ export default function ProfileTab({
         </button>
       </div>
 
-      <div style={{ maxWidth: "480px", margin: "0 auto", padding: "14px 16px" }}>
+      </div>
+      <div style={{ maxWidth: "480px", margin: "0 auto", padding: "14px 16px", paddingTop: "66px" }}>
 
         {/* 🪪 CLEAN ATHLETE IDENTITY CARD (LIGHT SYSTEM THEME) */}
         <div style={{
