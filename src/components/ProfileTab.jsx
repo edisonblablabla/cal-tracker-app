@@ -52,6 +52,7 @@ export default function ProfileTab({
 
   // Modals & Panels states
   const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [saveSuccessPopup, setSaveSuccessPopup] = useState(false);
   const [confirmModalConfig, setConfirmModalConfig] = useState(null);
   const [activePostMenuId, setActivePostMenuId] = useState(null);
   const [editingPost, setEditingPost] = useState(null);
@@ -276,8 +277,8 @@ export default function ProfileTab({
             const authInstance = (typeof auth !== "undefined" && auth) ? auth : getAuth();
             await signOut(authInstance);
           }
-          setIsEditingProfile(false);
-          if (showToast) showToast("Successfully signed out. See you soon! 👋");
+          setSaveSuccessPopup(true);
+      if (showToast) showToast("Athlete Settings saved & synchronized! ⚡");
         } catch (err) {
           console.error("Sign out error:", err);
           try { await signOut(getAuth()); } catch (e) {}
@@ -378,7 +379,7 @@ export default function ProfileTab({
         await updateDoc(doc(db, "users", user.uid), payload);
       }
 
-      setIsEditingProfile(false);
+      setSaveSuccessPopup(true);
       if (showToast) showToast("Athlete Settings saved & synchronized! ⚡");
     } catch (err) {
       console.error(err);
@@ -1351,7 +1352,7 @@ export default function ProfileTab({
               </div>
               <button
                 type="button"
-                onClick={() => setIsEditingProfile(false)}
+                onClick={() => { setIsEditingProfile(false); setSaveSuccessPopup(false); }}
                 style={{ background: "#f1f5f9", border: "none", width: "28px", height: "28px", borderRadius: "50%", color: "#64748b", cursor: "pointer", fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center" }}
               >
                 ✕
@@ -1623,7 +1624,7 @@ export default function ProfileTab({
                   <div style={{ display: "flex", gap: "8px", marginTop: "6px" }}>
                     <button
                       type="button"
-                      onClick={() => setIsEditingProfile(false)}
+                      onClick={() => { setIsEditingProfile(false); setSaveSuccessPopup(false); }}
                       style={{ flex: 1, padding: "10px", background: "#f1f5f9", color: "#64748b", border: "none", borderRadius: "10px", fontWeight: 800, fontSize: "12.5px", cursor: "pointer" }}
                     >
                       Cancel
