@@ -1887,7 +1887,7 @@ export default function CommunityTab({
             <span style={{ fontSize: "11px", fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px" }}>
               Conversation ({huddleComments.length})
             </span>
-            <span style={{ fontSize: "10px", color: "#94a3b8" }}>Real-time sync ⚡</span>
+            
           </div>
 
           {/* Comments List na natural na dumadaloy sa ilalim */}
