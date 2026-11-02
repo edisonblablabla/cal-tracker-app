@@ -411,9 +411,14 @@ export default function CommunityTab({
       };
     });
 
-    // QUALIFICATION FILTER: > 0 score lamang ang pasok sa official rank
+    // QUALIFICATION FILTER:
+    // Distance & Calories: score > 0
+    // Streak: score >= 3 (Dapat may napatunayang 3-day consistency bago pumasok sa rankings!)
     const qualified = processed
-      .filter(a => a.score > 0)
+      .filter(a => {
+        if (leaderboardMetric === "streak") return a.score >= 3;
+        return a.score > 0;
+      })
       .sort((a, b) => b.score - a.score);
 
     const userQualifiedIndex = qualified.findIndex(a => a.isCurrent);
@@ -945,7 +950,9 @@ export default function CommunityTab({
                 <i className="fa-solid fa-trophy" style={{ fontSize: "32px", color: "#e2e8f0", marginBottom: "8px", display: "block" }}></i>
                 <div style={{ fontSize: "13.5px", fontWeight: 800, color: "#0f172a" }}>No qualified athletes yet</div>
                 <p style={{ fontSize: "11.5px", color: "#64748b", margin: "4px 0 0 0" }}>
-                  Be the first to record an activity and claim the #1 spot! 🏆
+                  {leaderboardMetric === "streak"
+                    ? "Athletes need at least a 3-day streak to qualify. Keep going! 🔥"
+                    : "Be the first to record an activity and claim the #1 spot! 🏆"}
                 </p>
               </div>
             )}
@@ -1028,7 +1035,9 @@ export default function CommunityTab({
                       Status: Unranked
                     </div>
                     <div style={{ fontSize: "10.5px", fontWeight: 600, color: "#64748b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      Log a walk, run, or meal to enter! 🔥
+                      {leaderboardMetric === "streak"
+                        ? "Need a 3-day streak to qualify! 🔥 (" + me.streak + "/3 days)"
+                        : "Log a walk, run, or meal to enter! 🔥"}
                     </div>
                   </>
                 )}
