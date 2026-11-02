@@ -268,14 +268,40 @@ export default function CommunityTab({
     );
   };
 
-  const handleOpenAthleteProfile = (targetUid, fallbackObj = null) => {
+    const handleOpenAthleteProfile = (targetUid, fallbackObj = null) => {
     if (!targetUid) return;
     if (targetUid === user?.uid) {
+      setShowSearchDrawer(false);
+      setSearchQuery("");
       if (typeof setSelectedVisitor === "function") setSelectedVisitor(null);
       if (typeof setActiveTab === "function") setActiveTab("profile");
       return;
     }
-    const athleteObj = allAthletes.find(u => (u.uid === targetUid || u.id === targetUid)) || fallbackObj || { uid: targetUid };
+    const found = allAthletes.find(u => (u.uid === targetUid || u.id === targetUid || (fallbackObj && (u.uid === fallbackObj.uid || u.id === fallbackObj.id))));
+    const finalName = found?.userName || found?.displayName || found?.name || fallbackObj?.userName || fallbackObj?.displayName || fallbackObj?.name || "Athlete";
+    const finalPhoto = found?.avatarUrl || found?.photoURL || found?.photo || fallbackObj?.avatarUrl || fallbackObj?.photoURL || fallbackObj?.photo || "";
+    const finalTitle = found?.userTitle || fallbackObj?.userTitle || "Fitness Enthusiast";
+    const finalStreak = found?.streakDays || fallbackObj?.streakDays || fallbackObj?.streak || 1;
+    const isPrivate = Boolean(found?.isPrivateAccount || fallbackObj?.isPrivateAccount);
+
+    const athleteObj = {
+      uid: targetUid,
+      id: targetUid,
+      userName: finalName,
+      displayName: finalName,
+      name: finalName,
+      avatarUrl: finalPhoto,
+      photoURL: finalPhoto,
+      photo: finalPhoto,
+      userTitle: finalTitle,
+      streakDays: finalStreak,
+      isPrivateAccount: isPrivate,
+      boosting: found?.boosting || fallbackObj?.boosting || []
+    };
+
+    // Isara ang search drawer nang maayos nang hindi nagti-trigger ng history collision
+    setShowSearchDrawer(false);
+    setSearchQuery("");
     if (typeof setSelectedVisitor === "function") setSelectedVisitor(athleteObj);
     if (typeof setActivePanel === "function") setActivePanel("visitor_profile");
   };
@@ -1608,10 +1634,7 @@ export default function CommunityTab({
                   }}
                 >
                   <div
-                    onClick={() => {
-                      closeCurrentLayer();
-                      handleOpenAthleteProfile(aUid, athlete);
-                    }}
+                    onClick={() => handleOpenAthleteProfile(aUid, athlete)}
                     style={{ display: "flex", alignItems: "center", gap: "10px", minWidth: 0, flex: 1, cursor: "pointer" }}
                   >
                     {renderAvatar(aPhoto, aName, 36)}
@@ -1658,10 +1681,7 @@ export default function CommunityTab({
 
                     <button
                       type="button"
-                      onClick={() => {
-                        closeCurrentLayer();
-                        handleOpenAthleteProfile(aUid, athlete);
-                      }}
+                      onClick={() => handleOpenAthleteProfile(aUid, athlete)}
                       style={{
                         background: "#f8fafc",
                         border: "1px solid #e2e8f0",
@@ -1816,10 +1836,7 @@ export default function CommunityTab({
           return (
             <div style={{ padding: "14px 16px", background: "#f8fafc", borderBottom: "1px solid #f1f5f9", flexShrink: 0, maxHeight: "55vh", overflowY: "auto" }}>
               <div
-                onClick={() => {
-                  closeCurrentLayer();
-                  handleOpenAthleteProfile(activeHuddlePost.userId, author);
-                }}
+                onClick={() => handleOpenAthleteProfile(activeHuddlePost.userId, author)}
                 style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px", cursor: "pointer" }}
               >
                 {renderAvatar(author.photo, author.name, 32)}
@@ -1871,10 +1888,7 @@ export default function CommunityTab({
                 <div key={c.id || i} style={{ background: "#f8fafc", padding: "10px 12px", borderRadius: "12px", border: "1px solid #f1f5f9", marginBottom: "10px", position: "relative" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "4px" }}>
                     <div
-                      onClick={() => {
-                        closeCurrentLayer();
-                        handleOpenAthleteProfile(c.userId || c.uid, commenter);
-                      }}
+                      onClick={() => handleOpenAthleteProfile(c.userId || c.uid, commenter)}
                       style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer" }}
                     >
                       {renderAvatar(commenterAvatar, commenter.name, 28)}
