@@ -363,7 +363,6 @@ export default function CommunityTab({
     isUserQualified,
     currentUserRank,
     currentUserScoreDisplay,
-    currentUserStreak,
     top1,
     top2,
     top3,
@@ -431,14 +430,13 @@ export default function CommunityTab({
       ? me.dist + " km"
       : leaderboardMetric === "calories"
       ? me.cal + " cal"
-      : me.streak + " days";
+      : (appData?.streakDays || 0) + " days";
 
     return {
       qualifiedAthletes: qualified,
       isUserQualified: qualifiedStatus,
       currentUserRank: rank,
       currentUserScoreDisplay: scoreText,
-      currentUserStreak: Number(me.streak || 0),
       top1: qualified[0] || null,
       top2: qualified[1] || null,
       top3: qualified[2] || null,
@@ -1038,7 +1036,7 @@ export default function CommunityTab({
                     </div>
                     <div style={{ fontSize: "10.5px", fontWeight: 600, color: "#64748b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {leaderboardMetric === "streak"
-                        ? "Need a 3-day streak to qualify! 🔥 (" + me.streak + "/3 days)"
+                        ? "Need a 3-day streak to qualify! 🔥 (" + (appData?.streakDays || 0) + "/3 days)"
                         : "Log a walk, run, or meal to enter! 🔥"}
                     </div>
                   </>
