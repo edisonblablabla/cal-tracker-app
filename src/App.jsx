@@ -537,17 +537,20 @@ export default function App() {
             setAvatarPreview(data?.avatarUrl || "");
             setCoverPreview(data?.coverUrl || "");
 
-            if (!data?.onboardingCompleted) {
-              setOnboardStep(1);
-            } else {
+            // Auto-grant onboarding completion at diretso agad sa Home Tab
               setOnboardStep(0);
-              setActiveTab("home"); 
+              setShowAuthForm(false);
+              setActiveTab("home");
+              setActivePanel(null);
+              if (!data?.onboardingCompleted && currentUser?.uid) {
+                setDoc(userDocRef, { onboardingCompleted: true }, { merge: true }).catch(() => {});
+              }
+          } else {
+              setOnboardStep(0);
+              setShowAuthForm(false);
+              setActiveTab("home");
               setActivePanel(null);
             }
-          } else {
-            setSetupName(currentUser.displayName || "Athlete");
-            setOnboardStep(1);
-          }
         } catch (e) {
           console.error("Auth doc fetch error:", e);
         }
@@ -1207,7 +1210,7 @@ export default function App() {
       }
       setShowAuthForm(false);
       setOnboardStep(0);
-      setActiveTab("home"); 
+      setActiveTab("home");
       setActivePanel(null);
     } catch (error) {
       if (error.code === "auth/invalid-credential" || error.code === "auth/user-not-found" || error.code === "auth/wrong-password") {
@@ -1226,13 +1229,16 @@ export default function App() {
     setErrorMessage("");
     setShowSettingsModal(false);
     try {
+      // Tiyaking nakatutok ang kasalukuyang window bago mag-popup
+      if (typeof window !== "undefined" && window.focus) window.focus();
       const result = await signInWithPopup(auth, googleProvider);
+      if (typeof window !== "undefined" && window.focus) window.focus();
       if (result?.user) {
         setUser(result.user);
       }
       setShowAuthForm(false);
       setOnboardStep(0);
-      setActiveTab("home"); 
+      setActiveTab("home");
       setActivePanel(null);
     } catch (error) {
       setErrorMessage("Google Login Error: " + error.message);
