@@ -1,3 +1,4 @@
+import ConfirmModal from "./ConfirmModal";
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { db } from "../services/firebase";
 import {
@@ -35,6 +36,7 @@ export default function ProfileTab({
 
   // Modals & Panels states
   const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [confirmModalConfig, setConfirmModalConfig] = useState(null);
   const [activePostMenuId, setActivePostMenuId] = useState(null);
   const [editingPost, setEditingPost] = useState(null);
   const [editText, setEditText] = useState("");
@@ -220,24 +222,30 @@ export default function ProfileTab({
   };
 
   
-  const handleLogout = async () => {
-    if (window.confirm("Sigurado ka bang nais mong mag-sign out sa NutriPulse?")) {
-      try {
-        if (typeof handleSignOut === "function") {
-          await handleSignOut();
-        } else {
-          const authInstance = (typeof auth !== "undefined" && auth) ? auth : getAuth();
-          await signOut(authInstance);
-        }
-        setIsEditingProfile(false);
-        if (showToast) showToast("Successfully signed out. See you soon! 👋");
-      } catch (err) {
-        console.error("Sign out error:", err);
+  const handleLogout = () => {
+    setConfirmModalConfig({
+      title: "Sign Out",
+      message: "Sigurado ka bang nais mong mag-sign out sa NutriPulse?",
+      confirmText: "Sign Out",
+      confirmColor: "#ef4444",
+      icon: "fa-right-from-bracket",
+      onConfirm: async () => {
+        setConfirmModalConfig(null);
         try {
-          await signOut(getAuth());
-        } catch (e) {}
+          if (typeof handleSignOut === "function") {
+            await handleSignOut();
+          } else {
+            const authInstance = (typeof auth !== "undefined" && auth) ? auth : getAuth();
+            await signOut(authInstance);
+          }
+          setIsEditingProfile(false);
+          if (showToast) showToast("Successfully signed out. See you soon! 👋");
+        } catch (err) {
+          console.error("Sign out error:", err);
+          try { await signOut(getAuth()); } catch (e) {}
+        }
       }
-    }
+    });
   };
 
   const handleSaveProfile = async (e) => {
@@ -260,15 +268,24 @@ export default function ProfileTab({
     }
   };
 
-  const handleDeletePost = async (postId) => {
-    if (!window.confirm("Permanently delete this activity log?")) return;
-    try {
-      await deleteDoc(doc(db, "posts", postId));
-      setActivePostMenuId(null);
-      if (showToast) showToast("Activity deleted.");
-    } catch (err) {
-      console.error(err);
-    }
+  const handleDeletePost = (postId) => {
+    setConfirmModalConfig({
+      title: "Delete Activity",
+      message: "Permanently delete this activity log from your passport?",
+      confirmText: "Delete",
+      confirmColor: "#ef4444",
+      icon: "fa-trash",
+      onConfirm: async () => {
+        setConfirmModalConfig(null);
+        try {
+          await deleteDoc(doc(db, "posts", postId));
+          setActivePostMenuId(null);
+          if (showToast) showToast("Activity deleted.");
+        } catch (err) {
+          console.error(err);
+        }
+      }
+    });
   };
 
   const handleOpenEditPostModal = (post) => {
@@ -1250,7 +1267,19 @@ export default function ProfileTab({
           />
         </div>
       )}
-
+      {/* ⚠️ MODERN CUSTOM CONFIRMATION MODAL */}
+      {confirmModalConfig && (
+        <ConfirmModal
+          isOpen={Boolean(confirmModalConfig)}
+          title={confirmModalConfig.title}
+          message={confirmModalConfig.message}
+          confirmText={confirmModalConfig.confirmText}
+          confirmColor={confirmModalConfig.confirmColor}
+          icon={confirmModalConfig.icon}
+          onConfirm={confirmModalConfig.onConfirm}
+          onCancel={() => setConfirmModalConfig(null)}
+        />
+      )}
     </div>
   );
 }
