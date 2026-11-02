@@ -87,7 +87,7 @@ export default function CommunityTab({
   const isAdmin = user?.email && String(user.email).toLowerCase().includes("admin");
 
   // ==============================================================
-  // 🧭 SINGLE-SOURCE-OF-TRUTH NAVIGATION & BACK BUTTON FLOWCHART
+  // 🧭 MASTER NAVIGATION & BACK BUTTON FLOWCHART
   // ==============================================================
   const openLayer = (layerName, openFn) => {
     try {
@@ -103,7 +103,6 @@ export default function CommunityTab({
         return;
       } catch (e) {}
     }
-    // Fallback kung walang history state
     if (viewingPhoto) { setViewingPhoto(null); return; }
     if (activeChatPartner) { setActiveChatPartner(null); return; }
     setActiveHuddlePost(null);
@@ -130,39 +129,12 @@ export default function CommunityTab({
         return;
       }
 
-      if (drawer === "photo") {
-        return;
-      }
-
-      if (drawer === "chat") {
-        setViewingPhoto(null);
-        setShowInboxDrawer(true);
-        return;
-      }
-
-      if (drawer === "inbox") {
-        setViewingPhoto(null);
-        setActiveChatPartner(null);
-        setShowInboxDrawer(true);
-        return;
-      }
-
-      if (drawer === "huddle") {
-        setViewingPhoto(null);
-        return;
-      }
-
-      if (drawer === "search") {
-        setViewingPhoto(null);
-        setShowSearchDrawer(true);
-        return;
-      }
-
-      if (drawer === "notif") {
-        setViewingPhoto(null);
-        setShowNotifDrawer(true);
-        return;
-      }
+      if (drawer === "photo") return;
+      if (drawer === "chat") { setViewingPhoto(null); setShowInboxDrawer(true); return; }
+      if (drawer === "inbox") { setViewingPhoto(null); setActiveChatPartner(null); setShowInboxDrawer(true); return; }
+      if (drawer === "huddle") { setViewingPhoto(null); return; }
+      if (drawer === "search") { setViewingPhoto(null); setShowSearchDrawer(true); return; }
+      if (drawer === "notif") { setViewingPhoto(null); setShowNotifDrawer(true); return; }
     };
 
     window.addEventListener("popstate", handlePopState);
@@ -228,7 +200,7 @@ export default function CommunityTab({
     return { isOnline: false, text: "Offline", color: "#94a3b8" };
   };
 
-  // ─── 2. ROBUST AVATAR RENDERER (SUPPORTS BASE64, HTTP, HTTPS) ───
+  // ─── 2. ROBUST AVATAR RENDERER ───
   const renderAvatar = (photoUrl, name = "Athlete", size = 34, border = "none") => {
     const pStr = typeof photoUrl === "string" ? photoUrl.trim() : "";
     const hasValidPhoto = pStr &&
@@ -268,7 +240,7 @@ export default function CommunityTab({
     );
   };
 
-    const handleOpenAthleteProfile = (targetUid, fallbackObj = null) => {
+  const handleOpenAthleteProfile = (targetUid, fallbackObj = null) => {
     if (!targetUid) return;
     if (targetUid === user?.uid) {
       setShowSearchDrawer(false);
@@ -299,14 +271,13 @@ export default function CommunityTab({
       boosting: found?.boosting || fallbackObj?.boosting || []
     };
 
-    // Isara ang search drawer nang maayos nang hindi nagti-trigger ng history collision
     setShowSearchDrawer(false);
     setSearchQuery("");
     if (typeof setSelectedVisitor === "function") setSelectedVisitor(athleteObj);
     if (typeof setActivePanel === "function") setActivePanel("visitor_profile");
   };
 
-  // ─── 3. DRAFT POST SYNC (NO AUTOFOCUS) ───
+  // ─── 3. DRAFT POST SYNC ───
   useEffect(() => {
     if (draftSocialPost) {
       setActiveSubTab("feed");
@@ -375,7 +346,7 @@ export default function CommunityTab({
     return allUserNotifs.filter(n => (n.timestamp || 0) > (lastSeenNotifTime || 0)).length;
   }, [allUserNotifs, lastSeenNotifTime]);
 
-  // ─── SEARCH RESULTS (ZERO KUNG WALANG QUERY) ───
+  // ─── SEARCH RESULTS ───
   const searchResults = useMemo(() => {
     if (!searchQuery.trim()) return [];
     const q = searchQuery.toLowerCase().trim();
@@ -386,7 +357,7 @@ export default function CommunityTab({
     });
   }, [allAthletes, searchQuery]);
 
-  // ─── HIGH-RETENTION QUALIFIED LEADERBOARD ENGINE ───
+  // ─── 🏆 QUALIFIED LEADERBOARD ENGINE (ZERO-CRASH, RETENTION-OPTIMIZED) ───
   const {
     qualifiedAthletes,
     isUserQualified,
@@ -399,7 +370,6 @@ export default function CommunityTab({
   } = useMemo(() => {
     let list = [...allAthletes];
 
-    // Isama ang current user kung wala pa sa listahan
     if (user && !list.some(u => (u.uid === user.uid || u.id === user.uid))) {
       list.push({
         uid: user.uid,
@@ -415,9 +385,8 @@ export default function CommunityTab({
 
     const processed = list.map(u => {
       const uid = u.uid || u.id;
-      // KASAMA ANG WALKING / BRISK WALK STEPS SA DISTANCE
       const rawDist = Number(u.totalDistance || u.distanceKm || u.totalDistanceKm || 0);
-      const stepsDist = (Number(u.steps || 0) * 0.00075);
+      const stepsDist = Number(u.steps || 0) * 0.00075;
       const dist = Math.max(rawDist, stepsDist);
 
       const cal = Number(u.todayBurnedCal || u.totalBurnedCalories || u.burnedCal || u.calories || (dist > 0 ? dist * 60 : 0)) || 0;
@@ -442,8 +411,7 @@ export default function CommunityTab({
       };
     });
 
-    // 🎯 PANUNTUNAN SA QUALIFICATION:
-    // Tanging may aktibidad (> 0) ang mabibigyan ng official rank number!
+    // QUALIFICATION FILTER: > 0 score lamang ang pasok sa official rank
     const qualified = processed
       .filter(a => a.score > 0)
       .sort((a, b) => b.score - a.score);
@@ -604,7 +572,6 @@ export default function CommunityTab({
     }
   };
 
-  // FULL-BLEED MOBILE AT CENTERED TABLET DRAWER
   const getDrawerStyle = (isOpen) => ({
     position: "fixed",
     top: 0,
@@ -740,7 +707,7 @@ export default function CommunityTab({
           </div>
         </div>
 
-        {/* Row 2: Fixed Switcher */}
+        {/* Row 2: Segmented Switcher */}
         <div style={{ padding: "0 16px 8px 16px", maxWidth: "480px", margin: "0 auto", boxSizing: "border-box" }}>
           <div style={{ display: "flex", background: "#f1f5f9", borderRadius: "10px", padding: "2.5px" }}>
             <button
@@ -1016,12 +983,14 @@ export default function CommunityTab({
                 ))
               ) : (
                 <div style={{ textAlign: "center", padding: "20px 10px", color: "#94a3b8", fontSize: "12.5px" }}>
-                  {sortedAthletes.length <= 3 ? "All active athletes are on the podium! ⚡" : "Log your runs to climb the leaderboard!"}
+                  {qualifiedAthletes.length <= 3
+                    ? (qualifiedAthletes.length === 0 ? "No active athletes yet. Start moving! ⚡" : "All qualified athletes are on the podium! ⚡")
+                    : "Log your activities to climb the leaderboard!"}
                 </div>
               )}
             </div>
 
-            {/* Dynamic Sticky Rank Bar (Qualified vs. Unranked State) */}
+            {/* Dynamic Sticky Rank Bar */}
             <div style={{
               position: "fixed",
               bottom: "65px",
@@ -1076,7 +1045,6 @@ export default function CommunityTab({
         {/* ⚡ PULSE FEED VIEW */}
         {activeSubTab === "feed" && (
           <div style={{ padding: "0 16px" }}>
-
             {/* Post Composer Card */}
             <div style={{ background: "#ffffff", borderRadius: "14px", padding: "14px", border: "1px solid #f1f5f9", boxShadow: "0 2px 6px rgba(0,0,0,0.02)", marginBottom: "16px" }}>
               <h3 style={{ margin: "0 0 8px 0", fontSize: "13.5px", fontWeight: 800, color: "#0f172a" }}>
@@ -1258,7 +1226,6 @@ export default function CommunityTab({
                       )}
                     </div>
 
-                    {/* TAP POST TEXT TO OPEN ACTIVITY HUDDLE */}
                     <div
                       onClick={() => openLayer("huddle", () => {
                         setActiveHuddlePost(post);
@@ -1272,7 +1239,6 @@ export default function CommunityTab({
                         </p>
                       )}
 
-                      {/* GPS Telemetry Ribbon */}
                       {(post.telemetry || post.distanceKm) && (
                         <div style={{
                           display: "flex",
@@ -1305,7 +1271,6 @@ export default function CommunityTab({
                       )}
                     </div>
 
-                    {/* TAP IMAGE DIRECTLY TO OPEN FULLSCREEN PHOTO LIGHTBOX */}
                     {post.imageUrl && (
                       <div
                         onClick={() => openLayer("photo", () => setViewingPhoto(post.imageUrl))}
@@ -1379,20 +1344,9 @@ export default function CommunityTab({
 
       </div>
 
-      {/* ============================================================== */}
-      {/* 💬 1. 1-ON-1 CHAT DRAWER                                       */}
-      {/* ============================================================== */}
+      {/* 💬 1. 1-ON-1 CHAT DRAWER */}
       <div style={getDrawerStyle(showInboxDrawer)}>
-        <div style={{
-          height: "54px",
-          padding: "0 16px",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          borderBottom: "1px solid #f1f5f9",
-          backgroundColor: "#ffffff",
-          flexShrink: 0
-        }}>
+        <div style={{ height: "54px", padding: "0 16px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #f1f5f9", backgroundColor: "#ffffff", flexShrink: 0 }}>
           {activeChatPartner ? (
             <div style={{ display: "flex", alignItems: "center", gap: "10px", minWidth: 0 }}>
               <div onClick={() => handleOpenAthleteProfile(activeChatPartner.uid || activeChatPartner.id, activeChatPartner)} style={{ cursor: "pointer" }}>
@@ -1626,9 +1580,7 @@ export default function CommunityTab({
         )}
       </div>
 
-      {/* ============================================================== */}
-      {/* 🔍 2. SEARCH ATHLETES DRAWER                                   */}
-      {/* ============================================================== */}
+      {/* 🔍 2. SEARCH ATHLETES DRAWER */}
       <div style={getDrawerStyle(showSearchDrawer)}>
         <div style={{ height: "54px", padding: "0 16px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #f1f5f9", backgroundColor: "#ffffff", flexShrink: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
@@ -1774,9 +1726,7 @@ export default function CommunityTab({
         </div>
       </div>
 
-      {/* ============================================================== */}
-      {/* 🔔 3. NOTIFICATIONS DRAWER                                     */}
-      {/* ============================================================== */}
+      {/* 🔔 3. NOTIFICATIONS DRAWER */}
       <div style={getDrawerStyle(showNotifDrawer)}>
         <div style={{ height: "54px", padding: "0 16px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #f1f5f9", backgroundColor: "#ffffff", flexShrink: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
@@ -1877,11 +1827,8 @@ export default function CommunityTab({
         </div>
       </div>
 
-      {/* ============================================================== */}
-      {/* 💬 4. POST HUDDLE (COMMENTS & DETAIL) DRAWER                   */}
-      {/* ============================================================== */}
+      {/* 💬 4. MODERN SINGLE-SCROLL ACTIVITY HUDDLE DRAWER */}
       <div style={getDrawerStyle(Boolean(activeHuddlePost))}>
-        {/* Fixed Top Header */}
         <div style={{ height: "54px", padding: "0 16px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #f1f5f9", backgroundColor: "#ffffff", flexShrink: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <div style={{ width: "28px", height: "28px", borderRadius: "7px", background: "rgba(16, 185, 129, 0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -1898,19 +1845,14 @@ export default function CommunityTab({
           </button>
         </div>
 
-        {/* SINGLE UNIFIED SCROLL CONTAINER: Buong post at mga komento ay tuloy-tuloy na magka-scroll */}
+        {/* SINGLE UNIFIED SCROLL CONTAINER */}
         <div style={{ flex: 1, overflowY: "auto", minHeight: 0, paddingBottom: "20px", WebkitOverflowScrolling: "touch" }}>
-          
-          {/* Post Header & Details */}
           {activeHuddlePost && (() => {
             const author = getAthlete(activeHuddlePost.userId, activeHuddlePost.userName);
             return (
               <div style={{ padding: "16px", background: "#ffffff", borderBottom: "1px solid #f1f5f9" }}>
                 <div
-                  onClick={() => {
-                    closeCurrentLayer();
-                    handleOpenAthleteProfile(activeHuddlePost.userId, author);
-                  }}
+                  onClick={() => handleOpenAthleteProfile(activeHuddlePost.userId, author)}
                   style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "10px", cursor: "pointer" }}
                 >
                   {renderAvatar(author.photo, author.name, 36)}
@@ -1930,7 +1872,6 @@ export default function CommunityTab({
                   </p>
                 )}
 
-                {/* Proportional Tap-to-Zoom Image (Walang sariling scrollbar) */}
                 {activeHuddlePost.imageUrl && (
                   <div
                     onClick={() => openLayer("photo", () => setViewingPhoto(activeHuddlePost.imageUrl))}
@@ -1948,15 +1889,14 @@ export default function CommunityTab({
             );
           })()}
 
-          {/* Section Divider & Comment Counter */}
+          {/* Section Divider */}
           <div style={{ padding: "12px 16px 6px 16px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <span style={{ fontSize: "11px", fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px" }}>
               Conversation ({huddleComments.length})
             </span>
-            
           </div>
 
-          {/* Comments List na natural na dumadaloy sa ilalim */}
+          {/* Comments List */}
           <div style={{ padding: "6px 16px" }}>
             {huddleComments.length > 0 ? (
               huddleComments.map((c, i) => {
@@ -1970,10 +1910,7 @@ export default function CommunityTab({
                   <div key={c.id || i} style={{ background: "#ffffff", padding: "10px 12px", borderRadius: "12px", border: "1px solid #f1f5f9", marginBottom: "10px", boxShadow: "0 1px 3px rgba(0,0,0,0.02)" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "4px" }}>
                       <div
-                        onClick={() => {
-                          closeCurrentLayer();
-                          handleOpenAthleteProfile(c.userId || c.uid, commenter);
-                        }}
+                        onClick={() => handleOpenAthleteProfile(c.userId || c.uid, commenter)}
                         style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer" }}
                       >
                         {renderAvatar(commenterAvatar, commenter.name, 28)}
@@ -2111,9 +2048,7 @@ export default function CommunityTab({
         </form>
       </div>
 
-      {/* ============================================================== */}
-      {/* 🖼️ 5. FULLSCREEN PHOTO LIGHTBOX VIEWER                         */}
-      {/* ============================================================== */}
+      {/* 🖼️ 5. FULLSCREEN PHOTO LIGHTBOX VIEWER */}
       {viewingPhoto && (
         <div
           onClick={closeCurrentLayer}
