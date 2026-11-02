@@ -65,6 +65,9 @@ export default function CommunityTab({
   const [showSearchDrawer, setShowSearchDrawer] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
+  // DIRECT FIRESTORE USERS SYNC (Para 100% totoong pangalan mula sa database)
+  const [dbUsers, setDbUsers] = useState([]);
+
   // 1-ON-1 CHAT ENGINE STATE
   const [activeChatRecipient, setActiveChatRecipient] = useState(null);
   const [chatMessages, setChatMessages] = useState([]);
@@ -78,7 +81,53 @@ export default function CommunityTab({
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
   const [liveSelectedPost, setLiveSelectedPost] = useState(null);
 
-  // ─── HELPER: INITIALS GRADIENT AVATAR (NO RANDOM PRAVATAR) ───
+  // ─── DIRECT FIRESTORE SUBSCRIPTION: LAHAT NG USERS SA DATABASE ───
+  useEffect(() => {
+    try {
+      const unsub = onSnapshot(collection(db, "users"), (snap) => {
+        const fetched = snap.docs.map(d => ({ id: d.id, uid: d.id, ...d.data() }));
+        setDbUsers(fetched);
+      }, (err) => console.error("Error fetching db users:", err));
+      return () => unsub();
+    } catch (e) {
+      console.error(e);
+    }
+  }, []);
+
+  // Pagsamahin ang userList prop at direktang dbUsers para garantisadong kumpleto
+  const allAthletes = useMemo(() => {
+    const map = new Map();
+    (userList || []).forEach(u => {
+      const id = u.id || u.uid;
+      if (id) map.set(id, u);
+    });
+    dbUsers.forEach(u => {
+      const id = u.id || u.uid;
+      if (id) {
+        const existing = map.get(id) || {};
+        map.set(id, { ...existing, ...u });
+      }
+    });
+    return Array.from(map.values()).filter(u => {
+      const name = (u.displayName || u.name || u.username || "").trim();
+      return name && name.toLowerCase() !== "no data";
+    });
+  }, [userList, dbUsers]);
+
+  // Helper para hanapin ang tunay na pangalan at avatar gamit ang UID
+  const getAthleteInfo = (uid, fallbackName = "") => {
+    if (!uid) return { name: fallbackName || "Athlete", photo: "" };
+    const found = allAthletes.find(u => (u.id === uid || u.uid === uid));
+    if (found) {
+      return {
+        name: found.displayName || found.name || found.username || fallbackName || "Athlete",
+        photo: found.photoURL || found.photo || found.avatar || ""
+      };
+    }
+    return { name: fallbackName || "Athlete", photo: "" };
+  };
+
+  // ─── HELPER: INITIALS GRADIENT AVATAR (WALANG PRAVATAR) ───
   const renderAvatar = (photoUrl, name = "Athlete", size = 34, border = "none") => {
     const hasValidPhoto = photoUrl && typeof photoUrl === "string" && photoUrl.startsWith("http") && !photoUrl.includes("pravatar");
     if (hasValidPhoto) {
@@ -114,7 +163,7 @@ export default function CommunityTab({
     );
   };
 
-  // ─── AUTO-LOAD DRAFT POST MULA SA HOMETAB GPS TRACKER ───
+  // ─── AUTO-LOAD DRAFT POST MULA SA HOMETAB ───
   useEffect(() => {
     if (draftSocialPost) {
       setActiveSubTab("feed");
@@ -129,7 +178,7 @@ export default function CommunityTab({
     if (postText || imagePreview) setShowComposer(true);
   }, [postText, imagePreview]);
 
-  // ─── REAL-TIME LISTENER: CHATS NG KASALUKUYANG USER ───
+  // ─── REAL-TIME LISTENER: CHATS MULA SA DATABASE ───
   useEffect(() => {
     if (!user?.uid) return;
     const q = query(collection(db, "chats"), where("participants", "array-contains", user.uid));
@@ -161,7 +210,7 @@ export default function CommunityTab({
     return () => unsub();
   }, [user?.uid, activeChatRecipient]);
 
-  // ─── REAL-TIME LISTENER PARA SA BUKAS NA POST HUDDLE (COMMENTS) ───
+  // ─── REAL-TIME LISTENER: COMMENTS PARA SA POST HUDDLE ───
   useEffect(() => {
     if (!selectedPost?.id) {
       setLiveSelectedPost(null);
@@ -193,7 +242,7 @@ export default function CommunityTab({
     }).length;
   }, [allUserNotifs, lastSeenNotifTime]);
 
-  // ─── TELEMETRY AGGREGATOR MULA SA MGA TUNAY NA POSTS ───
+  // ─── TELEMETRY AGGREGATOR MULA SA COMMUNITY POSTS ───
   const telemetryStatsByUser = useMemo(() => {
     const stats = {};
     if (Array.isArray(publicCommunityPosts)) {
@@ -210,25 +259,20 @@ export default function CommunityTab({
     return stats;
   }, [publicCommunityPosts]);
 
-  // ─── TUNAY NA MGA ATLETA PARA SA SEARCH DRAWER ───
+  // ─── LIVE SEARCH FILTER (MULA SA TUNAY NA FIRESTORE ATHLETES) ───
   const searchResults = useMemo(() => {
-    const validList = Array.isArray(userList) ? userList.filter(u => {
-      const name = (u.displayName || u.name || u.username || "").trim();
-      return name && name.toLowerCase() !== "no data";
-    }) : [];
-
-    if (!searchQuery.trim()) return validList.slice(0, 20);
+    if (!searchQuery.trim()) return allAthletes.slice(0, 20);
     const q = searchQuery.toLowerCase();
-    return validList.filter(u => {
+    return allAthletes.filter(u => {
       const name = (u.displayName || u.name || u.username || "").toLowerCase();
       const email = (u.email || "").toLowerCase();
       return name.includes(q) || email.includes(q);
     });
-  }, [userList, searchQuery]);
+  }, [allAthletes, searchQuery]);
 
   // ─── TUNAY NA LEADERBOARD (WALANG DUMMY) ───
   const sortedAthletes = useMemo(() => {
-    let list = Array.isArray(userList) && userList.length > 0 ? [...userList] : [];
+    let list = [...allAthletes];
 
     if (user && !list.some(u => (u.id === user.uid || u.uid === user.uid))) {
       list.push({
@@ -242,12 +286,7 @@ export default function CommunityTab({
       });
     }
 
-    const realUsers = list.filter(u => {
-      const name = (u.displayName || u.name || u.username || "").trim();
-      return name && name.toLowerCase() !== "no data";
-    });
-
-    return realUsers.map(u => {
+    return list.map(u => {
       const uid = u.id || u.uid;
       const userTelemetry = telemetryStatsByUser[uid] || { dist: 0, cal: 0 };
 
@@ -275,7 +314,7 @@ export default function CommunityTab({
       if (leaderboardMetric === "streak") return b.streak - a.streak;
       return b.dist - a.dist;
     });
-  }, [userList, user, appData, avatarPreview, leaderboardMetric, telemetryStatsByUser]);
+  }, [allAthletes, user, appData, avatarPreview, leaderboardMetric, telemetryStatsByUser]);
 
   const top1 = sortedAthletes[0] || null;
   const top2 = sortedAthletes[1] || null;
@@ -286,7 +325,7 @@ export default function CommunityTab({
   const currentUserRank = currentUserIndex !== -1 ? currentUserIndex + 1 : sortedAthletes.length;
   const currentAthlete = sortedAthletes[currentUserIndex] || { dist: 0, cal: 0, streak: 0 };
 
-  // ─── ACTION: IPADALA ANG 1-ON-1 CHAT MESSAGE SA FIRESTORE ───
+  // ─── ACTION: IPADALA ANG 1-ON-1 CHAT MESSAGE ───
   const handleSendMessage = async (e) => {
     if (e) e.preventDefault();
     if (!chatInputText.trim() || !user?.uid || !activeChatRecipient) return;
@@ -294,14 +333,14 @@ export default function CommunityTab({
     setIsSendingMsg(true);
     const textToSend = chatInputText.trim();
     const otherUid = activeChatRecipient.id || activeChatRecipient.uid;
-    const otherName = activeChatRecipient.displayName || activeChatRecipient.name || "Athlete";
-    const otherPhoto = activeChatRecipient.photoURL || activeChatRecipient.photo || "";
+    const recipientInfo = getAthleteInfo(otherUid, activeChatRecipient.name);
+    const otherName = recipientInfo.name;
+    const otherPhoto = recipientInfo.photo;
     const myName = user.displayName || "NutriPulse Athlete";
     const myPhoto = user.photoURL || avatarPreview || "";
     const chatId = [user.uid, otherUid].sort().join("_");
 
     try {
-      // 1. I-save ang mensahe sa subcollection
       await addDoc(collection(db, "chats", chatId, "messages"), {
         senderId: user.uid,
         senderName: myName,
@@ -310,19 +349,21 @@ export default function CommunityTab({
         createdAt: serverTimestamp()
       });
 
-      // 2. I-update ang chat header document
       await setDoc(doc(db, "chats", chatId), {
         participants: [user.uid, otherUid],
         participantDetails: {
           [user.uid]: { name: myName, photo: myPhoto },
           [otherUid]: { name: otherName, photo: otherPhoto }
         },
+        participantNames: {
+          [user.uid]: myName,
+          [otherUid]: otherName
+        },
         lastMessage: textToSend,
         lastSenderId: user.uid,
         updatedAt: Date.now()
       }, { merge: true });
 
-      // 3. Magpadala ng notification sa kausap
       await addDoc(collection(db, "notifications"), {
         recipientId: otherUid,
         userId: otherUid,
@@ -373,7 +414,7 @@ export default function CommunityTab({
           senderName: user.displayName || "NutriPulse Athlete",
           senderPhoto: user.photoURL || avatarPreview || "",
           type: "comment",
-          message: 'commented on your huddle: "' + commentContent.slice(0, 25) + '..."',
+          message: 'replied in your activity huddle: "' + commentContent.slice(0, 25) + '..."',
           postId: activeHuddlePost.id,
           createdAt: serverTimestamp()
         });
@@ -387,7 +428,6 @@ export default function CommunityTab({
     }
   };
 
-  // ─── ACTION: PULSE BOOST ───
   const handlePulseBoost = async (post) => {
     if (typeof handleLike === "function") {
       handleLike(post.id);
@@ -420,7 +460,7 @@ export default function CommunityTab({
   return (
     <div style={{ backgroundColor: "#f8fafc", minHeight: "100vh", paddingBottom: "90px", margin: 0, padding: 0, fontFamily: "sans-serif" }}>
 
-      {/* ─── 1. FIXED EDGE-TO-EDGE TOP BRANDING HEADER ─── */}
+      {/* ─── 1. FIXED TOP BRANDING HEADER ─── */}
       <header style={{
         position: "fixed",
         top: 0,
@@ -464,7 +504,7 @@ export default function CommunityTab({
           </div>
         </div>
 
-        {/* Action Controls: Search, Messages, Notifications, Avatar */}
+        {/* Action Controls */}
         <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
           {/* 🔍 SEARCH BUTTON */}
           <button
@@ -476,7 +516,7 @@ export default function CommunityTab({
             <i className="fa-solid fa-magnifying-glass" style={{ fontSize: "15px" }}></i>
           </button>
 
-          {/* 💬 MESSAGES BUTTON (SLIDE-OVER DRAWER WITH TOP-RIGHT ✕) */}
+          {/* 💬 MESSAGES BUTTON */}
           <button
             type="button"
             onClick={() => {
@@ -654,7 +694,7 @@ export default function CommunityTab({
               </button>
             </div>
 
-            {/* 🥇 PODIUM (REAL ATHLETES) */}
+            {/* 🥇 PODIUM */}
             {top1 && (
               <div style={{
                 display: "flex",
@@ -937,8 +977,7 @@ export default function CommunityTab({
                 const hasBoosted = Array.isArray(post.likes) ? post.likes.includes(user?.uid) : false;
                 const boostCount = Array.isArray(post.likes) ? post.likes.length : (post.boosts || 0);
                 const commentsCount = Array.isArray(post.comments) ? post.comments.length : 0;
-                const authorName = post.userName || post.authorName || "NutriPulse Athlete";
-                const authorPhoto = post.userPhoto || post.authorPhoto || "";
+                const authorInfo = getAthleteInfo(post.userId || post.authorId, post.userName || post.authorName);
 
                 return (
                   <div
@@ -960,10 +999,10 @@ export default function CommunityTab({
                           if (typeof setActiveTab === "function") setActiveTab("profile");
                         }}
                       >
-                        {renderAvatar(authorPhoto, authorName, 38, "2px solid #e2e8f0")}
+                        {renderAvatar(authorInfo.photo, authorInfo.name, 38, "2px solid #e2e8f0")}
                         <div>
                           <div style={{ fontSize: "14px", fontWeight: 800, color: "#0f172a" }}>
-                            {authorName}
+                            {authorInfo.name}
                           </div>
                           <div style={{ fontSize: "10.5px", color: "#94a3b8", fontWeight: 600 }}>
                             {formatPostTime(post.createdAt || post.timestamp)}
@@ -1116,62 +1155,47 @@ export default function CommunityTab({
       </div>
 
       {/* ============================================================== */}
-      {/* 💬 1. UNIFORM SLIDE-OVER LIVE INBOX & 1-ON-1 CHAT DRAWER       */}
+      {/* 💬 1. UNIFORM SLIDE-OVER INBOX & 1-ON-1 CHAT (WALANG ARROW)    */}
       {/* ============================================================== */}
       <div
         style={{
           position: "fixed",
           top: 0,
+          bottom: 0,
           right: showInboxDrawer ? "0" : "-100%",
           width: "100%",
-          maxWidth: "360px",
-          height: "100vh",
+          maxWidth: "380px",
+          height: "100dvh",
           backgroundColor: "#ffffff",
           zIndex: 4000,
           transition: "right 0.28s cubic-bezier(0.4, 0, 0.2, 1)",
           boxShadow: showInboxDrawer ? "-6px 0 24px rgba(15, 23, 42, 0.15)" : "none",
           display: "flex",
-          flexDirection: "column"
+          flexDirection: "column",
+          overflow: "hidden",
+          boxSizing: "border-box"
         }}
       >
-        {/* Drawer Header */}
+        {/* Header ng Drawer: WALANG ARROW BACK SA KALIWA, X ICON SA KANAN */}
         <div style={{
-          padding: "14px 16px",
+          height: "54px",
+          padding: "0 16px",
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
           borderBottom: "1px solid #f1f5f9",
-          backgroundColor: "#ffffff"
+          backgroundColor: "#ffffff",
+          flexShrink: 0
         }}>
           {activeChatRecipient ? (
-            /* 1-on-1 Chat Header with Back Button to Inbox List */
-            <div style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: 0 }}>
-              <button
-                type="button"
-                onClick={() => setActiveChatRecipient(null)}
-                style={{
-                  background: "#f1f5f9",
-                  border: "none",
-                  width: "28px",
-                  height: "28px",
-                  borderRadius: "50%",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  cursor: "pointer",
-                  color: "#0f172a",
-                  fontSize: "13px"
-                }}
-                title="Back to Inbox"
-              >
-                <i className="fa-solid fa-arrow-left"></i>
-              </button>
-              {renderAvatar(activeChatRecipient.photoURL || activeChatRecipient.photo, activeChatRecipient.displayName || activeChatRecipient.name, 28)}
+            /* 1-on-1 Chat Header (WALANG ARROW BACK!) */
+            <div style={{ display: "flex", alignItems: "center", gap: "10px", minWidth: 0 }}>
+              {renderAvatar(activeChatRecipient.photo, activeChatRecipient.name, 32)}
               <div style={{ minWidth: 0 }}>
                 <h3 style={{ margin: 0, color: "#0f172a", fontSize: "14px", fontWeight: 900, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {activeChatRecipient.displayName || activeChatRecipient.name || "Athlete"}
+                  {activeChatRecipient.name}
                 </h3>
-                <span style={{ fontSize: "10px", color: "#10b981", fontWeight: 700 }}>● Online</span>
+                <span style={{ fontSize: "10.5px", color: "#10b981", fontWeight: 700 }}>● Active Chat</span>
               </div>
             </div>
           ) : (
@@ -1194,7 +1218,7 @@ export default function CommunityTab({
             </div>
           )}
 
-          {/* KAPAREHAS NA BILOG NA ✕ CLOSE DRAWER BUTTON */}
+          {/* BILOG NA ✕ CLOSE DRAWER BUTTON SA KANANG ITAAS */}
           <button
             type="button"
             onClick={() => { setShowInboxDrawer(false); setActiveChatRecipient(null); }}
@@ -1217,12 +1241,12 @@ export default function CommunityTab({
           </button>
         </div>
 
-        {/* ─── DRAWER BODY: INBOX LIST vs ACTIVE 1-ON-1 CHAT ─── */}
+        {/* ─── DRAWER BODY ─── */}
         {activeChatRecipient ? (
-          /* ACTIVE 1-ON-1 CHAT SCREEN */
+          /* ACTIVE 1-ON-1 CHAT SCREEN NA MAY NAKALITAW NA INPUT BOX */
           <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, backgroundColor: "#f8fafc" }}>
             {/* Messages Scroll Area */}
-            <div style={{ flex: 1, overflowY: "auto", padding: "14px 12px", display: "flex", flexDirection: "column", gap: "10px" }}>
+            <div style={{ flex: 1, overflowY: "auto", padding: "14px 12px", display: "flex", flexDirection: "column", gap: "10px", minHeight: 0 }}>
               {chatMessages.length > 0 ? (
                 chatMessages.map((m, i) => {
                   const isMe = m.senderId === user?.uid;
@@ -1261,46 +1285,49 @@ export default function CommunityTab({
               ) : (
                 <div style={{ textAlign: "center", padding: "40px 20px", color: "#94a3b8" }}>
                   <i className="fa-regular fa-comment-dots" style={{ fontSize: "32px", color: "#cbd5e1", marginBottom: "8px" }}></i>
-                  <p style={{ fontSize: "12.5px", margin: 0 }}>Start a huddle with {activeChatRecipient.displayName || activeChatRecipient.name}!</p>
+                  <p style={{ fontSize: "12.5px", margin: 0 }}>Send a message to start chatting with {activeChatRecipient.name}!</p>
                 </div>
               )}
               <div ref={chatMessagesEndRef} />
             </div>
 
-            {/* Chat Send Input Form */}
+            {/* TUNAY AT NAKALITAW NA CHAT INPUT BOX SA ILALIM */}
             <form
               onSubmit={handleSendMessage}
               style={{
-                padding: "10px 12px",
+                padding: "10px 12px 14px 12px",
                 background: "#ffffff",
                 borderTop: "1px solid #e2e8f0",
                 display: "flex",
                 alignItems: "center",
-                gap: "8px"
+                gap: "8px",
+                flexShrink: 0
               }}
             >
               <input
                 type="text"
                 value={chatInputText}
                 onChange={(e) => setChatInputText(e.target.value)}
-                placeholder="Type a message..."
+                placeholder={"Message " + activeChatRecipient.name + "..."}
                 style={{
                   flex: 1,
-                  padding: "9px 14px",
+                  padding: "10px 14px",
                   borderRadius: "20px",
                   border: "1px solid #cbd5e1",
-                  fontSize: "13px",
+                  fontSize: "13.5px",
                   outline: "none",
                   backgroundColor: "#f8fafc",
-                  fontFamily: "inherit"
+                  color: "#0f172a",
+                  fontFamily: "inherit",
+                  boxSizing: "border-box"
                 }}
               />
               <button
                 type="submit"
                 disabled={!chatInputText.trim() || isSendingMsg}
                 style={{
-                  width: "36px",
-                  height: "36px",
+                  width: "40px",
+                  height: "40px",
                   borderRadius: "50%",
                   border: "none",
                   background: chatInputText.trim() ? "linear-gradient(135deg, #4f46e5 0%, #38bdf8 100%)" : "#e2e8f0",
@@ -1309,23 +1336,25 @@ export default function CommunityTab({
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
+                  flexShrink: 0,
                   boxShadow: chatInputText.trim() ? "0 2px 6px rgba(79, 70, 229, 0.3)" : "none"
                 }}
               >
-                <i className="fa-solid fa-paper-plane" style={{ fontSize: "13px" }}></i>
+                <i className="fa-solid fa-paper-plane" style={{ fontSize: "14px" }}></i>
               </button>
             </form>
           </div>
         ) : (
-          /* INBOX THREADS LIST SCREEN */
-          <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column" }}>
+          /* INBOX THREADS LIST (NA MAY TUNAY NA PANGALAN MULA SA DATABASE) */
+          <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", minHeight: 0 }}>
             <div style={{
               padding: "8px 18px",
               display: "flex",
               justifyContent: "space-between",
               alignItems: "center",
               background: "#f8fafc",
-              borderBottom: "1px solid #f1f5f9"
+              borderBottom: "1px solid #f1f5f9",
+              flexShrink: 0
             }}>
               <span style={{ fontSize: "11px", fontWeight: 700, color: "#64748b" }}>Active Conversations</span>
               <button
@@ -1344,14 +1373,16 @@ export default function CommunityTab({
               {liveChats.length > 0 ? (
                 liveChats.map((chat) => {
                   const otherUid = (chat.participants || []).find(p => p !== user?.uid);
-                  const details = chat.participantDetails?.[otherUid] || {};
-                  const otherName = details.name || "NutriPulse Athlete";
-                  const otherPhoto = details.photo || "";
+                  // Dynamic name lookup sa allAthletes o sa chat document
+                  const recipientInfo = getAthleteInfo(
+                    otherUid,
+                    chat.participantNames?.[otherUid] || chat.participantDetails?.[otherUid]?.name || chat.otherUserName
+                  );
 
                   return (
                     <div
                       key={chat.id}
-                      onClick={() => setActiveChatRecipient({ id: otherUid, uid: otherUid, name: otherName, photo: otherPhoto })}
+                      onClick={() => setActiveChatRecipient({ id: otherUid, uid: otherUid, name: recipientInfo.name, photo: recipientInfo.photo })}
                       style={{
                         display: "flex",
                         alignItems: "center",
@@ -1365,10 +1396,10 @@ export default function CommunityTab({
                         boxShadow: "0 1px 3px rgba(0,0,0,0.02)"
                       }}
                     >
-                      {renderAvatar(otherPhoto, otherName, 36)}
+                      {renderAvatar(recipientInfo.photo, recipientInfo.name, 36)}
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: "13px", fontWeight: 800, color: "#0f172a" }}>
-                          {otherName}
+                          {recipientInfo.name}
                         </div>
                         <div style={{ fontSize: "11.5px", color: "#64748b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                           {chat.lastMessage || "Tap to chat..."}
@@ -1412,32 +1443,34 @@ export default function CommunityTab({
       </div>
 
       {/* ============================================================== */}
-      {/* 🔍 2. UNIFORM SLIDE-OVER SEARCH ATHLETES DRAWER (LIVE ACTIONS) */}
+      {/* 🔍 2. UNIFORM SLIDE-OVER LIVE DATABASE SEARCH DRAWER           */}
       {/* ============================================================== */}
       <div
         style={{
           position: "fixed",
           top: 0,
+          bottom: 0,
           right: showSearchDrawer ? "0" : "-100%",
           width: "100%",
-          maxWidth: "360px",
-          height: "100vh",
+          maxWidth: "380px",
+          height: "100dvh",
           backgroundColor: "#ffffff",
           zIndex: 4000,
           transition: "right 0.28s cubic-bezier(0.4, 0, 0.2, 1)",
           boxShadow: showSearchDrawer ? "-6px 0 24px rgba(15, 23, 42, 0.15)" : "none",
           display: "flex",
-          flexDirection: "column"
+          flexDirection: "column",
+          overflow: "hidden",
+          boxSizing: "border-box"
         }}
       >
-        <div style={{ padding: "16px 18px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #f1f5f9", backgroundColor: "#ffffff" }}>
+        <div style={{ height: "54px", padding: "0 16px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #f1f5f9", backgroundColor: "#ffffff", flexShrink: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <div style={{ width: "28px", height: "28px", borderRadius: "7px", background: "rgba(56, 189, 248, 0.15)", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <i className="fa-solid fa-magnifying-glass" style={{ color: "#0284c7", fontSize: "13px" }}></i>
             </div>
             <h3 style={{ margin: 0, color: "#0f172a", fontSize: "15px", fontWeight: 900 }}>Search Athletes</h3>
           </div>
-          {/* KAPAREHAS NA BILOG NA ✕ CLOSE DRAWER BUTTON */}
           <button
             type="button"
             onClick={() => { setShowSearchDrawer(false); setSearchQuery(""); }}
@@ -1448,7 +1481,7 @@ export default function CommunityTab({
         </div>
 
         {/* Live Search Input Bar */}
-        <div style={{ padding: "12px 16px", borderBottom: "1px solid #f1f5f9" }}>
+        <div style={{ padding: "12px 16px", borderBottom: "1px solid #f1f5f9", flexShrink: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: "8px", background: "#f8fafc", borderRadius: "10px", padding: "8px 12px", border: "1px solid #e2e8f0" }}>
             <i className="fa-solid fa-magnifying-glass" style={{ color: "#94a3b8", fontSize: "13px" }}></i>
             <input
@@ -1456,7 +1489,7 @@ export default function CommunityTab({
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search runners by name..."
-              style={{ border: "none", background: "transparent", outline: "none", width: "100%", fontSize: "13px", fontFamily: "inherit" }}
+              style={{ border: "none", background: "transparent", outline: "none", width: "100%", fontSize: "13px", fontFamily: "inherit", color: "#0f172a" }}
             />
             {searchQuery && (
               <button
@@ -1470,11 +1503,11 @@ export default function CommunityTab({
           </div>
         </div>
 
-        {/* Live Search Results with Message and Profile Buttons */}
-        <div style={{ flex: 1, overflowY: "auto", padding: "12px 14px" }}>
+        {/* Live Search Results List */}
+        <div style={{ flex: 1, overflowY: "auto", padding: "12px 14px", minHeight: 0 }}>
           {searchResults.length > 0 ? (
             searchResults.map((athlete, idx) => {
-              const aName = athlete.displayName || athlete.name || "Athlete";
+              const aName = athlete.displayName || athlete.name || athlete.username || "Athlete";
               const aPhoto = athlete.photoURL || athlete.avatar || "";
               const aId = athlete.id || athlete.uid;
               const isMe = aId === user?.uid;
@@ -1490,7 +1523,8 @@ export default function CommunityTab({
                     borderRadius: "12px",
                     background: "#ffffff",
                     border: "1px solid #f1f5f9",
-                    marginBottom: "8px"
+                    marginBottom: "8px",
+                    boxShadow: "0 1px 3px rgba(0,0,0,0.02)"
                   }}
                 >
                   <div style={{ display: "flex", alignItems: "center", gap: "10px", minWidth: 0, flex: 1 }}>
@@ -1500,7 +1534,7 @@ export default function CommunityTab({
                         {aName} {isMe && <span style={{ color: "#0284c7", fontSize: "10.5px" }}>(You)</span>}
                       </div>
                       <div style={{ fontSize: "11px", color: "#64748b" }}>
-                        NutriPulse Member
+                        Registered Athlete
                       </div>
                     </div>
                   </div>
@@ -1512,17 +1546,17 @@ export default function CommunityTab({
                         type="button"
                         onClick={() => {
                           setShowSearchDrawer(false);
-                          setActiveChatRecipient(athlete);
+                          setActiveChatRecipient({ id: aId, uid: aId, name: aName, photo: aPhoto });
                           setShowInboxDrawer(true);
                         }}
                         style={{
                           background: "#f0f9ff",
                           border: "1px solid #bae6fd",
                           borderRadius: "8px",
-                          padding: "6px 9px",
+                          padding: "6px 10px",
                           color: "#0284c7",
                           cursor: "pointer",
-                          fontSize: "11px",
+                          fontSize: "11.5px",
                           fontWeight: 800,
                           display: "flex",
                           alignItems: "center",
@@ -1546,10 +1580,10 @@ export default function CommunityTab({
                         background: "#f8fafc",
                         border: "1px solid #e2e8f0",
                         borderRadius: "8px",
-                        padding: "6px 9px",
+                        padding: "6px 10px",
                         color: "#475569",
                         cursor: "pointer",
-                        fontSize: "11px",
+                        fontSize: "11.5px",
                         fontWeight: 700
                       }}
                       title="View Profile"
@@ -1575,19 +1609,22 @@ export default function CommunityTab({
         style={{
           position: "fixed",
           top: 0,
+          bottom: 0,
           right: showNotifDrawer ? "0" : "-100%",
           width: "100%",
-          maxWidth: "360px",
-          height: "100vh",
+          maxWidth: "380px",
+          height: "100dvh",
           backgroundColor: "#ffffff",
           zIndex: 4000,
           transition: "right 0.28s cubic-bezier(0.4, 0, 0.2, 1)",
           boxShadow: showNotifDrawer ? "-6px 0 24px rgba(15, 23, 42, 0.15)" : "none",
           display: "flex",
-          flexDirection: "column"
+          flexDirection: "column",
+          overflow: "hidden",
+          boxSizing: "border-box"
         }}
       >
-        <div style={{ padding: "16px 18px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #f1f5f9", backgroundColor: "#ffffff" }}>
+        <div style={{ height: "54px", padding: "0 16px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #f1f5f9", backgroundColor: "#ffffff", flexShrink: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <div style={{ width: "28px", height: "28px", borderRadius: "7px", background: "rgba(239, 68, 68, 0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <i className="fa-solid fa-bell" style={{ color: "#ef4444", fontSize: "13px" }}></i>
@@ -1603,7 +1640,7 @@ export default function CommunityTab({
           </button>
         </div>
 
-        <div style={{ padding: "8px 18px", display: "flex", justifyContent: "space-between", alignItems: "center", background: "#f8fafc", borderBottom: "1px solid #f1f5f9" }}>
+        <div style={{ padding: "8px 18px", display: "flex", justifyContent: "space-between", alignItems: "center", background: "#f8fafc", borderBottom: "1px solid #f1f5f9", flexShrink: 0 }}>
           <span style={{ fontSize: "11px", fontWeight: 700, color: "#64748b" }}>Recent Activity & Boosts</span>
           <button
             type="button"
@@ -1617,15 +1654,14 @@ export default function CommunityTab({
           </button>
         </div>
 
-        <div style={{ flex: 1, overflowY: "auto", padding: "12px 14px" }}>
+        <div style={{ flex: 1, overflowY: "auto", padding: "12px 14px", minHeight: 0 }}>
           {Array.isArray(allUserNotifs) && allUserNotifs.length > 0 ? (
             allUserNotifs.map((notif, idx) => {
               const isUnread = notif.createdAt?.toMillis
                 ? notif.createdAt.toMillis() > (lastSeenNotifTime || 0)
                 : (notif.timestamp || 0) > (lastSeenNotifTime || 0);
 
-              const senderName = notif.senderName || notif.authorName || "An athlete";
-              const senderPhoto = notif.senderPhoto || notif.authorPhoto || "";
+              const senderInfo = getAthleteInfo(notif.senderId || notif.userId, notif.senderName || notif.authorName);
 
               return (
                 <div
@@ -1653,11 +1689,11 @@ export default function CommunityTab({
                   }}
                 >
                   <div style={{ marginTop: "2px" }}>
-                    {renderAvatar(senderPhoto, senderName, 34)}
+                    {renderAvatar(senderInfo.photo, senderInfo.name, 34)}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <p style={{ margin: "0 0 4px 0", fontSize: "12.5px", color: "#0f172a", lineHeight: 1.4, fontWeight: isUnread ? 700 : 500 }}>
-                      <span style={{ fontWeight: 800 }}>{senderName}</span>{" "}
+                      <span style={{ fontWeight: 800 }}>{senderInfo.name}</span>{" "}
                       {notif.message || notif.text || "interacted with your workout!"}
                     </p>
                     <span style={{ fontSize: "10.5px", color: "#94a3b8", fontWeight: 600 }}>
@@ -1685,19 +1721,22 @@ export default function CommunityTab({
         style={{
           position: "fixed",
           top: 0,
+          bottom: 0,
           right: activeHuddlePost ? "0" : "-100%",
           width: "100%",
-          maxWidth: "360px",
-          height: "100vh",
+          maxWidth: "380px",
+          height: "100dvh",
           backgroundColor: "#ffffff",
           zIndex: 4000,
           transition: "right 0.28s cubic-bezier(0.4, 0, 0.2, 1)",
           boxShadow: activeHuddlePost ? "-6px 0 24px rgba(15, 23, 42, 0.15)" : "none",
           display: "flex",
-          flexDirection: "column"
+          flexDirection: "column",
+          overflow: "hidden",
+          boxSizing: "border-box"
         }}
       >
-        <div style={{ padding: "16px 18px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #f1f5f9", backgroundColor: "#ffffff" }}>
+        <div style={{ height: "54px", padding: "0 16px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #f1f5f9", backgroundColor: "#ffffff", flexShrink: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <div style={{ width: "28px", height: "28px", borderRadius: "7px", background: "rgba(16, 185, 129, 0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <i className="fa-solid fa-comments" style={{ color: "#10b981", fontSize: "13px" }}></i>
@@ -1717,7 +1756,7 @@ export default function CommunityTab({
         </div>
 
         {activeHuddlePost && (
-          <div style={{ padding: "12px 16px", background: "#f8fafc", borderBottom: "1px solid #f1f5f9" }}>
+          <div style={{ padding: "12px 16px", background: "#f8fafc", borderBottom: "1px solid #f1f5f9", flexShrink: 0 }}>
             <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px" }}>
               {renderAvatar(activeHuddlePost.userPhoto || activeHuddlePost.authorPhoto, activeHuddlePost.userName || activeHuddlePost.authorName, 26)}
               <span style={{ fontSize: "12.5px", fontWeight: 800, color: "#0f172a" }}>
@@ -1730,7 +1769,7 @@ export default function CommunityTab({
           </div>
         )}
 
-        <div style={{ flex: 1, overflowY: "auto", padding: "14px" }}>
+        <div style={{ flex: 1, overflowY: "auto", padding: "14px", minHeight: 0 }}>
           {activeHuddlePost && Array.isArray(activeHuddlePost.comments) && activeHuddlePost.comments.length > 0 ? (
             activeHuddlePost.comments.map((c, i) => (
               <div key={c.id || i} style={{ display: "flex", gap: "8px", marginBottom: "12px" }}>
@@ -1752,20 +1791,20 @@ export default function CommunityTab({
 
         <form
           onSubmit={handleAddComment}
-          style={{ padding: "12px 14px", borderTop: "1px solid #f1f5f9", backgroundColor: "#ffffff", display: "flex", gap: "8px", alignItems: "center" }}
+          style={{ padding: "10px 14px 14px 14px", borderTop: "1px solid #f1f5f9", backgroundColor: "#ffffff", display: "flex", gap: "8px", alignItems: "center", flexShrink: 0 }}
         >
           <input
             type="text"
             value={newCommentText}
             onChange={(e) => setNewCommentText(e.target.value)}
             placeholder="Cheer or reply to huddle..."
-            style={{ flex: 1, padding: "9px 12px", borderRadius: "20px", border: "1px solid #cbd5e1", fontSize: "12.5px", outline: "none", backgroundColor: "#f8fafc", fontFamily: "inherit" }}
+            style={{ flex: 1, padding: "10px 14px", borderRadius: "20px", border: "1px solid #cbd5e1", fontSize: "13px", outline: "none", backgroundColor: "#f8fafc", fontFamily: "inherit" }}
           />
           <button
             type="submit"
             disabled={!newCommentText.trim() || isSubmittingComment}
             style={{
-              padding: "8px 14px",
+              padding: "9px 15px",
               borderRadius: "20px",
               border: "none",
               background: newCommentText.trim() ? "linear-gradient(135deg, #10b981 0%, #059669 100%)" : "#e2e8f0",
@@ -1779,7 +1818,7 @@ export default function CommunityTab({
             }}
           >
             <span>{isSubmittingComment ? "..." : "Send"}</span>
-            <i className="fa-solid fa-paper-plane" style={{ fontSize: "10.5px" }}></i>
+            <i className="fa-solid fa-paper-plane" style={{ fontSize: "11px" }}></i>
           </button>
         </form>
       </div>
