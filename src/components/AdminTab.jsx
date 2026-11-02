@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import ExpandableText from "./ExpandableText";
 import { db } from "../services/firebase";
 import { 
@@ -6,9 +6,9 @@ import {
   query, 
   where, 
   getDocs, 
-  orderBy, 
-  onSnapshot, 
+  getDoc,
   doc, 
+  orderBy, 
   deleteDoc 
 } from "firebase/firestore";
 
@@ -66,7 +66,7 @@ export default function AdminTab({
   const [now, setNow] = useState(Date.now());
   const [activeTab, setActiveTabInternal] = useState(adminSubTab || "posts");
   const [searchQuery, setSearchQuery] = useState("");
-  const [userFilter, setUserFilter] = useState("all"); // 'all', 'online', 'blocked'
+  const [userFilter, setUserFilter] = useState("all");
 
   // ─── INVESTIGATION & CHAT VAULT STATES ───
   const [investigatingUser, setInvestigatingUser] = useState(null);
@@ -75,7 +75,22 @@ export default function AdminTab({
   const [activeChatThread, setActiveChatThread] = useState(null);
   const [chatTranscript, setChatTranscript] = useState([]);
   const [isLoadingTranscript, setIsLoadingTranscript] = useState(false);
-  const [chatSearchQuery, setChatSearchQuery] = useState("");
+  const [ruleHelpRequired, setRuleHelpRequired] = useState(false);
+
+  // ─── IN-APP FLOATING NOTIFICATION (NO BROWSER ALERT) ───
+  const [internalToast, setInternalToast] = useState(null);
+  const toastTimeoutRef = useRef(null);
+
+  const notify = (msg, type = "info") => {
+    if (typeof showToast === "function") {
+      showToast(msg);
+    }
+    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    setInternalToast({ msg, type });
+    toastTimeoutRef.current = setTimeout(() => {
+      setInternalToast(null);
+    }, 4000);
+  };
 
   const handleSubTabChange = (t) => {
     setActiveTabInternal(t);
@@ -93,22 +108,6 @@ export default function AdminTab({
     return () => clearInterval(timer);
   }, []);
 
-  // Modern In-App Toast System (100% Free from Browser alert() Popups)
-  const [internalToast, setInternalToast] = useState(null);
-  const toastTimeoutRef = React.useRef(null);
-
-  const notify = (msg, type = "info") => {
-    if (typeof showToast === "function") {
-      showToast(msg);
-    }
-    // Laging mag-trigger ng in-app sleek floating notification
-    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
-    setInternalToast({ msg, type });
-    toastTimeoutRef.current = setTimeout(() => {
-      setInternalToast(null);
-    }, 4000);
-  };
-
   const handleRefreshClick = async () => {
     if (isRefreshing) return;
     if (setIsRefreshing) setIsRefreshing(true);
@@ -116,7 +115,7 @@ export default function AdminTab({
       if (typeof fetchPosts === "function") await fetchPosts();
       if (typeof fetchUsers === "function") await fetchUsers();
       await new Promise(r => setTimeout(r, 600));
-      notify("Admin metrics & databases refreshed! 🔄");
+      notify("Admin metrics & databases refreshed! 🔄", "success");
     } catch (e) {
       console.error("Refresh error:", e);
     } finally {
@@ -169,13 +168,15 @@ export default function AdminTab({
     );
   }, [posts, searchQuery]);
 
-  // ─── INVESTIGATION FORENSICS: FETCH CHATS ───
+  // ─── FORENSIC INVESTIGATION: FETCH CHATS ───
   const startInvestigation = async (userObj) => {
+    if (!userObj || !userObj.uid) return;
     setInvestigatingUser(userObj);
     handleSubTabChange("vault");
     setActiveChatThread(null);
     setChatTranscript([]);
     setIsLoadingChats(true);
+    setRuleHelpRequired(false);
 
     try {
       const q = query(collection(db, "chats"), where("participants", "array-contains", userObj.uid));
@@ -183,20 +184,50 @@ export default function AdminTab({
       const threads = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       threads.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
       setUserChats(threads);
+
       if (threads.length === 0) {
-        notify("Walang nahanap na chat logs para sa account na ito.");
+        notify("Walang nakitang aktibong chat logs para sa account na ito.", "info");
       } else {
-        notify(`🕵️‍♂️ Natagpuan ang ${threads.length} chat threads!`);
+        notify(`🕵️‍♂️ Natagpuan ang ${threads.length} chat threads!`, "success");
       }
     } catch (err) {
-      console.error("Forensic chat fetch failed:", err);
-      notify("Hindi ma-access ang chat vault. Pakisuri ang Firebase rules.");
+      console.warn("Array query failed, trying pairwise fallback scan...", err);
+      try {
+        const potentialPartnerUids = (userList || [])
+          .map(u => u.uid)
+          .filter(uid => uid && uid !== userObj.uid);
+
+        const foundThreads = [];
+        for (const partnerUid of potentialPartnerUids) {
+          const directChatId = [userObj.uid, partnerUid].sort().join("_");
+          try {
+            const chatSnap = await getDoc(doc(db, "chats", directChatId));
+            if (chatSnap.exists()) {
+              foundThreads.push({ id: chatSnap.id, ...chatSnap.data() });
+            }
+          } catch (e) {
+            // silent catch
+          }
+        }
+
+        if (foundThreads.length > 0) {
+          foundThreads.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+          setUserChats(foundThreads);
+          notify(`🕵️‍♂️ Natagpuan ang ${foundThreads.length} chat threads gamit ang direct scan!`, "success");
+        } else {
+          setRuleHelpRequired(true);
+          notify("Kinakailangan ng Admin Permission sa Firebase Rules.", "warning");
+        }
+      } catch (fallbackErr) {
+        console.error("Forensic chat fetch failed:", fallbackErr);
+        setRuleHelpRequired(true);
+        notify("Kinakailangan ng Admin Permission sa Firebase Rules.", "error");
+      }
     } finally {
       setIsLoadingChats(false);
     }
   };
 
-  // ─── FETCH INDIVIDUAL CHAT TRANSCRIPT ───
   const loadChatTranscript = async (chat) => {
     setActiveChatThread(chat);
     setIsLoadingTranscript(true);
@@ -210,33 +241,33 @@ export default function AdminTab({
       setChatTranscript(msgs);
     } catch (e) {
       console.error("Transcript read error:", e);
-      notify("Hindi mabasa ang mga mensahe sa thread na ito.");
+      notify("Hindi mabasa ang mga mensahe sa thread na ito.", "error");
     } finally {
       setIsLoadingTranscript(false);
     }
   };
 
-  // ─── PERMANENT DELETE POST HANDLER ───
   const handleDeletePostPermanently = async (postId) => {
     if (!window.confirm("Sigurado ka bang nais mong BURAHIN nang permanente ang post na ito sa database?")) return;
     try {
       await deleteDoc(doc(db, "posts", postId));
-      notify("🗑️ Matagumpay na nabura ang post sa database!");
+      notify("🗑️ Matagumpay na nabura ang post sa database!", "success");
       if (typeof fetchPosts === "function") fetchPosts();
     } catch (err) {
       console.error("Error deleting post:", err);
-      notify("Nabigong burahin ang post.");
+      notify("Nabigong burahin ang post.", "error");
     }
   };
 
   const copyToClipboard = (text, label) => {
     navigator.clipboard.writeText(text);
-    notify(`📋 Na-copy ang ${label} sa clipboard!`);
+    notify(`📋 Na-copy ang ${label} sa clipboard!`, "success");
   };
 
   return (
     <div className="screen active" style={{ maxWidth: "780px", margin: "0 auto", paddingBottom: "40px" }}>
-      {/* 🌟 SLEEK IN-APP FLOATING NOTIFICATION (REPLACES BROWSER ALERT) */}
+      
+      {/* ─── IN-APP FLOATING NOTIFICATION ─── */}
       {internalToast && (
         <div style={{
           position: "fixed",
@@ -269,7 +300,6 @@ export default function AdminTab({
         </div>
       )}
 
-      
       {/* ─── 1. COMMAND CENTER EXECUTIVE HEADER ─── */}
       <div style={{
         background: "linear-gradient(135deg, #0f172a 0%, #1e293b 100%)",
@@ -338,7 +368,6 @@ export default function AdminTab({
           gap: "10px",
           marginTop: "16px"
         }}>
-          {/* Card 1: Athletes */}
           <div style={{ background: "rgba(255,255,255,0.06)", padding: "10px 12px", borderRadius: "12px", border: "1px solid rgba(255,255,255,0.08)" }}>
             <div style={{ fontSize: "10px", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase" }}>Registered</div>
             <div style={{ fontSize: "20px", fontWeight: 900, color: "#38bdf8", marginTop: "2px" }}>
@@ -346,7 +375,6 @@ export default function AdminTab({
             </div>
           </div>
 
-          {/* Card 2: Online Pulse */}
           <div style={{ background: "rgba(16,185,129,0.08)", padding: "10px 12px", borderRadius: "12px", border: "1px solid rgba(16,185,129,0.2)" }}>
             <div style={{ fontSize: "10px", color: "#34d399", fontWeight: 700, textTransform: "uppercase" }}>Live Online</div>
             <div style={{ fontSize: "20px", fontWeight: 900, color: "#10b981", marginTop: "2px", display: "flex", alignItems: "center", gap: "6px" }}>
@@ -355,7 +383,6 @@ export default function AdminTab({
             </div>
           </div>
 
-          {/* Card 3: Posts & Moderation */}
           <div style={{ background: "rgba(255,255,255,0.06)", padding: "10px 12px", borderRadius: "12px", border: "1px solid rgba(255,255,255,0.08)" }}>
             <div style={{ fontSize: "10px", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase" }}>Community Feed</div>
             <div style={{ fontSize: "20px", fontWeight: 900, color: "#f8fafc", marginTop: "2px" }}>
@@ -363,7 +390,6 @@ export default function AdminTab({
             </div>
           </div>
 
-          {/* Card 4: Security Flags */}
           <div style={{ background: blockedUsers.length > 0 ? "rgba(239,68,68,0.12)" : "rgba(255,255,255,0.06)", padding: "10px 12px", borderRadius: "12px", border: blockedUsers.length > 0 ? "1px solid rgba(239,68,68,0.3)" : "1px solid rgba(255,255,255,0.08)" }}>
             <div style={{ fontSize: "10px", color: blockedUsers.length > 0 ? "#f87171" : "#94a3b8", fontWeight: 700, textTransform: "uppercase" }}>Security Flags</div>
             <div style={{ fontSize: "20px", fontWeight: 900, color: blockedUsers.length > 0 ? "#ef4444" : "#cbd5e1", marginTop: "2px" }}>
@@ -399,8 +425,7 @@ export default function AdminTab({
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            gap: "6px",
-            transition: "all 0.15s ease"
+            gap: "6px"
           }}
         >
           <i className="fa-solid fa-newspaper" style={{ color: activeTab === "posts" ? "#ef4444" : "inherit" }}></i>
@@ -424,8 +449,7 @@ export default function AdminTab({
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            gap: "6px",
-            transition: "all 0.15s ease"
+            gap: "6px"
           }}
         >
           <i className="fa-solid fa-users" style={{ color: activeTab === "users" ? "#3b82f6" : "inherit" }}></i>
@@ -449,8 +473,7 @@ export default function AdminTab({
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            gap: "6px",
-            transition: "all 0.15s ease"
+            gap: "6px"
           }}
         >
           <i className="fa-solid fa-user-secret" style={{ color: activeTab === "vault" ? "#7c3aed" : "inherit" }}></i>
@@ -461,7 +484,6 @@ export default function AdminTab({
       {/* ─── 3. TAB CONTENT: POSTS & FEED ─── */}
       {activeTab === "posts" && (
         <div>
-          {/* Search Bar for Posts */}
           <div style={{ position: "relative", marginBottom: "12px" }}>
             <i className="fa-solid fa-magnifying-glass" style={{ position: "absolute", left: "14px", top: "12px", color: "#94a3b8", fontSize: "13px" }}></i>
             <input
@@ -476,8 +498,7 @@ export default function AdminTab({
                 border: "1px solid #cbd5e1",
                 fontSize: "12px",
                 outline: "none",
-                background: "#ffffff",
-                boxShadow: "0 1px 3px rgba(0,0,0,0.03)"
+                background: "#ffffff"
               }}
             />
             {searchQuery && (
@@ -510,11 +531,9 @@ export default function AdminTab({
                       borderRadius: "16px",
                       padding: "14px 16px",
                       border: p.isHidden ? "1px solid #fcd34d" : "1px solid #e2e8f0",
-                      boxShadow: "0 2px 8px rgba(0,0,0,0.03)",
-                      transition: "all 0.2s ease"
+                      boxShadow: "0 2px 8px rgba(0,0,0,0.03)"
                     }}
                   >
-                    {/* Author & Header Actions */}
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "8px" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                         <div style={{
@@ -561,12 +580,10 @@ export default function AdminTab({
                         </div>
                       </div>
 
-                      {/* Direct Controls */}
                       <div style={{ display: "flex", gap: "5px" }}>
                         <button
                           type="button"
                           onClick={() => toggleHidePost(p.id, p.isHidden)}
-                          title={p.isHidden ? "Unhide from community" : "Hide from community"}
                           style={{
                             background: p.isHidden ? "#10b981" : "#f59e0b",
                             color: "#ffffff",
@@ -588,7 +605,6 @@ export default function AdminTab({
                         <button
                           type="button"
                           onClick={() => handleDeletePostPermanently(p.id)}
-                          title="Permanently Delete Post"
                           style={{
                             background: "#fee2e2",
                             color: "#dc2626",
@@ -605,12 +621,10 @@ export default function AdminTab({
                       </div>
                     </div>
 
-                    {/* Post Text */}
                     <div style={{ margin: "8px 0" }}>
                       <ExpandableText text={p.text} maxChars={120} />
                     </div>
 
-                    {/* Image Attachment Preview */}
                     {p.imageUrl && (
                       <div
                         onClick={() => {
@@ -636,7 +650,6 @@ export default function AdminTab({
                       </div>
                     )}
 
-                    {/* Footer Metadata & Telemetry */}
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "6px", paddingTop: "8px", borderTop: "1px solid #f1f5f9", fontSize: "10px", color: "#64748b" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
                         <span>UID:</span>
@@ -697,7 +710,6 @@ export default function AdminTab({
       {/* ─── 4. TAB CONTENT: ATHLETES DIRECTORY ─── */}
       {activeTab === "users" && (
         <div>
-          {/* Controls: Search + Filter Pills */}
           <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "12px" }}>
             <div style={{ position: "relative", flex: 1, minWidth: "220px" }}>
               <i className="fa-solid fa-magnifying-glass" style={{ position: "absolute", left: "14px", top: "11px", color: "#94a3b8", fontSize: "13px" }}></i>
@@ -732,8 +744,7 @@ export default function AdminTab({
                     fontSize: "11px",
                     background: userFilter === f ? "#0f172a" : "#e2e8f0",
                     color: userFilter === f ? "#ffffff" : "#475569",
-                    cursor: "pointer",
-                    textTransform: "capitalize"
+                    cursor: "pointer"
                   }}
                 >
                   {f === "all" ? "Lahat" : f === "online" ? "Online" : "Blocked"}
@@ -769,7 +780,6 @@ export default function AdminTab({
                       boxShadow: "0 1px 4px rgba(0,0,0,0.02)"
                     }}
                   >
-                    {/* Athlete Left Profile */}
                     <div style={{ display: "flex", alignItems: "center", gap: "10px", minWidth: 0, flex: 1 }}>
                       <div style={{ position: "relative", flexShrink: 0 }}>
                         <div style={{
@@ -836,12 +846,10 @@ export default function AdminTab({
                       </div>
                     </div>
 
-                    {/* Actions */}
                     <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                       <button
                         type="button"
                         onClick={() => startInvestigation(u)}
-                        title="Investigate Messages & Chats"
                         style={{
                           background: "#f5f3ff",
                           color: "#7c3aed",
@@ -910,8 +918,9 @@ export default function AdminTab({
                 Gamitin lamang ito sa pag-imbestiga ng mga ulat ng pambabastos, scam, o panloloko sa komunidad.
               </div>
             </div>
+          </div>
 
-          {/* 🔑 FIREBASE PERMISSION HELPER CARD */}
+          {/* Firebase Rules Helper Card if needed */}
           {ruleHelpRequired && (
             <div style={{
               background: "#fffbeb",
@@ -923,21 +932,30 @@ export default function AdminTab({
             }}>
               <div style={{ display: "flex", alignItems: "center", gap: "8px", fontWeight: 800, fontSize: "13px" }}>
                 <i className="fa-solid fa-key" style={{ color: "#d97706" }}></i>
-                <span>Hakbang para Pahintulutan ang Chat Evidence Vault sa Firebase</span>
+                <span>Pahintulutan ang Chat Evidence Vault sa Firebase</span>
               </div>
               <p style={{ fontSize: "11px", margin: "6px 0 10px 0", lineHeight: 1.5 }}>
-                Pinoprotektahan ng Firestore ang mga pribadong mensahe. Upang mabasa ito ng iyong Admin account para sa imbestigasyon, kailangan lamang i-update ang <strong>Rules</strong> sa Firebase Console.
+                Pinoprotektahan ng Firestore ang pribadong mensahe. I-paste ang rule na ito sa <strong>Firebase Console ➜ Firestore Rules</strong>:
               </p>
-              <div style={{ background: "#1e293b", color: "#38bdf8", padding: "10px", borderRadius: "8px", fontSize: "10px", fontFamily: "monospace", overflowX: "auto" }}>
-                match /chats/{chatId} &#123; allow read, write: if request.auth != null; &#125;<br/>
-                match /chats/{chatId}/messages/{messageId} &#123; allow read, write: if request.auth != null; &#125;
-              </div>
+              <pre style={{ background: "#1e293b", color: "#38bdf8", padding: "10px", borderRadius: "8px", fontSize: "10px", margin: 0, overflowX: "auto" }}>
+{`match /chats/{chatId} {
+  allow read: if (isAuthenticated() && request.auth.uid in resource.data.participants) || isAdmin();
+  allow write: if (isAuthenticated() && (
+    request.auth.uid in request.resource.data.participants ||
+    request.auth.uid in resource.data.participants
+  )) || isAdmin();
+
+  match /messages/{messageId} {
+    allow read, write: if isAuthenticated();
+  }
+}`}
+              </pre>
               <div style={{ marginTop: "8px", display: "flex", justifyContent: "flex-end" }}>
                 <button
                   type="button"
                   onClick={() => {
-                    navigator.clipboard.writeText(`match /chats/{chatId} {\n  allow read, write: if request.auth != null;\n  match /messages/{messageId} {\n    allow read, write: if request.auth != null;\n  }\n}`);
-                    notify("Na-kopya na ang Firestore rule sa clipboard! 📋", "success");
+                    navigator.clipboard.writeText(`match /chats/{chatId} {\n  allow read: if (isAuthenticated() && request.auth.uid in resource.data.participants) || isAdmin();\n  allow write: if (isAuthenticated() && (request.auth.uid in request.resource.data.participants || request.auth.uid in resource.data.participants)) || isAdmin();\n  match /messages/{messageId} {\n    allow read, write: if isAuthenticated();\n  }\n}`);
+                    notify("Na-kopya ang Firestore rule sa clipboard! 📋", "success");
                   }}
                   style={{
                     background: "#d97706",
@@ -955,8 +973,6 @@ export default function AdminTab({
               </div>
             </div>
           )}
-
-          </div>
 
           {/* Select User to Investigate */}
           <div style={{ background: "#ffffff", padding: "14px", borderRadius: "14px", border: "1px solid #e2e8f0", marginBottom: "14px" }}>
