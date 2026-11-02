@@ -627,6 +627,166 @@ export default function ProfileTab({
         {/* ─── TAB 1: ACTIVITIES (MAY 3 DOTS MENU & TAP TO OPEN HUDDLE) ─── */}
         {profileSubTab === "activities" && (
           <div>
+              {/* ─── ✍️ PROFILE QUICK POST COMPOSER ─── */}
+              <div style={{
+                background: "#ffffff",
+                borderRadius: "16px",
+                padding: "16px",
+                marginBottom: "16px",
+                boxShadow: "0 1px 4px rgba(0,0,0,0.05)",
+                border: "1px solid #e2e8f0"
+              }}>
+                <div style={{ display: "flex", gap: "12px", alignItems: "flex-start" }}>
+                  {renderAvatar(avatarPreview || appData?.avatarUrl, appData?.userName || "Athlete", 42, "2px solid #e2e8f0")}
+                  <div style={{ flex: 1 }}>
+                    <textarea
+                      value={profPostText || ""}
+                      onChange={(e) => setProfPostText && setProfPostText(e.target.value)}
+                      placeholder="Mag-share ng workout, daily progress, o updates..."
+                      rows={profPostText ? 3 : 2}
+                      style={{
+                        width: "100%",
+                        padding: "10px 12px",
+                        borderRadius: "12px",
+                        border: "1px solid #cbd5e1",
+                        outline: "none",
+                        fontSize: "13px",
+                        resize: "none",
+                        fontFamily: "inherit",
+                        background: "#f8fafc",
+                        boxSizing: "border-box"
+                      }}
+                    />
+
+                    {/* Image Preview Thumbnail */}
+                    {profImagePreview && (
+                      <div style={{ position: "relative", marginTop: "10px", display: "inline-block" }}>
+                        <img
+                          src={profImagePreview}
+                          alt="Upload Preview"
+                          style={{ maxHeight: "160px", maxWidth: "100%", borderRadius: "10px", objectFit: "cover", border: "1px solid #cbd5e1" }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setProfImagePreview && setProfImagePreview(null)}
+                          style={{
+                            position: "absolute",
+                            top: "6px",
+                            right: "6px",
+                            background: "rgba(15, 23, 42, 0.75)",
+                            color: "#ffffff",
+                            border: "none",
+                            borderRadius: "50%",
+                            width: "24px",
+                            height: "24px",
+                            cursor: "pointer",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            fontSize: "12px"
+                          }}
+                        >
+                          <i className="fa-solid fa-xmark"></i>
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Action Bar */}
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "12px", flexWrap: "wrap", gap: "8px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                        <input
+                          type="file"
+                          ref={profFileInputRef}
+                          accept="image/*"
+                          style={{ display: "none" }}
+                          onChange={(e) => {
+                            if (handleImageChange) {
+                              handleImageChange(e, true);
+                            } else if (e.target.files && e.target.files[0]) {
+                              const reader = new FileReader();
+                              reader.onload = (ev) => setProfImagePreview && setProfImagePreview(ev.target.result);
+                              reader.readAsDataURL(e.target.files[0]);
+                            }
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => profFileInputRef.current && profFileInputRef.current.click()}
+                          style={{
+                            background: "#f1f5f9",
+                            color: "#475569",
+                            border: "none",
+                            borderRadius: "8px",
+                            padding: "6px 10px",
+                            fontSize: "12px",
+                            fontWeight: 700,
+                            cursor: "pointer",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "6px"
+                          }}
+                        >
+                          <i className="fa-regular fa-image" style={{ color: "#0284c7", fontSize: "14px" }}></i>
+                          Photo
+                        </button>
+
+                        <select
+                          value={profPostVisibility || "public"}
+                          onChange={(e) => setProfPostVisibility && setProfPostVisibility(e.target.value)}
+                          style={{
+                            background: "#f1f5f9",
+                            color: "#475569",
+                            border: "none",
+                            borderRadius: "8px",
+                            padding: "6px 10px",
+                            fontSize: "11px",
+                            fontWeight: 700,
+                            cursor: "pointer",
+                            outline: "none"
+                          }}
+                        >
+                          <option value="public">🌐 Public</option>
+                          <option value="boosters">👥 Boosters</option>
+                        </select>
+                      </div>
+
+                      <button
+                        type="button"
+                        disabled={isPublishing || (!profPostText?.trim() && !profImagePreview)}
+                        onClick={() => {
+                          if (createPost) createPost(true);
+                        }}
+                        style={{
+                          background: (!profPostText?.trim() && !profImagePreview) ? "#cbd5e1" : "#0284c7",
+                          color: "#ffffff",
+                          border: "none",
+                          borderRadius: "10px",
+                          padding: "7px 16px",
+                          fontSize: "12px",
+                          fontWeight: 800,
+                          cursor: (!profPostText?.trim() && !profImagePreview || isPublishing) ? "not-allowed" : "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "6px",
+                          boxShadow: (!profPostText?.trim() && !profImagePreview) ? "none" : "0 2px 6px rgba(2, 132, 199, 0.3)"
+                        }}
+                      >
+                        {isPublishing ? (
+                          <>
+                            <i className="fa-solid fa-spinner fa-spin"></i>
+                            Posting...
+                          </>
+                        ) : (
+                          <>
+                            <i className="fa-solid fa-paper-plane"></i>
+                            Post
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
             {loadingPosts ? (
               <div style={{ textAlign: "center", padding: "40px 16px", color: "#64748b", fontSize: "13px" }}>
                 <i className="fa-solid fa-spinner fa-spin" style={{ fontSize: "20px", marginBottom: "8px", display: "block" }}></i>
