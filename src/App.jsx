@@ -609,8 +609,6 @@ export default function App() {
 
               setOnboardStep(0);
               setShowAuthForm(false);
-              setActiveTab("home");
-              setActivePanel(null);
 
               if (!data?.onboardingCompleted) {
                 setDoc(userDocRef, { onboardingCompleted: true }, { merge: true }).catch(() => {});
@@ -618,8 +616,6 @@ export default function App() {
             } else {
               setOnboardStep(0);
               setShowAuthForm(false);
-              setActiveTab("home");
-              setActivePanel(null);
             }
             setLoading(false);
           }, (err) => {
@@ -1352,9 +1348,7 @@ export default function App() {
     setProfPostText("");
     setProfImagePreview(null);
     setOnboardStep(0);
-    setShowAuthForm(false);
-    setActiveTab("home"); 
-    setActivePanel(null);
+              setShowAuthForm(false);
     setIsLoggingOut(false);
   };
 
