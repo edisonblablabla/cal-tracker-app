@@ -256,24 +256,27 @@ export default function ModalsLayer({
         </div>
       )}
 
-      {/* UNIFORM SLIDE-OVER PANEL ENGINE */}
+      {/* UNIFORM SLIDE-OVER PANEL ENGINE (CLEAN & ARROW-FREE) */}
       {activePanel && (
         <div style={{
           position: "fixed",
           top: 0,
-          left: "50%",
-          transform: "translateX(-50%)",
-          maxWidth: "480px",
+          bottom: 0,
+          left: 0,
+          right: 0,
           width: "100%",
-          height: "100vh",
+          maxWidth: "480px",
+          margin: "0 auto",
+          height: "100dvh",
           background: "#ffffff",
           zIndex: 99999,
           display: "flex",
           flexDirection: "column",
           boxSizing: "border-box",
-          boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)"
+          boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
+          overflow: "hidden"
         }}>
-          {/* SINGLE UNIFIED MASTER HEADER (NO ARROW BACK, TOP-RIGHT CIRCULAR ✕) */}
+          {/* UNIFIED 54px HEADER NA WALANG ARROW BACK AT MAY BILOG NA ✕ SA KANAN */}
           <div style={{
             height: "54px",
             padding: "0 16px",
@@ -284,82 +287,46 @@ export default function ModalsLayer({
             background: "#ffffff",
             flexShrink: 0
           }}>
-            {/* LEFT SIDE: DYNAMIC ICON BADGE / AVATAR + TITLE */}
-            {activePanel === "chat" ? (
-              <div style={{ display: "flex", alignItems: "center", gap: "10px", minWidth: 0 }}>
-                <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: "#4f46e5", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: "13px", overflow: "hidden", flexShrink: 0 }}>
-                  {(() => {
-                    const photo = activeChatPartner?.avatarUrl || activeChatPartner?.photoURL || activeChatPartner?.photo || "";
-                    const valid = photo && (photo.startsWith("http") || photo.startsWith("data:image/")) && !photo.includes("pravatar");
-                    return valid ? (
-                      <img src={photo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                    ) : (
-                      (activeChatPartner?.userName || "A").charAt(0).toUpperCase()
-                    );
-                  })()}
-                </div>
-                <div style={{ minWidth: 0 }}>
-                  <strong style={{ fontSize: "14px", color: "#0f172a", display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {activeChatPartner?.userName || "Athlete"}
-                  </strong>
-                  {(() => {
-                    const presence = calculatePresence(activeChatPartner, userList);
-                    return (
-                      <span style={{ fontSize: "10px", color: presence.color, fontWeight: 700 }}>
-                        ● {presence.text}
-                      </span>
-                    );
-                  })()}
-                </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px", minWidth: 0 }}>
+              <div style={{
+                width: "30px",
+                height: "30px",
+                borderRadius: "8px",
+                background: activePanel === "chat" ? "rgba(99, 102, 241, 0.12)" : "rgba(56, 189, 248, 0.15)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0
+              }}>
+                <i className={activePanel === "chat" ? "fa-solid fa-comment-dots" : "fa-regular fa-user"} style={{ color: activePanel === "chat" ? "#6366f1" : "#0284c7", fontSize: "14px" }}></i>
               </div>
-            ) : activePanel === "visitor_profile" ? (
-              <div style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: 0 }}>
-                <div style={{ width: "28px", height: "28px", borderRadius: "7px", background: "rgba(56, 189, 248, 0.15)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  <i className="fa-regular fa-user" style={{ color: "#0284c7", fontSize: "13px" }}></i>
-                </div>
+              <div style={{ minWidth: 0 }}>
                 <h3 style={{ margin: 0, fontSize: "15px", fontWeight: 900, color: "#0f172a", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {selectedVisitor?.userName || "Athlete Passport"}
+                  {activePanel === "chat" && (activeChatPartner?.userName || "Athlete Conversation")}
+                  {activePanel === "visitor_profile" && (selectedVisitor?.userName || "Athlete Passport")}
+                  {activePanel === "inbox" && "Huddle Messages"}
+                  {activePanel === "notif" && "Notifications"}
+                  {activePanel === "post_detail" && "Activity Huddle"}
+                  {activePanel === "settings" && "Profile Settings"}
+                  {activePanel === "boosters" && "Boosters"}
+                  {activePanel === "boosting" && "Boosting"}
                 </h3>
+                {activePanel === "chat" && (() => {
+                  const presence = calculatePresence(activeChatPartner, userList);
+                  return (
+                    <span style={{ fontSize: "10px", color: presence.color, fontWeight: 700, display: "block" }}>
+                      ● {presence.text}
+                    </span>
+                  );
+                })()}
               </div>
-            ) : activePanel === "inbox" ? (
-              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                <div style={{ width: "28px", height: "28px", borderRadius: "7px", background: "rgba(99, 102, 241, 0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <i className="fa-solid fa-comment-dots" style={{ color: "#6366f1", fontSize: "13px" }}></i>
-                </div>
-                <h3 style={{ margin: 0, fontSize: "15px", fontWeight: 900, color: "#0f172a" }}>Huddle Messages</h3>
-              </div>
-            ) : activePanel === "notif" ? (
-              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                <div style={{ width: "28px", height: "28px", borderRadius: "7px", background: "rgba(239, 68, 68, 0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <i className="fa-solid fa-bell" style={{ color: "#ef4444", fontSize: "13px" }}></i>
-                </div>
-                <h3 style={{ margin: 0, fontSize: "15px", fontWeight: 900, color: "#0f172a" }}>Notifications</h3>
-              </div>
-            ) : activePanel === "post_detail" ? (
-              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                <div style={{ width: "28px", height: "28px", borderRadius: "7px", background: "rgba(16, 185, 129, 0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <i className="fa-solid fa-comments" style={{ color: "#10b981", fontSize: "13px" }}></i>
-                </div>
-                <h3 style={{ margin: 0, fontSize: "15px", fontWeight: 900, color: "#0f172a" }}>Activity Huddle</h3>
-              </div>
-            ) : activePanel === "settings" || activePanel === "profile_settings" ? (
-              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                <div style={{ width: "28px", height: "28px", borderRadius: "7px", background: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <i className="fa-solid fa-gear" style={{ color: "#64748b", fontSize: "13px" }}></i>
-                </div>
-                <h3 style={{ margin: 0, fontSize: "15px", fontWeight: 900, color: "#0f172a" }}>Profile Settings</h3>
-              </div>
-            ) : (
-              <h3 style={{ margin: 0, fontSize: "15px", fontWeight: 900, color: "#0f172a" }}>NutriPulse</h3>
-            )}
+            </div>
 
-            {/* RIGHT SIDE: TOP-RIGHT CIRCULAR ✕ BUTTON ONLY */}
+            {/* IISANG BILOG NA ✕ BUTTON SA KANANG ITAAS */}
             <button
               type="button"
               onClick={() => {
-                if (activePanel === "chat") {
-                  if (typeof setActiveChatPartner === "function") setActiveChatPartner(null);
-                }
+                if (typeof setActiveChatPartner === "function") setActiveChatPartner(null);
                 if (typeof setActivePanel === "function") setActivePanel(null);
                 if (typeof setSelectedVisitor === "function") setSelectedVisitor(null);
               }}
@@ -383,251 +350,135 @@ export default function ModalsLayer({
             </button>
           </div>
 
-          }
-          <div style={{ flex: 1, overflowY: "auto", padding: "16px", paddingBottom: "140px", WebkitOverflowScrolling: "touch" }}>
-            {/* NOTIFICATION PANEL */}
-            {activePanel === 'notif' && (
-              allUserNotifs.length === 0 ? (
-                <div style={{ textAlign: "center", padding: "40px 20px", color: "#94a3b8", fontSize: "13px" }}>
-                  <i className="fa-regular fa-bell-slash" style={{ fontSize: "32px", marginBottom: "10px", display: "block" }}></i>
-                  No notifications yet.
-                </div>
-              ) : (
-                allUserNotifs.map(notif => (
-                  <div key={notif.id} onClick={() => {
-                    if (notif.postId) {
-                      const found = posts.find(p => p.id === notif.postId);
-                      if (found) {
-                        setSelectedPost(found);
-                        setActivePanel("post_detail");
-                      } else {
-                        showToast("Post may have been removed.");
-                      }
-                    } else if (notif.type === "chat" || notif.chatPartnerUid) {
-                      const targetUid = notif.chatPartnerUid || notif.senderUid;
-                      const foundU = userList.find(u => u.uid === targetUid);
-                      if (typeof setActiveChatPartner === "function") {
-                        setActiveChatPartner(foundU || {
-                          uid: targetUid,
-                          userName: notif.senderName || "Athlete",
-                          avatarUrl: notif.senderAvatar || ""
-                        });
-                      }
-                      setActivePanel("chat");
-                    } else if (notif.uid || notif.senderUid) {
-                      const targetUid = notif.uid || notif.senderUid;
-                      const foundU = userList.find(u => u.uid === targetUid);
-                      setSelectedVisitor(foundU || {
-                        uid: targetUid,
-                        userName: notif.senderName || notif.title || "Athlete",
-                        userTitle: "Athlete",
-                        avatarUrl: notif.avatar || notif.senderAvatar || ""
-                      });
-                      setActivePanel("visitor_profile");
-                    }
-                  }} style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    padding: "12px",
-                    borderRadius: "12px",
-                    background: "#f8fafc",
-                    marginBottom: "8px",
-                    border: "1px solid #f1f5f9",
-                    cursor: "pointer"
-                  }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "12px", flex: 1 }}>
-                      {notif.avatar || notif.senderAvatar ? (
-                        <img src={notif.avatar || notif.senderAvatar} alt="" style={{ width: "38px", height: "38px", borderRadius: "50%", objectFit: "cover" }} />
-                      ) : (
-                        <div style={{ width: "38px", height: "38px", borderRadius: "50%", background: "#0284c7", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: "14px" }}>
-                          {(notif.title || notif.senderName || "N").charAt(0).toUpperCase()}
-                        </div>
-                      )}
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: "12px", color: "#0f172a" }}>
-                          <strong>{notif.title || notif.senderName}</strong> {notif.text}
-                        </div>
-                        <div style={{ fontSize: "10px", color: "#94a3b8", marginTop: "3px", fontWeight: 600 }}>
-                          {formatTime(notif.timestamp)}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))
-              )
-            )}
-
-            {/* REAL-TIME POST DETAIL PANEL */}
-            {activePanel === 'post_detail' && (
-              activePost ? (
-                <div style={{ background: "#ffffff", borderRadius: "16px", padding: "14px", border: "1px solid #e2e8f0" }}>
-                  <div 
-                    onClick={() => {
-                      const postAuthorObj = userList.find(u => u.uid === activePost.userId);
-                      setSelectedVisitor(postAuthorObj || { 
-                        uid: activePost.userId, 
-                        userName: activePost.userName, 
-                        avatarUrl: activePost.userAvatar 
-                      });
-                      setActivePanel("visitor_profile");
-                    }}
-                    style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px", cursor: "pointer" }}
-                  >
-                    {activePost.userAvatar ? (
-                      <img src={activePost.userAvatar} alt="" style={{ width: "40px", height: "40px", borderRadius: "50%", objectFit: "cover" }} />
-                    ) : (
-                      <div style={{ width: "40px", height: "40px", borderRadius: "50%", background: "#0284c7", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: "14px" }}>
-                        {(activePost.userName || "A").charAt(0).toUpperCase()}
-                      </div>
-                    )}
-                    <div>
-                      <strong style={{ fontSize: "14px", color: "#0f172a", display: "block" }}>{activePost.userName || "Athlete"}</strong>
-                      <span style={{ fontSize: "10px", color: "#94a3b8" }}>{formatTime(activePost.createdAt)}</span>
-                    </div>
-                  </div>
-                  {activePost.text && <p style={{ fontSize: "13px", color: "#334155", lineHeight: "1.5", marginBottom: "12px", wordBreak: "break-word" }}>{activePost.text}</p>}
-                  {activePost.imageUrl && <img src={activePost.imageUrl} alt="" style={{ width: "100%", borderRadius: "12px", marginBottom: "12px", objectFit: "cover" }} />}
-                  
-                  <div style={{ display: "flex", gap: "16px", padding: "10px 0", borderTop: "1px solid #f1f5f9", borderBottom: "1px solid #f1f5f9" }}>
-                    <button onClick={() => handleLike(activePost.id, activePost.likes || 0, activePost.likedBy || [])} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "12px", fontWeight: 700, color: (activePost.likedBy || []).includes(user?.uid) ? "#ef4444" : "#64748b" }}>
-                      <i className="fa-solid fa-heart" style={{ marginRight: "4px" }}></i> Pulse ({activePost.likes || 0})
-                    </button>
-                    <button onClick={() => { navigator.clipboard.writeText(window.location.href); showToast("Link copied to clipboard!"); }} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "12px", fontWeight: 700, color: "#64748b" }}>
-                      <i className="fa-solid fa-share-nodes" style={{ marginRight: "4px" }}></i> Resonate
-                    </button>
-                  </div>
-
-                  {/* REAL-TIME COMMENTS LIST */}
-                  <div style={{ marginTop: "14px" }}>
-                    <h4 style={{ fontSize: "12px", fontWeight: 800, color: "#0f172a", marginBottom: "8px" }}>Comments ({postComments.length})</h4>
-                    
-                    <div style={{ display: "flex", gap: "8px", marginBottom: "12px" }}>
-                      <input 
-                        type="text" 
-                        placeholder="Write a comment..." 
-                        value={newCommentText} 
-                        onChange={(e) => setNewCommentText(e.target.value)} 
-                        style={{ flex: 1, padding: "8px 12px", borderRadius: "10px", border: "1px solid #cbd5e1", fontSize: "11px", outline: "none" }} 
-                      />
-                      <button onClick={() => handleAddComment(activePost.id)} style={{ padding: "8px 14px", background: "#0284c7", color: "white", border: "none", borderRadius: "10px", fontWeight: 800, fontSize: "11px", cursor: "pointer" }}>Post</button>
-                    </div>
-
-                    <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                      {postComments.length === 0 ? (
-                        <p style={{ fontSize: "11px", color: "#94a3b8", textAlign: "center", padding: "10px 0" }}>No comments yet. Be the first to comment!</p>
-                      ) : (
-                        postComments.map(c => {
-                          const canEditComment = Boolean(c.userId && user?.uid && c.userId === user.uid);
-                          const canDeleteComment = Boolean((c.userId && user?.uid && c.userId === user.uid) || isAdmin);
-                          const showCommentMenu = canEditComment || canDeleteComment;
-
-                          const handleOpenCommenterProfile = (e) => {
-                            e.stopPropagation();
-                            if (c.userId === user?.uid) return;
-                            const foundU = userList.find(u => u.uid === c.userId);
-                            setSelectedVisitor(foundU || { 
-                              uid: c.userId, 
-                              userName: c.userName, 
-                              avatarUrl: c.userAvatar 
-                            });
-                            setActivePanel("visitor_profile");
-                          };
-
-                          return (
-                            <div key={c.id} style={{ background: "#f8fafc", padding: "10px 12px", borderRadius: "12px", border: "1px solid #f1f5f9", position: "relative" }}>
-                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
-                                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                                  <div 
-                                    onClick={handleOpenCommenterProfile}
-                                    style={{ width: "24px", height: "24px", borderRadius: "50%", background: "#4f46e5", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "10px", fontWeight: 800, overflow: "hidden", cursor: "pointer", flexShrink: 0 }}
-                                  >
-                                    {c.userAvatar ? (
-                                      <img src={c.userAvatar} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                                    ) : (
-                                      (c.userName || "A").charAt(0).toUpperCase()
-                                    )}
-                                  </div>
-
-                                  <strong 
-                                    onClick={handleOpenCommenterProfile}
-                                    style={{ fontSize: "11px", color: "#0f172a", cursor: "pointer" }}
-                                  >
-                                    {c.userName}
-                                  </strong>
-                                  {c.isEdited && <span style={{ fontSize: "8px", color: "#94a3b8", fontStyle: "italic" }}>(edited)</span>}
-                                </div>
-
-                                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                                  <span style={{ fontSize: "9px", color: "#94a3b8" }}>{formatTime(c.createdAt)}</span>
-                                  {showCommentMenu && (
-                                    <div style={{ position: "relative" }}>
-                                      <button 
-                                        onClick={(e) => { e.stopPropagation(); setActiveCommentMenuId(activeCommentMenuId === c.id ? null : c.id); }} 
-                                        style={{ background: "none", border: "none", color: "#64748b", fontSize: "12px", cursor: "pointer", padding: "2px 4px" }}
-                                      >
-                                        <i className="fa-solid fa-ellipsis-vertical"></i>
-                                      </button>
-
-                                      {activeCommentMenuId === c.id && (
-                                        <div style={{ 
-                                          position: "absolute", 
-                                          right: 0, 
-                                          top: "22px", 
-                                          background: "#ffffff", 
-                                          border: "1px solid rgba(226, 232, 240, 0.8)", 
-                                          borderRadius: "12px", 
-                                          boxShadow: "0 10px 25px -5px rgba(15, 23, 42, 0.12), 0 8px 10px -6px rgba(15, 23, 42, 0.04)", 
-                                          zIndex: 999, 
-                                          minWidth: "110px", 
-                                          padding: "4px",
-                                          backdropFilter: "blur(8px)"
-                                        }}>
-                                          {canEditComment && (
-                                            <button 
-                                              onClick={(e) => { e.stopPropagation(); setActiveCommentMenuId(null); setCommentToEdit({ commentId: c.id, postId: activePost.id }); setCommentEditText(c.text); }} 
-                                              style={{ width: "100%", padding: "7px 10px", background: "transparent", border: "none", borderRadius: "8px", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "#334155", cursor: "pointer", display: "flex", alignItems: "center", gap: "8px" }}
-                                            >
-                                              <i className="fa-solid fa-pen" style={{ color: "#0284c7", fontSize: "11px" }}></i> Edit
-                                            </button>
-                                          )}
-                                          {canDeleteComment && (
-                                            <button 
-                                              onClick={(e) => { e.stopPropagation(); setActiveCommentMenuId(null); setCommentToDelete({ commentId: c.id, postId: activePost.id }); }} 
-                                              style={{ width: "100%", padding: "7px 10px", background: "transparent", border: "none", borderRadius: "8px", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "#ef4444", cursor: "pointer", display: "flex", alignItems: "center", gap: "8px" }}
-                                            >
-                                              <i className="fa-solid fa-trash" style={{ fontSize: "11px" }}></i> Delete
-                                            </button>
-                                          )}
-                                        </div>
-                                      )}
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                              <p style={{ fontSize: "11px", color: "#334155", margin: 0, paddingLeft: "32px", wordBreak: "break-word" }}>{c.text}</p>
-                            </div>
-                          );
-                        })
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div style={{ textAlign: "center", padding: "40px 20px", color: "#94a3b8" }}>
-                  <i className="fa-solid fa-spinner fa-spin" style={{ fontSize: "28px", marginBottom: "8px", display: "block" }}></i>
-                  Loading post details...
-                </div>
-              )
-            )}
-
+          {/* PANEL BODY CONTENT */}
+          <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", minHeight: 0, WebkitOverflowScrolling: "touch" }}>
             
-            {/* DIRECT 1-ON-1 CHAT PANEL (UNIFIED DESIGN: NO ARROW BACK, TOP-RIGHT CIRCULAR ✕) */}
+            {/* 1. VISITOR PROFILE PANEL */}
+            {activePanel === 'visitor_profile' && selectedVisitor && (() => {
+              const visitorPosts = posts.filter(p => {
+                if (p.userId !== selectedVisitor.uid || p.isHidden) return false;
+                if (p.visibility === "private") return false;
+                const isBoostingVisitor = (appData?.boosting || []).includes(selectedVisitor.uid);
+                if (p.visibility === "boosters" && !isBoostingVisitor) return false;
+                return true;
+              });
+
+              const visitorBoostersCount = userList.filter(u => (u.boosting || []).includes(selectedVisitor.uid)).length;
+              const visitorBoostingCount = (selectedVisitor.boosting || []).length;
+              const visitorPulses = posts.filter(p => p.userId === selectedVisitor.uid && !p.isHidden).reduce((acc, curr) => acc + (curr.likes || 0), 0);
+              const isBoostingThisVisitor = (appData?.boosting || []).includes(selectedVisitor.uid);
+
+              return (
+                <div style={{ padding: "16px", paddingBottom: "100px" }}>
+                  <div className="card" style={{ padding: "18px 16px", borderRadius: "20px", textAlign: "center", marginBottom: "14px", border: "1px solid #e2e8f0", background: "#ffffff" }}>
+                    <div style={{ width: "72px", height: "72px", borderRadius: "50%", background: "linear-gradient(135deg, #4f46e5 0%, #38bdf8 100%)", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: "26px", margin: "0 auto 10px auto", overflow: "hidden" }}>
+                      {selectedVisitor.avatarUrl ? (
+                        <img src={selectedVisitor.avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                      ) : (
+                        (selectedVisitor.userName || "A").charAt(0).toUpperCase()
+                      )}
+                    </div>
+                    
+                    <h3 style={{ margin: 0, fontSize: "18px", fontWeight: 900, color: "#0f172a" }}>{selectedVisitor.userName || "Athlete"}</h3>
+                    <p style={{ margin: "2px 0 14px 0", fontSize: "11px", color: "#64748b", fontWeight: 600 }}>{selectedVisitor.userTitle || "Fitness Enthusiast"}</p>
+
+                    <div style={{ display: "flex", gap: "8px", marginBottom: "14px" }}>
+                      <button 
+                        onClick={() => toggleBoostAthlete(selectedVisitor.uid, selectedVisitor.isPrivateAccount)} 
+                        style={{ 
+                          flex: 1, padding: "10px", 
+                          background: isBoostingThisVisitor ? "#f1f5f9" : "var(--primary)", 
+                          color: isBoostingThisVisitor ? "#334155" : "#ffffff", 
+                          border: isBoostingThisVisitor ? "1px solid #cbd5e1" : "none", 
+                          borderRadius: "12px", fontWeight: 800, fontSize: "12px", cursor: "pointer" 
+                        }}
+                      >
+                        {isBoostingThisVisitor ? "Unboost Athlete" : "Boost Athlete"}
+                      </button>
+                      <button 
+                        onClick={() => {
+                          if (typeof setActiveChatPartner === "function") setActiveChatPartner(selectedVisitor);
+                          if (typeof setActivePanel === "function") setActivePanel("chat");
+                        }} 
+                        style={{ 
+                          padding: "10px 16px", background: "#e0e7ff", color: "var(--primary)", border: "none", 
+                          borderRadius: "12px", fontWeight: 800, fontSize: "12px", cursor: "pointer", 
+                          display: "flex", alignItems: "center", gap: "6px" 
+                        }}
+                      >
+                        <i className="fa-solid fa-message"></i> Message
+                      </button>
+                    </div>
+
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "4px", background: "#f8fafc", padding: "10px", borderRadius: "14px", border: "1px solid #f1f5f9" }}>
+                      <div>
+                        <div style={{ fontSize: "13px", fontWeight: 900, color: "var(--primary)" }}>{visitorBoostingCount}</div>
+                        <div style={{ fontSize: "8px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase" }}>Boosting</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: "13px", fontWeight: 900, color: "#10b981" }}>{visitorBoostersCount}</div>
+                        <div style={{ fontSize: "8px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase" }}>Boosters</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: "13px", fontWeight: 900, color: "#f59e0b" }}>{selectedVisitor.streakDays || 1}</div>
+                        <div style={{ fontSize: "8px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase" }}>Streak</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: "13px", fontWeight: 900, color: "#ef4444" }}>{visitorPulses}</div>
+                        <div style={{ fontSize: "8px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase" }}>Pulses</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ fontSize: "13px", fontWeight: 800, color: "#0f172a", marginBottom: "10px", paddingLeft: "4px" }}>Athlete Feed</div>
+
+                  {visitorPosts.length === 0 ? (
+                    <div style={{ textAlign: "center", padding: "30px 16px", background: "#ffffff", borderRadius: "16px", border: "1px solid #e2e8f0", color: "#94a3b8", fontSize: "12px" }}>
+                      <i className="fa-regular fa-folder-open" style={{ fontSize: "24px", marginBottom: "8px", display: "block" }}></i>
+                      No visible posts from this athlete.
+                    </div>
+                  ) : (
+                    visitorPosts.map(p => {
+                      const isLiked = (p.likedBy || []).includes(user?.uid);
+                      return (
+                        <div key={p.id} style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "16px", padding: "12px", marginBottom: "12px", boxShadow: "0 2px 8px rgba(0,0,0,0.02)" }}>
+                          <div style={{ display: "flex", gap: "8px", alignItems: "center", marginBottom: "8px" }}>
+                            <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: "#4f46e5", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: "12px", overflow: "hidden" }}>
+                              {p.userAvatar ? <img src={p.userAvatar} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : (p.userName || "A").charAt(0).toUpperCase()}
+                            </div>
+                            <div>
+                              <div style={{ fontSize: "12px", fontWeight: 800, color: "#0f172a" }}>{p.userName}</div>
+                              <span style={{ fontSize: "9px", color: "var(--text-muted)" }}>{formatTime(p.createdAt)}</span>
+                            </div>
+                          </div>
+
+                          {p.text && <p style={{ fontSize: "13px", color: "#334155", lineHeight: "1.5", margin: "0 0 10px 0", whiteSpace: "pre-wrap" }}>{p.text}</p>}
+
+                          {p.imageUrl && (
+                            <div style={{ borderRadius: "10px", overflow: "hidden", border: "1px solid #f1f5f9", marginBottom: "10px", background: "#0b0f19" }}>
+                              <img src={p.imageUrl} alt="" style={{ width: "100%", maxHeight: "380px", objectFit: "contain", display: "block", margin: "0 auto" }} />
+                            </div>
+                          )}
+
+                          <div style={{ display: "flex", alignItems: "center", gap: "10px", borderTop: "1px solid #f1f5f9", paddingTop: "8px" }}>
+                            <button onClick={() => handleLike(p.id, p.likes || 0, p.likedBy || [])} style={{ background: isLiked ? "#fef2f2" : "transparent", border: "none", color: isLiked ? "#ef4444" : "#64748b", padding: "4px 8px", fontSize: "11px", fontWeight: 800, cursor: "pointer", display: "flex", alignItems: "center", gap: "5px", borderRadius: "10px" }}>
+                              <i className={isLiked ? "fa-solid fa-heart" : "fa-regular fa-heart"}></i> {p.likes || 0} Pulses
+                            </button>
+                            <button onClick={() => { setSelectedPost(p); setActivePanel("post_detail"); }} style={{ background: "transparent", border: "none", color: "#64748b", padding: "4px 8px", fontSize: "11px", fontWeight: 800, cursor: "pointer", display: "flex", alignItems: "center", gap: "5px" }}>
+                              <i className="fa-regular fa-comment"></i> {p.commentsCount || 0}
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              );
+            })()}
+
+            {/* 2. CHAT PANEL (CLEAN & WALANG DUPLICATE INNER HEADER) */}
             {activePanel === 'chat' && (
               <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "#f8fafc" }}>
-                
-
-                {/* Messages List with Auto-scroll */}
                 <div
                   ref={(el) => { if (el) el.scrollTop = el.scrollHeight; }}
                   style={{ flex: 1, overflowY: "auto", padding: "14px 12px", display: "flex", flexDirection: "column", gap: "10px", minHeight: 0 }}
@@ -674,7 +525,6 @@ export default function ModalsLayer({
                   )}
                 </div>
 
-                {/* Bottom Input Bar */}
                 <form
                   onSubmit={(e) => { e.preventDefault(); handleSendChatMessage(); }}
                   style={{
@@ -729,290 +579,6 @@ export default function ModalsLayer({
               </div>
             )}
 
-            
-            {/* INBOX PANEL */}
-            {activePanel === 'inbox' && (
-              <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                {inboxChats.length === 0 ? (
-                  <div style={{ textAlign: "center", padding: "40px 20px", color: "#94a3b8" }}>
-                    <i className="fa-regular fa-envelope-open" style={{ fontSize: "32px", marginBottom: "10px", display: "block" }}></i>
-                    <p style={{ fontSize: "12px", margin: 0, fontWeight: 700 }}>Your inbox is empty</p>
-                    <span style={{ fontSize: "10px" }}>Boost an athlete to start a conversation!</span>
-                  </div>
-                ) : (
-                  inboxChats.map(chat => {
-                    const partnerUid = (chat.participants || []).find(id => id !== user?.uid);
-                    const partner = userList.find(u => u.uid === partnerUid) || {};
-                    const isUnread = chat.lastSenderUid !== user?.uid && chat.updatedAt > (lastSeenNotifTime || 0);
-                    
-                    return (
-                      <div 
-                        key={chat.id} 
-                        onClick={() => {
-                          setActiveChatPartner({ uid: partnerUid, userName: partner.userName || "Athlete", avatarUrl: partner.avatarUrl || "" });
-                          setActivePanel("chat");
-                        }}
-                        style={{ display: "flex", alignItems: "center", gap: "12px", padding: "12px", background: "#ffffff", borderRadius: "16px", border: "1px solid #e2e8f0", cursor: "pointer", boxShadow: "0 2px 6px rgba(0,0,0,0.02)" }}
-                      >
-                        <div style={{ width: "42px", height: "42px", borderRadius: "50%", background: "#4f46e5", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: "15px", overflow: "hidden", flexShrink: 0 }}>
-                          {partner.avatarUrl ? (
-                            <img src={partner.avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                          ) : (
-                            (partner.userName || "A").charAt(0).toUpperCase()
-                          )}
-                        </div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                            <strong style={{ fontSize: "13px", color: "#0f172a", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{partner.userName || "Athlete"}</strong>
-                            <span style={{ fontSize: "9px", color: "#94a3b8" }}>{formatTime(chat.updatedAt)}</span>
-                          </div>
-                          <div style={{ fontSize: "11px", color: isUnread ? "#0f172a" : "#64748b", fontWeight: isUnread ? 800 : 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", marginTop: "3px" }}>
-                            {chat.lastSenderUid === user?.uid ? "You: " : ""}{chat.lastMessage}
-                          </div>
-                        </div>
-                        {isUnread && <div style={{ width: "10px", height: "10px", borderRadius: "50%", background: "#0ea5e9", boxShadow: "0 0 6px rgba(14,165,233,0.5)" }}></div>}
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            )}
-  
-            {/* PROFILE SETTINGS PANEL */}
-            {activePanel === 'settings' && (
-              <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-                <div>
-                  <label style={{ fontSize: "11px", fontWeight: 700, color: "#475569", display: "block", marginBottom: "4px" }}>Display Name</label>
-                  <input type="text" value={profName} onChange={e => setProfName(e.target.value)} className="form-input" />
-                </div>
-                <div>
-                  <label style={{ fontSize: "11px", fontWeight: 700, color: "#475569", display: "block", marginBottom: "4px" }}>Bio Title</label>
-                  <input type="text" value={profTitle} onChange={e => setProfTitle(e.target.value)} className="form-input" />
-                </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
-                  <div>
-                    <label style={{ fontSize: "11px", fontWeight: 700, color: "#475569", display: "block", marginBottom: "4px" }}>Height (cm)</label>
-                    <input type="number" value={profHeight} onChange={e => setProfHeight(e.target.value)} className="form-input" />
-                  </div>
-                  <div>
-                    <label style={{ fontSize: "11px", fontWeight: 700, color: "#475569", display: "block", marginBottom: "4px" }}>Weight (kg)</label>
-                    <input type="number" value={profWeight} onChange={e => setProfWeight(e.target.value)} className="form-input" />
-                  </div>
-                </div>
-                <button onClick={saveUserProfile} disabled={isSavingProfile} style={{ padding: "12px", background: "#0284c7", color: "white", border: "none", borderRadius: "10px", fontWeight: 800, cursor: "pointer", marginTop: "10px" }}>
-                  {isSavingProfile ? "Saving..." : "Save Profile Settings"}
-                </button>
-                <button onClick={handleLogout} style={{ padding: "12px", background: "#fef2f2", color: "#dc2626", border: "1px solid #fecaca", borderRadius: "10px", fontWeight: 800, cursor: "pointer" }}>
-                  Sign Out Account
-                </button>
-              </div>
-            )}
-
-            {/* BOOSTERS LIST PANEL */}
-            {activePanel === 'boosters' && (
-              <div>
-                <h4 style={{ margin: "0 0 12px 0", fontSize: "12px", color: "#64748b", fontWeight: 800 }}>Athletes boosting you</h4>
-                {myRealtimeBoostersList.length === 0 ? (
-                  <div style={{ textAlign: "center", padding: "30px", color: "#94a3b8", fontSize: "12px" }}>No boosters yet.</div>
-                ) : (
-                  myRealtimeBoostersList.map(b => (
-                    <div key={b.uid} onClick={() => { setSelectedVisitor(b); setActivePanel('visitor_profile'); }} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 12px", borderRadius: "12px", background: "#ffffff", border: "1px solid #e2e8f0", marginBottom: "8px", cursor: "pointer" }}>
-                      {b.avatarUrl ? (
-                        <img src={b.avatarUrl} alt="" style={{ width: "36px", height: "36px", borderRadius: "50%", objectFit: "cover" }} />
-                      ) : (
-                        <div style={{ width: "36px", height: "36px", borderRadius: "50%", background: "#0284c7", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: "13px" }}>
-                          {(b.userName || "A").charAt(0).toUpperCase()}
-                        </div>
-                      )}
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: "12px", fontWeight: 800, color: "#0f172a" }}>{b.userName || "Athlete"}</div>
-                        <div style={{ fontSize: "9px", color: "#64748b" }}>{b.userTitle || "Fitness Enthusiast"}</div>
-                      </div>
-                      <button onClick={(e) => { e.stopPropagation(); toggleBoostAthlete(b.uid, b.isPrivateAccount); }} style={{
-                        padding: "5px 12px",
-                        borderRadius: "20px",
-                        border: (appData?.boosting || []).includes(b.uid) ? "1px solid #cbd5e1" : "none",
-                        fontSize: "10px",
-                        fontWeight: 700,
-                        cursor: "pointer",
-                        background: (appData?.boosting || []).includes(b.uid) ? "#f1f5f9" : "#0284c7",
-                        color: (appData?.boosting || []).includes(b.uid) ? "#334155" : "#ffffff"
-                      }}>
-                        {(appData?.boosting || []).includes(b.uid) ? "Boosting" : "Boost Back"}
-                      </button>
-                    </div>
-                  ))
-                )}
-              </div>
-            )}
-
-            {/* BOOSTING LIST PANEL */}
-            {activePanel === 'boosting' && (
-              <div>
-                <h4 style={{ margin: "0 0 12px 0", fontSize: "12px", color: "#64748b", fontWeight: 800 }}>Athletes you are boosting</h4>
-                {myRealtimeBoostingList.length === 0 ? (
-                  <div style={{ textAlign: "center", padding: "30px", color: "#94a3b8", fontSize: "12px" }}>Not boosting any athletes yet.</div>
-                ) : (
-                  myRealtimeBoostingList.map(b => (
-                    <div key={b.uid} onClick={() => { setSelectedVisitor(b); setActivePanel('visitor_profile'); }} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 12px", borderRadius: "12px", background: "#ffffff", border: "1px solid #e2e8f0", marginBottom: "8px", cursor: "pointer" }}>
-                      {b.avatarUrl ? (
-                        <img src={b.avatarUrl} alt="" style={{ width: "36px", height: "36px", borderRadius: "50%", objectFit: "cover" }} />
-                      ) : (
-                        <div style={{ width: "36px", height: "36px", borderRadius: "50%", background: "#0284c7", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: "13px" }}>
-                          {(b.userName || "A").charAt(0).toUpperCase()}
-                        </div>
-                      )}
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: "12px", fontWeight: 800, color: "#0f172a" }}>{b.userName || "Athlete"}</div>
-                        <div style={{ fontSize: "9px", color: "#64748b" }}>{b.userTitle || "Fitness Enthusiast"}</div>
-                      </div>
-                      <button onClick={(e) => { e.stopPropagation(); toggleBoostAthlete(b.uid, b.isPrivateAccount); }} style={{ padding: "5px 12px", borderRadius: "20px", background: "#f1f5f9", border: "1px solid #cbd5e1", color: "#334155", fontSize: "10px", fontWeight: 700, cursor: "pointer" }}>
-                        Unboost
-                      </button>
-                    </div>
-                  ))
-                )}
-              </div>
-            )}
-
-            {/* VISITOR PROFILE PANEL */}
-            {activePanel === 'visitor_profile' && selectedVisitor && (() => {
-              const visitorPosts = posts.filter(p => {
-                if (p.userId !== selectedVisitor.uid || p.isHidden) return false;
-                if (p.visibility === "private") return false;
-                const isBoostingVisitor = (appData?.boosting || []).includes(selectedVisitor.uid);
-                if (p.visibility === "boosters" && !isBoostingVisitor) return false;
-                return true;
-              });
-
-              const visitorBoostersCount = userList.filter(u => (u.boosting || []).includes(selectedVisitor.uid)).length;
-              const visitorBoostingCount = (selectedVisitor.boosting || []).length;
-              const visitorPulses = posts.filter(p => p.userId === selectedVisitor.uid && !p.isHidden).reduce((acc, curr) => acc + (curr.likes || 0), 0);
-              const isBoostingThisVisitor = (appData?.boosting || []).includes(selectedVisitor.uid);
-
-              return (
-                <div>
-                  <div className="card" style={{ padding: "16px", borderRadius: "20px", textAlign: "center", marginBottom: "14px", border: "1px solid #e2e8f0" }}>
-                    <div style={{ width: "72px", height: "72px", borderRadius: "50%", background: "#4f46e5", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: "26px", margin: "0 auto 10px auto", overflow: "hidden" }}>
-                      {selectedVisitor.avatarUrl ? (
-                        <img src={selectedVisitor.avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                      ) : (
-                        (selectedVisitor.userName || "A").charAt(0).toUpperCase()
-                      )}
-                    </div>
-                    
-                    <h3 style={{ margin: 0, fontSize: "18px", fontWeight: 900, color: "#0f172a" }}>{selectedVisitor.userName || "Athlete"}</h3>
-                    <p style={{ margin: "2px 0 12px 0", fontSize: "11px", color: "#64748b", fontWeight: 600 }}>{selectedVisitor.userTitle || "Fitness Enthusiast"}</p>
-
-                    <div style={{ display: "flex", gap: "8px", marginBottom: "14px" }}>
-                      <button 
-                        onClick={() => toggleBoostAthlete(selectedVisitor.uid, selectedVisitor.isPrivateAccount)} 
-                        style={{ 
-                          flex: 1, 
-                          padding: "10px", 
-                          background: isBoostingThisVisitor ? "#f1f5f9" : "var(--primary)", 
-                          color: isBoostingThisVisitor ? "#334155" : "#ffffff", 
-                          border: isBoostingThisVisitor ? "1px solid #cbd5e1" : "none", 
-                          borderRadius: "12px", 
-                          fontWeight: 800, 
-                          fontSize: "12px", 
-                          cursor: "pointer" 
-                        }}
-                      >
-                        {isBoostingThisVisitor ? "Unboost Athlete" : "Boost Athlete"}
-                      </button>
-                      <button 
-                        onClick={() => {
-                          if (typeof setActiveChatPartner === "function") setActiveChatPartner(selectedVisitor);
-                          setActivePanel("chat");
-                        }} 
-                        style={{ 
-                          padding: "10px 16px", 
-                          background: "#e0e7ff", 
-                          color: "var(--primary)", 
-                          border: "none", 
-                          borderRadius: "12px", 
-                          fontWeight: 800, 
-                          fontSize: "12px", 
-                          cursor: "pointer",
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "6px"
-                        }}
-                      >
-                        <i className="fa-solid fa-message"></i> Message
-                      </button>
-                    </div>
-
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "4px", background: "#f8fafc", padding: "10px", borderRadius: "14px", border: "1px solid #f1f5f9" }}>
-                      <div>
-                        <div style={{ fontSize: "13px", fontWeight: 900, color: "var(--primary)" }}>{visitorBoostingCount}</div>
-                        <div style={{ fontSize: "8px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase" }}>Boosting</div>
-                      </div>
-                      <div>
-                        <div style={{ fontSize: "13px", fontWeight: 900, color: "#10b981" }}>{visitorBoostersCount}</div>
-                        <div style={{ fontSize: "8px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase" }}>Boosters</div>
-                      </div>
-                      <div>
-                        <div style={{ fontSize: "13px", fontWeight: 900, color: "#f59e0b" }}>{selectedVisitor.streakDays || 1}</div>
-                        <div style={{ fontSize: "8px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase" }}>Streak</div>
-                      </div>
-                      <div>
-                        <div style={{ fontSize: "13px", fontWeight: 900, color: "#ef4444" }}>{visitorPulses}</div>
-                        <div style={{ fontSize: "8px", color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase" }}>Pulses</div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div style={{ fontSize: "13px", fontWeight: 800, color: "#0f172a", marginBottom: "10px", paddingLeft: "4px" }}>Athlete Feed</div>
-
-                  {visitorPosts.length === 0 ? (
-                    <div style={{ textAlign: "center", padding: "30px 16px", background: "#ffffff", borderRadius: "16px", border: "1px solid #e2e8f0", color: "#94a3b8", fontSize: "12px" }}>
-                      <i className="fa-regular fa-folder-open" style={{ fontSize: "24px", marginBottom: "8px", display: "block" }}></i>
-                      No visible posts from this athlete.
-                    </div>
-                  ) : (
-                    visitorPosts.map(p => {
-                      const isLiked = (p.likedBy || []).includes(user?.uid);
-                      return (
-                        <div key={p.id} style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "16px", padding: "12px", marginBottom: "12px", boxShadow: "0 2px 8px rgba(0,0,0,0.02)" }}>
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-                            <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                              <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: "#4f46e5", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: "12px", overflow: "hidden" }}>
-                                {p.userAvatar ? <img src={p.userAvatar} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : (p.userName || "A").charAt(0).toUpperCase()}
-                              </div>
-                              <div>
-                                <div style={{ fontSize: "12px", fontWeight: 800, color: "#0f172a" }}>{p.userName}</div>
-                                <span style={{ fontSize: "9px", color: "var(--text-muted)" }}>{formatTime(p.createdAt)}</span>
-                              </div>
-                            </div>
-                          </div>
-
-                          <div onClick={() => { setSelectedPost(p); setActivePanel("post_detail"); }} style={{ cursor: "pointer" }}>
-                            <ExpandableText text={p.text} />
-                          </div>
-
-                          {p.imageUrl && (
-                            <div onClick={() => { setSelectedPost(p); setActivePanel("post_detail"); }} style={{ borderRadius: "10px", overflow: "hidden", border: "1px solid #f1f5f9", marginBottom: "6px", background: "#f8fafc", aspectRatio: "4/3", cursor: "pointer" }}>
-                              <img src={p.imageUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                            </div>
-                          )}
-
-                          <div style={{ display: "flex", alignItems: "center", gap: "10px", borderTop: "1px solid #f1f5f9", paddingTop: "8px", marginTop: "4px" }}>
-                            <button onClick={() => handleLike(p.id, p.likes || 0, p.likedBy || [])} style={{ background: isLiked ? "#fef2f2" : "transparent", border: "none", color: isLiked ? "#ef4444" : "#64748b", padding: "4px 8px", fontSize: "11px", fontWeight: 800, cursor: "pointer", display: "flex", alignItems: "center", gap: "5px", borderRadius: "10px" }}>
-                              <i className={isLiked ? "fa-solid fa-heart" : "fa-regular fa-heart"}></i> {p.likes || 0} Pulses
-                            </button>
-                            <button onClick={() => { setSelectedPost(p); setActivePanel("post_detail"); }} style={{ background: "transparent", border: "none", color: "#64748b", padding: "4px 8px", fontSize: "11px", fontWeight: 800, cursor: "pointer", display: "flex", alignItems: "center", gap: "5px" }}>
-                              <i className="fa-regular fa-comment"></i> {p.commentsCount || 0}
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-              );
-            })()}
           </div>
         </div>
       )}
