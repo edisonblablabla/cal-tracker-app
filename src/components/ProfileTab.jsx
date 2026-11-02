@@ -288,9 +288,86 @@ export default function ProfileTab({
     try {
       const numWeight = parseFloat(editWeight) || Number(appData?.weight) || 60;
       const numHeight = parseFloat(editHeight) || Number(appData?.height) || 165;
-      const numBurnGoal = parseInt(editBurnGoal, 10) || 500;
-      const numStepGoal = parseInt(editStepGoal, 10) || 8000;
 
+      // 1. Kalkulahin ang bagong BMR at TDEE base sa updated metrics
+      let actMultiplier = 1.55;
+      const currentAct = editActivityLevel || appData?.activityLevel || "moderate";
+      if (currentAct === "sedentary") actMultiplier = 1.2;
+      else if (currentAct === "light") actMultiplier = 1.375;
+      else if (currentAct === "moderate") actMultiplier = 1.55;
+      else if (currentAct === "active") actMultiplier = 1.725;
+
+      const bmr = (10 * numWeight) + (6.25 * numHeight) - (5 * 25) + 5;
+      const tdee = Math.round(bmr * actMultiplier);
+
+      // 2. I-recalculate ang targets ayon sa kasalukuyang active strategy sa Goals Tab
+      const activeType = appData?.activeGoalType || "jogger";
+      let baseGoal = tdee;
+      let pGoal = Math.round(numWeight * 2.0);
+      let cGoal = Math.round(numWeight * 3.2);
+      let fGoal = Math.round(numWeight * 0.9);
+      let dailyStepsTarget = appData?.dailyStepsTarget || 10000;
+      let dailyBurnTarget = appData?.dailyBurnTarget || 450;
+
+      if (activeType === "jogger") {
+        baseGoal = tdee + 100;
+        pGoal = Math.round(numWeight * 1.8);
+        cGoal = Math.round(numWeight * 4.5);
+        fGoal = Math.round(numWeight * 0.9);
+        dailyStepsTarget = 8000;
+        dailyBurnTarget = 500;
+      } else if (activeType === "marathon") {
+        baseGoal = tdee + 400;
+        pGoal = Math.round(numWeight * 1.8);
+        cGoal = Math.round(numWeight * 6.0);
+        fGoal = Math.round(numWeight * 1.0);
+        dailyStepsTarget = 15000;
+        dailyBurnTarget = 750;
+      } else if (activeType === "steps") {
+        baseGoal = Math.max(1200, tdee - 250);
+        pGoal = Math.round(numWeight * 2.0);
+        cGoal = Math.round(numWeight * 3.2);
+        fGoal = Math.round(numWeight * 0.8);
+        dailyStepsTarget = 10000;
+        dailyBurnTarget = 450;
+      } else if (activeType === "bulk") {
+        baseGoal = tdee + 250;
+        pGoal = Math.round(numWeight * 2.2);
+        cGoal = Math.round(numWeight * 4.0);
+        fGoal = Math.round(numWeight * 1.0);
+        dailyStepsTarget = 6000;
+        dailyBurnTarget = 350;
+      } else if (activeType === "cut") {
+        baseGoal = Math.max(1200, tdee - 450);
+        pGoal = Math.round(numWeight * 2.4);
+        cGoal = Math.round(numWeight * 2.0);
+        fGoal = Math.round(numWeight * 0.8);
+        dailyStepsTarget = 12000;
+        dailyBurnTarget = 600;
+      } else if (activeType === "recomp") {
+        baseGoal = tdee;
+        pGoal = Math.round(numWeight * 2.2);
+        cGoal = Math.round(numWeight * 3.0);
+        fGoal = Math.round(numWeight * 0.9);
+        dailyStepsTarget = 8000;
+        dailyBurnTarget = 450;
+      } else if (activeType === "dirty") {
+        baseGoal = tdee + 600;
+        pGoal = Math.round(numWeight * 2.0);
+        cGoal = Math.round(numWeight * 5.0);
+        fGoal = Math.round(numWeight * 1.2);
+        dailyStepsTarget = 5000;
+        dailyBurnTarget = 300;
+      } else if (activeType === "maint") {
+        baseGoal = tdee;
+        pGoal = Math.round(numWeight * 2.0);
+        cGoal = Math.round(numWeight * 3.2);
+        fGoal = Math.round(numWeight * 0.9);
+        dailyStepsTarget = 8000;
+        dailyBurnTarget = 400;
+      }
+
+      // 3. I-update ang weight history kapag may aktwal na pagbabago sa timbang
       let updatedHistory = Array.isArray(appData?.weightHistory) ? [...appData.weightHistory] : [];
       if (appData?.weight && Number(appData.weight) !== numWeight) {
         updatedHistory.push({
@@ -300,6 +377,7 @@ export default function ProfileTab({
         });
       }
 
+      // 4. I-commit ang kumpletong synchronized record sa Firestore
       await updateDoc(doc(db, "users", user.uid), {
         userName: editName.trim() || "Athlete",
         userTitle: editTitle.trim() || "Fitness Enthusiast",
@@ -307,13 +385,20 @@ export default function ProfileTab({
         weight: numWeight,
         prevWeight: appData?.weight || numWeight,
         height: numHeight,
-        activityLevel: editActivityLevel || "moderate",
+        activityLevel: currentAct,
         primaryObjective: editObjective || "maintain",
+        baseGoal,
+        targetCalories: baseGoal,
+        pGoal,
+        cGoal,
+        fGoal,
+        dailyStepsTarget,
+        dailyBurnTarget,
         weightHistory: updatedHistory
       });
 
       setIsEditingProfile(false);
-      if (showToast) showToast("Athlete Settings & Goals saved! ⚡");
+      if (showToast) showToast("Athlete Settings updated & targets recalculated! ⚡");
     } catch (err) {
       console.error(err);
       if (showToast) showToast("Failed to update profile: " + err.message);
