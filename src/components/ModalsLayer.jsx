@@ -591,160 +591,157 @@ export default function ModalsLayer({
             )}
 
             
-            {/* DIRECT 1-ON-1 CHAT PANEL */}
-            {/* MESSENGER CHAT PANEL */}
+            {/* DIRECT 1-ON-1 CHAT PANEL (UNIFIED DESIGN: NO ARROW BACK, TOP-RIGHT CIRCULAR ✕) */}
             {activePanel === 'chat' && (
-              <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-                {/* MESSENGER MESSAGES CONTAINER WITH AUTO-SCROLL TO BOTTOM */}
-                <div 
-                  ref={(el) => {
-                    if (el) {
-                      el.scrollTop = el.scrollHeight;
-                    }
-                  }}
-                  style={{ 
-                    flex: 1, 
-                    overflowY: "auto", 
-                    padding: "16px 10px", 
-                    display: "flex", 
-                    flexDirection: "column", 
-                    gap: "8px",
-                    background: "#f8fafc"
-                  }}
-                >
-                  {/* TOP CONVERSATION INTRO (MESSENGER STYLE) */}
-                  <div style={{ textAlign: "center", padding: "16px 0 24px", display: "flex", flexDirection: "column", alignItems: "center" }}>
-                    <div style={{ width: "72px", height: "72px", borderRadius: "50%", background: "#4f46e5", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: "26px", overflow: "hidden", marginBottom: "8px", boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}>
+              <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "#f8fafc" }}>
+                {/* Modern Unified Chat Header */}
+                <div style={{
+                  height: "54px",
+                  padding: "0 16px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  background: "#ffffff",
+                  borderBottom: "1px solid #e2e8f0",
+                  flexShrink: 0
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "10px", minWidth: 0 }}>
+                    <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: "#4f46e5", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: "13px", overflow: "hidden", flexShrink: 0 }}>
                       {activeChatPartner?.avatarUrl ? (
                         <img src={activeChatPartner.avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                       ) : (
                         (activeChatPartner?.userName || "A").charAt(0).toUpperCase()
                       )}
                     </div>
-                    <strong style={{ fontSize: "16px", color: "#0f172a", fontWeight: 900 }}>{activeChatPartner?.userName || "Athlete"}</strong>
-                    <span style={{ fontSize: "11px", color: "#64748b", marginBottom: "10px" }}>{activeChatPartner?.userTitle || "Fitness Enthusiast"}</span>
-                    <button 
-                      onClick={() => {
-                        if (activeChatPartner && typeof setSelectedVisitor === "function") {
-                          setSelectedVisitor(activeChatPartner);
-                          setActivePanel("visitor_profile");
-                        }
-                      }}
-                      style={{ background: "#e2e8f0", color: "#0f172a", border: "none", padding: "6px 16px", borderRadius: "18px", fontSize: "11px", fontWeight: 800, cursor: "pointer", marginBottom: "12px" }}
-                    >
-                      View profile
-                    </button>
-                    <span style={{ fontSize: "10px", color: "#94a3b8", maxWidth: "240px", lineHeight: 1.4 }}>
-                      🔒 Direct chat is private between you and {activeChatPartner?.userName || "this athlete"}.
-                    </span>
+                    <div style={{ minWidth: 0 }}>
+                      <strong style={{ fontSize: "14px", color: "#0f172a", display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {activeChatPartner?.userName || "Athlete"}
+                      </strong>
+                      <span style={{ fontSize: "10px", color: "#10b981", fontWeight: 700 }}>● Active Conversation</span>
+                    </div>
                   </div>
 
-                  {/* MESSAGES LIST */}
+                  <button
+                    onClick={() => {
+                      if (typeof setActiveChatPartner === "function") setActiveChatPartner(null);
+                      if (typeof setActivePanel === "function") setActivePanel(null);
+                    }}
+                    style={{
+                      background: "#f1f5f9",
+                      border: "none",
+                      width: "28px",
+                      height: "28px",
+                      borderRadius: "50%",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      cursor: "pointer",
+                      color: "#64748b",
+                      fontSize: "14px",
+                      fontWeight: 800
+                    }}
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                {/* Messages List with Auto-scroll */}
+                <div
+                  ref={(el) => { if (el) el.scrollTop = el.scrollHeight; }}
+                  style={{ flex: 1, overflowY: "auto", padding: "14px 12px", display: "flex", flexDirection: "column", gap: "10px", minHeight: 0 }}
+                >
                   {chatMessages.length === 0 ? (
-                    <div style={{ textAlign: "center", padding: "20px", color: "#94a3b8", fontSize: "11px" }}>
+                    <div style={{ textAlign: "center", padding: "40px 20px", color: "#94a3b8", fontSize: "12px" }}>
                       Say hello to start the conversation! 👋
                     </div>
                   ) : (
                     chatMessages.map((msg) => {
                       const isMe = msg.senderUid === user?.uid;
                       return (
-                        <div 
-                          key={msg.id} 
-                          style={{ 
-                            display: "flex", 
-                            justifyContent: isMe ? "flex-end" : "flex-start", 
-                            alignItems: "flex-end", 
-                            gap: "6px",
-                            marginBottom: "4px"
+                        <div
+                          key={msg.id}
+                          style={{
+                            alignSelf: isMe ? "flex-end" : "flex-start",
+                            maxWidth: "80%",
+                            display: "flex",
+                            flexDirection: "column",
+                            alignItems: isMe ? "flex-end" : "flex-start"
                           }}
                         >
-                          {!isMe && (
-                            <div style={{ width: "24px", height: "24px", borderRadius: "50%", background: "#4f46e5", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: "10px", overflow: "hidden", flexShrink: 0, marginBottom: "2px" }}>
-                              {activeChatPartner?.avatarUrl ? (
-                                <img src={activeChatPartner.avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                              ) : (
-                                (activeChatPartner?.userName || "A").charAt(0).toUpperCase()
-                              )}
-                            </div>
-                          )}
-                          <div 
-                            style={{ 
-                              maxWidth: "75%", 
-                              padding: "9px 14px", 
-                              borderRadius: isMe ? "18px 18px 4px 18px" : "18px 18px 18px 4px", 
-                              background: isMe ? "#0084ff" : "#e4e6eb", 
-                              color: isMe ? "#ffffff" : "#050505", 
-                              fontSize: "13px", 
-                              lineHeight: 1.4, 
-                              wordBreak: "break-word",
-                              boxShadow: "0 1px 2px rgba(0,0,0,0.04)"
+                          <div
+                            style={{
+                              background: isMe ? "linear-gradient(135deg, #4f46e5 0%, #38bdf8 100%)" : "#ffffff",
+                              color: isMe ? "#ffffff" : "#0f172a",
+                              padding: "9px 13px",
+                              borderRadius: isMe ? "14px 14px 3px 14px" : "14px 14px 14px 3px",
+                              fontSize: "13px",
+                              lineHeight: 1.4,
+                              boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+                              border: isMe ? "none" : "1px solid #e2e8f0",
+                              wordBreak: "break-word"
                             }}
                           >
-                            <div>{msg.text}</div>
-                            <div style={{ 
-                              fontSize: "9px", 
-                              marginTop: "2px", 
-                              textAlign: isMe ? "right" : "left", 
-                              color: isMe ? "rgba(255,255,255,0.7)" : "#65676b" 
-                            }}>
-                              {formatTime(msg.createdAt)}
-                            </div>
+                            {msg.text}
                           </div>
+                          <span style={{ fontSize: "9px", color: "#94a3b8", marginTop: "2px", padding: "0 2px" }}>
+                            {formatTime(msg.createdAt)}
+                          </span>
                         </div>
                       );
                     })
                   )}
                 </div>
 
-                {/* BOTTOM MESSENGER INPUT BAR */}
-                <form 
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    handleSendChatMessage();
-                  }}
-                  style={{ 
-                    padding: "12px 16px", paddingBottom: "24px", 
-                    background: "#ffffff", 
-                    borderTop: "1px solid #e2e8f0", 
-                    display: "flex", 
-                    alignItems: "center", 
-                    gap: "8px" 
+                {/* Bottom Input Bar */}
+                <form
+                  onSubmit={(e) => { e.preventDefault(); handleSendChatMessage(); }}
+                  style={{
+                    padding: "10px 12px 14px 12px",
+                    background: "#ffffff",
+                    borderTop: "1px solid #e2e8f0",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    flexShrink: 0
                   }}
                 >
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     placeholder={"Message " + (activeChatPartner?.userName || "Athlete") + "..."}
-                    value={newChatMessage} 
+                    value={newChatMessage}
                     onChange={(e) => setNewChatMessage(e.target.value)}
-                    style={{ 
-                      flex: 1, 
-                      padding: "10px 16px", 
-                      borderRadius: "24px", 
-                      border: "1px solid #cbd5e1", 
-                      background: "#f1f5f9", 
-                      fontSize: "13px", 
+                    style={{
+                      flex: 1,
+                      padding: "10px 14px",
+                      borderRadius: "20px",
+                      border: "1px solid #cbd5e1",
+                      fontSize: "13.5px",
                       outline: "none",
-                      color: "#0f172a"
-                    }} 
+                      backgroundColor: "#f8fafc",
+                      color: "#0f172a",
+                      fontFamily: "inherit",
+                      boxSizing: "border-box"
+                    }}
                   />
-                  <button 
-                    type="submit" 
+                  <button
+                    type="submit"
                     disabled={isSendingMessage || !newChatMessage.trim()}
-                    style={{ 
-                      width: "38px", 
-                      height: "38px", 
-                      borderRadius: "50%", 
-                      background: newChatMessage.trim() ? "#0084ff" : "#cbd5e1", 
-                      color: "white", 
-                      border: "none", 
+                    style={{
+                      width: "38px",
+                      height: "38px",
+                      borderRadius: "50%",
+                      border: "none",
+                      background: newChatMessage.trim() ? "linear-gradient(135deg, #4f46e5 0%, #38bdf8 100%)" : "#e2e8f0",
+                      color: "white",
                       cursor: newChatMessage.trim() ? "pointer" : "default",
-                      display: "flex", 
-                      alignItems: "center", 
+                      display: "flex",
+                      alignItems: "center",
                       justifyContent: "center",
-                      fontSize: "14px"
+                      flexShrink: 0,
+                      boxShadow: newChatMessage.trim() ? "0 2px 6px rgba(79, 70, 229, 0.3)" : "none"
                     }}
                   >
-                    <i className="fa-solid fa-paper-plane"></i>
+                    <i className="fa-solid fa-paper-plane" style={{ fontSize: "13px" }}></i>
                   </button>
                 </form>
               </div>

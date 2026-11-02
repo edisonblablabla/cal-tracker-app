@@ -87,7 +87,7 @@ export default function CommunityTab({
 
   const isAdmin = user?.email && String(user.email).toLowerCase().includes("admin");
 
-  // ─── MASTER POPSTATE CONTROLLER (DEVICE / HARDWARE BACK BUTTON) ───
+  // ─── MASTER POPSTATE CONTROLLER (DEVICE BACK BUTTON INTEGRATION) ───
   const hasOpenDrawer = Boolean(activeHuddlePost || showNotifDrawer || showInboxDrawer || showSearchDrawer || activeChatPartner);
   const hasPushedHistoryRef = useRef(false);
 
@@ -103,25 +103,31 @@ export default function CommunityTab({
 
     if (!isFromPopstate && hasPushedHistoryRef.current) {
       hasPushedHistoryRef.current = false;
-      window.history.back();
+      try { window.history.back(); } catch (e) {}
     }
   };
 
   const openDrawerWithHistory = (openFn) => {
-    window.history.pushState({ communityDrawer: true }, "");
-    hasPushedHistoryRef.current = true;
+    try {
+      window.history.pushState({ communityDrawer: true }, "");
+      hasPushedHistoryRef.current = true;
+    } catch (e) {}
     openFn();
   };
 
   useEffect(() => {
     const handleDeviceBack = (e) => {
       if (hasOpenDrawer) {
+        if (activeChatPartner) {
+          setActiveChatPartner(null);
+          return;
+        }
         closeAllDrawers(true);
       }
     };
     window.addEventListener("popstate", handleDeviceBack);
     return () => window.removeEventListener("popstate", handleDeviceBack);
-  }, [hasOpenDrawer]);
+  }, [hasOpenDrawer, activeChatPartner]);
 
   // ─── 1. REALTIME FIRESTORE USERS SYNC ───
   useEffect(() => {
@@ -167,6 +173,7 @@ export default function CommunityTab({
     return { uid, name: fallbackName || "Athlete", photo: "", lastSeen: 0 };
   };
 
+  // ─── 2. ACCURATE REALTIME PRESENCE ───
   const getPartnerPresence = (partnerUid) => {
     if (!partnerUid) return { isOnline: false, text: "Offline", color: "#94a3b8" };
     const athlete = getAthlete(partnerUid);
@@ -180,16 +187,17 @@ export default function CommunityTab({
     return { isOnline: false, text: "Offline", color: "#94a3b8" };
   };
 
-  // ─── 2. HELPER: AVATAR RENDERER (FULL SUPPORT SA BASE64 & HTTP) ───
+  // ─── 3. ROBUST AVATAR RENDERER (SUPPORTS BASE64, HTTP, HTTPS) ───
   const renderAvatar = (photoUrl, name = "Athlete", size = 34, border = "none") => {
-    const hasValidPhoto = photoUrl && typeof photoUrl === "string" &&
-      (photoUrl.startsWith("http://") || photoUrl.startsWith("https://") || photoUrl.startsWith("data:image/")) &&
-      !photoUrl.includes("pravatar");
+    const pStr = typeof photoUrl === "string" ? photoUrl.trim() : "";
+    const hasValidPhoto = pStr &&
+      (pStr.startsWith("http://") || pStr.startsWith("https://") || pStr.startsWith("data:image/") || pStr.startsWith("blob:")) &&
+      !pStr.includes("pravatar");
 
     if (hasValidPhoto) {
       return (
         <img
-          src={photoUrl}
+          src={pStr}
           alt={name}
           style={{ width: size + "px", height: size + "px", borderRadius: "50%", objectFit: "cover", border: border, flexShrink: 0 }}
         />
@@ -219,7 +227,7 @@ export default function CommunityTab({
     );
   };
 
-  // ─── 3. OPEN ATHLETE PROFILE ───
+  // ─── 4. PROFILE ROUTING ───
   const handleOpenAthleteProfile = (targetUid, fallbackObj = null) => {
     if (!targetUid) return;
     if (targetUid === user?.uid) {
@@ -232,7 +240,7 @@ export default function CommunityTab({
     if (typeof setActivePanel === "function") setActivePanel("visitor_profile");
   };
 
-  // ─── 4. DRAFT SOCIAL POST HANDLER (NO AUTOFOCUS) ───
+  // ─── 5. DRAFT POST SYNC (NO AUTOFOCUS) ───
   useEffect(() => {
     if (draftSocialPost) {
       setActiveSubTab("feed");
@@ -243,7 +251,7 @@ export default function CommunityTab({
     }
   }, [draftSocialPost]);
 
-  // ─── 5. REAL-TIME CHATS & MESSAGES ───
+  // ─── 6. REAL-TIME CHATS & MESSAGES ───
   useEffect(() => {
     if (!user?.uid) return;
     const q = query(collection(db, "chats"), where("participants", "array-contains", user.uid));
@@ -274,7 +282,7 @@ export default function CommunityTab({
     return () => unsub();
   }, [user?.uid, activeChatPartner]);
 
-  // ─── 6. REAL-TIME COMMENTS LISTENER (posts/{postId}/comments) ───
+  // ─── 7. REAL-TIME COMMENTS LISTENER (posts/{postId}/comments) ───
   useEffect(() => {
     if (!activeHuddlePost?.id) {
       setHuddleComments([]);
@@ -289,7 +297,7 @@ export default function CommunityTab({
     return () => unsub();
   }, [activeHuddlePost?.id]);
 
-  // ─── UNREAD BADGES ───
+  // ─── UNREAD COUNTS ───
   const unreadMsgCount = useMemo(() => {
     const list = liveChats.length > 0 ? liveChats : inboxChats;
     if (!Array.isArray(list)) return 0;
@@ -301,7 +309,7 @@ export default function CommunityTab({
     return allUserNotifs.filter(n => (n.timestamp || 0) > (lastSeenNotifTime || 0)).length;
   }, [allUserNotifs, lastSeenNotifTime]);
 
-  // ─── SEARCH RESULTS (EMPTY KUNG WALANG TEXT) ───
+  // ─── SEARCH RESULTS (CLEAN: ZERO RESULTS KUNG WALANG QUERY) ───
   const searchResults = useMemo(() => {
     if (!searchQuery.trim()) return [];
     const q = searchQuery.toLowerCase().trim();
@@ -416,7 +424,7 @@ export default function CommunityTab({
     setIsSubmittingComment(true);
     const commentContent = newCommentText.trim();
     const myName = appData?.userName || user.displayName || "Athlete";
-    const myAvatar = appData?.avatarUrl || avatarPreview || "";
+    const myAvatar = appData?.avatarUrl || avatarPreview || user?.photoURL || "";
 
     try {
       await addDoc(collection(db, "posts", activeHuddlePost.id, "comments"), {
@@ -493,6 +501,28 @@ export default function CommunityTab({
       handleLike(post.id, post.likes || 0, post.likedBy || []);
     }
   };
+
+  // COMMON DRAWER STYLES NA WALANG GUWANG SA KALIWA SA MOBILE AT NAKASANDAL SA KANAN SA TABLET
+  const getDrawerStyle = (isOpen) => ({
+    position: "fixed",
+    top: 0,
+    bottom: 0,
+    right: 0,
+    width: "100%",
+    maxWidth: "500px",
+    height: "100dvh",
+    backgroundColor: "#ffffff",
+    zIndex: 4000,
+    transform: isOpen ? "translateX(0)" : "translateX(105%)",
+    visibility: isOpen ? "visible" : "hidden",
+    pointerEvents: isOpen ? "auto" : "none",
+    transition: "transform 0.28s cubic-bezier(0.4, 0, 0.2, 1), visibility 0.28s",
+    boxShadow: isOpen ? "-8px 0 28px rgba(15, 23, 42, 0.2)" : "none",
+    display: "flex",
+    flexDirection: "column",
+    overflow: "hidden",
+    boxSizing: "border-box"
+  });
 
   return (
     <div style={{ backgroundColor: "#f8fafc", minHeight: "100vh", paddingBottom: "90px", margin: 0, padding: 0, fontFamily: "sans-serif" }}>
@@ -1208,30 +1238,9 @@ export default function CommunityTab({
       </div>
 
       {/* ============================================================== */}
-      {/* 💬 1. 1-ON-1 CHAT DRAWER (FULL-WIDTH ON MOBILE, NO GAP)         */}
+      {/* 💬 1. 1-ON-1 CHAT DRAWER (FULL-WIDTH SA MOBILE, ZERO GAP)        */}
       {/* ============================================================== */}
-      <div
-        style={{
-          position: "fixed",
-          top: 0,
-          bottom: 0,
-          left: 0,
-          right: 0,
-          width: "100%",
-          maxWidth: "480px",
-          margin: "0 auto",
-          height: "100dvh",
-          backgroundColor: "#ffffff",
-          zIndex: 4000,
-          transform: showInboxDrawer ? "translateX(0)" : "translateX(100%)",
-          transition: "transform 0.28s cubic-bezier(0.4, 0, 0.2, 1)",
-          boxShadow: showInboxDrawer ? "-6px 0 24px rgba(15, 23, 42, 0.15)" : "none",
-          display: "flex",
-          flexDirection: "column",
-          overflow: "hidden",
-          boxSizing: "border-box"
-        }}
-      >
+      <div style={getDrawerStyle(showInboxDrawer)}>
         <div style={{
           height: "54px",
           padding: "0 16px",
@@ -1476,30 +1485,9 @@ export default function CommunityTab({
       </div>
 
       {/* ============================================================== */}
-      {/* 🔍 2. SEARCH ATHLETES DRAWER (FULL-WIDTH ON MOBILE, NO GAP)    */}
+      {/* 🔍 2. SEARCH ATHLETES DRAWER (ZERO RESULTS KUNG EMPTY)          */}
       {/* ============================================================== */}
-      <div
-        style={{
-          position: "fixed",
-          top: 0,
-          bottom: 0,
-          left: 0,
-          right: 0,
-          width: "100%",
-          maxWidth: "480px",
-          margin: "0 auto",
-          height: "100dvh",
-          backgroundColor: "#ffffff",
-          zIndex: 4000,
-          transform: showSearchDrawer ? "translateX(0)" : "translateX(100%)",
-          transition: "transform 0.28s cubic-bezier(0.4, 0, 0.2, 1)",
-          boxShadow: showSearchDrawer ? "-6px 0 24px rgba(15, 23, 42, 0.15)" : "none",
-          display: "flex",
-          flexDirection: "column",
-          overflow: "hidden",
-          boxSizing: "border-box"
-        }}
-      >
+      <div style={getDrawerStyle(showSearchDrawer)}>
         <div style={{ height: "54px", padding: "0 16px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #f1f5f9", backgroundColor: "#ffffff", flexShrink: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <div style={{ width: "28px", height: "28px", borderRadius: "7px", background: "rgba(56, 189, 248, 0.15)", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -1649,30 +1637,9 @@ export default function CommunityTab({
       </div>
 
       {/* ============================================================== */}
-      {/* 🔔 3. NOTIFICATIONS DRAWER (FULL-WIDTH ON MOBILE, NO GAP)       */}
+      {/* 🔔 3. NOTIFICATIONS DRAWER                                     */}
       {/* ============================================================== */}
-      <div
-        style={{
-          position: "fixed",
-          top: 0,
-          bottom: 0,
-          left: 0,
-          right: 0,
-          width: "100%",
-          maxWidth: "480px",
-          margin: "0 auto",
-          height: "100dvh",
-          backgroundColor: "#ffffff",
-          zIndex: 4000,
-          transform: showNotifDrawer ? "translateX(0)" : "translateX(100%)",
-          transition: "transform 0.28s cubic-bezier(0.4, 0, 0.2, 1)",
-          boxShadow: showNotifDrawer ? "-6px 0 24px rgba(15, 23, 42, 0.15)" : "none",
-          display: "flex",
-          flexDirection: "column",
-          overflow: "hidden",
-          boxSizing: "border-box"
-        }}
-      >
+      <div style={getDrawerStyle(showNotifDrawer)}>
         <div style={{ height: "54px", padding: "0 16px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #f1f5f9", backgroundColor: "#ffffff", flexShrink: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <div style={{ width: "28px", height: "28px", borderRadius: "7px", background: "rgba(239, 68, 68, 0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -1716,17 +1683,21 @@ export default function CommunityTab({
                     if (notif.postId && Array.isArray(publicCommunityPosts)) {
                       const targetPost = publicCommunityPosts.find(p => p.id === notif.postId);
                       if (targetPost) {
-                        setActiveHuddlePost(targetPost);
-                        setShowNotifDrawer(false);
+                        openDrawerWithHistory(() => {
+                          setActiveHuddlePost(targetPost);
+                          setShowNotifDrawer(false);
+                        });
                       } else if (showToast) {
                         showToast("Post may have been removed.");
                       }
                     } else if (notif.type === "chat" || notif.chatPartnerUid) {
                       const partnerUid = notif.chatPartnerUid || notif.senderUid;
                       const partner = getAthlete(partnerUid);
-                      setActiveChatPartner({ uid: partnerUid, userName: partner.name, avatarUrl: partner.photo });
-                      setShowInboxDrawer(true);
-                      setShowNotifDrawer(false);
+                      openDrawerWithHistory(() => {
+                        setActiveChatPartner({ uid: partnerUid, userName: partner.name, avatarUrl: partner.photo });
+                        setShowInboxDrawer(true);
+                        setShowNotifDrawer(false);
+                      });
                     }
                   }}
                   style={{
@@ -1769,30 +1740,9 @@ export default function CommunityTab({
       </div>
 
       {/* ============================================================== */}
-      {/* 💬 4. POST HUDDLE (COMMENTS) DRAWER (FULL-WIDTH ON MOBILE)      */}
+      {/* 💬 4. POST HUDDLE (COMMENTS) DRAWER (BUONG IMAGE, EDIT/DELETE) */}
       {/* ============================================================== */}
-      <div
-        style={{
-          position: "fixed",
-          top: 0,
-          bottom: 0,
-          left: 0,
-          right: 0,
-          width: "100%",
-          maxWidth: "480px",
-          margin: "0 auto",
-          height: "100dvh",
-          backgroundColor: "#ffffff",
-          zIndex: 4000,
-          transform: activeHuddlePost ? "translateX(0)" : "translateX(100%)",
-          transition: "transform 0.28s cubic-bezier(0.4, 0, 0.2, 1)",
-          boxShadow: activeHuddlePost ? "-6px 0 24px rgba(15, 23, 42, 0.15)" : "none",
-          display: "flex",
-          flexDirection: "column",
-          overflow: "hidden",
-          boxSizing: "border-box"
-        }}
-      >
+      <div style={getDrawerStyle(Boolean(activeHuddlePost))}>
         <div style={{ height: "54px", padding: "0 16px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #f1f5f9", backgroundColor: "#ffffff", flexShrink: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <div style={{ width: "28px", height: "28px", borderRadius: "7px", background: "rgba(16, 185, 129, 0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -1809,11 +1759,10 @@ export default function CommunityTab({
           </button>
         </div>
 
-        {/* Selected Post Header, Text at BUO NA LARAWAN */}
         {activeHuddlePost && (() => {
           const author = getAthlete(activeHuddlePost.userId, activeHuddlePost.userName);
           return (
-            <div style={{ padding: "14px 16px", background: "#f8fafc", borderBottom: "1px solid #f1f5f9", flexShrink: 0 }}>
+            <div style={{ padding: "14px 16px", background: "#f8fafc", borderBottom: "1px solid #f1f5f9", flexShrink: 0, maxHeight: "50vh", overflowY: "auto" }}>
               <div
                 onClick={() => {
                   closeAllDrawers();
@@ -1838,13 +1787,13 @@ export default function CommunityTab({
                 </p>
               )}
 
-              {/* BUONG-BUO NA PICTURE (HINDI PUTOL) */}
+              {/* BUONG-BUO AT HINDI PUTOL NA LARAWAN O MAPA */}
               {activeHuddlePost.imageUrl && (
-                <div style={{ borderRadius: "10px", overflow: "hidden", border: "1px solid #e2e8f0", background: "#0f172a", marginBottom: "6px" }}>
+                <div style={{ borderRadius: "10px", overflow: "hidden", border: "1px solid #e2e8f0", background: "#0f172a", marginBottom: "8px" }}>
                   <img
                     src={activeHuddlePost.imageUrl}
                     alt="Activity Graphic"
-                    style={{ width: "100%", maxHeight: "320px", objectFit: "contain", display: "block", margin: "0 auto" }}
+                    style={{ width: "100%", height: "auto", maxHeight: "380px", objectFit: "contain", display: "block", margin: "0 auto" }}
                   />
                 </div>
               )}
@@ -1852,10 +1801,12 @@ export default function CommunityTab({
           );
         })()}
 
-        {/* Realtime Comments List na may Edit at Delete Action Menu */}
+        {/* Realtime Comments List with Avatar Resolution & Inline Edit/Delete */}
         <div style={{ flex: 1, overflowY: "auto", padding: "14px", minHeight: 0 }}>
           {huddleComments.length > 0 ? (
             huddleComments.map((c, i) => {
+              const commenter = getAthlete(c.userId || c.uid, c.userName || c.name);
+              const commenterAvatar = commenter.photo || c.userAvatar || c.avatarUrl || "";
               const isCommentOwner = c.userId === user?.uid;
               const canManage = isCommentOwner || isAdmin;
               const isCurrentlyEditing = editingCommentId === c.id;
@@ -1866,13 +1817,14 @@ export default function CommunityTab({
                     <div
                       onClick={() => {
                         closeAllDrawers();
-                        handleOpenAthleteProfile(c.userId);
+                        handleOpenAthleteProfile(c.userId || c.uid, commenter);
                       }}
                       style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer" }}
                     >
-                      {renderAvatar(c.userAvatar, c.userName, 26)}
+                      {/* DYNAMIC AVATAR LOOKUP */}
+                      {renderAvatar(commenterAvatar, commenter.name, 28)}
                       <div>
-                        <span style={{ fontSize: "12px", fontWeight: 800, color: "#0f172a" }}>{c.userName || "Athlete"}</span>
+                        <span style={{ fontSize: "12px", fontWeight: 800, color: "#0f172a" }}>{commenter.name}</span>
                         {c.isEdited && <span style={{ fontSize: "8.5px", color: "#94a3b8", fontStyle: "italic", marginLeft: "4px" }}>(edited)</span>}
                       </div>
                     </div>
@@ -1884,7 +1836,7 @@ export default function CommunityTab({
                           <button
                             type="button"
                             onClick={() => setActiveCommentMenuId(activeCommentMenuId === c.id ? null : c.id)}
-                            style={{ background: "none", border: "none", color: "#94a3b8", padding: "2px 5px", cursor: "pointer", fontSize: "12px" }}
+                            style={{ background: "none", border: "none", color: "#94a3b8", padding: "2px 5px", cursor: "pointer", fontSize: "13px" }}
                           >
                             <i className="fa-solid fa-ellipsis-vertical"></i>
                           </button>
@@ -1935,7 +1887,7 @@ export default function CommunityTab({
                         type="text"
                         value={editingCommentText}
                         onChange={(e) => setEditingCommentText(e.target.value)}
-                        style={{ width: "100%", padding: "6px 10px", borderRadius: "8px", border: "1px solid #cbd5e1", fontSize: "12px", outline: "none", boxSizing: "border-box" }}
+                        style={{ width: "100%", padding: "7px 10px", borderRadius: "8px", border: "1px solid #cbd5e1", fontSize: "12px", outline: "none", boxSizing: "border-box" }}
                       />
                       <div style={{ display: "flex", gap: "6px", marginTop: "6px", justifyContent: "flex-end" }}>
                         <button
@@ -1955,7 +1907,7 @@ export default function CommunityTab({
                       </div>
                     </div>
                   ) : (
-                    <p style={{ margin: "4px 0 0 34px", fontSize: "12.5px", color: "#334155", lineHeight: 1.4, wordBreak: "break-word" }}>
+                    <p style={{ margin: "4px 0 0 36px", fontSize: "12.5px", color: "#334155", lineHeight: 1.4, wordBreak: "break-word" }}>
                       {c.text}
                     </p>
                   )}
@@ -2010,13 +1962,12 @@ export default function CommunityTab({
           onClick={() => closeAllDrawers()}
           style={{
             position: "fixed",
-            top: 0,
-            left: 0,
+            inset: 0,
             width: "100vw",
             height: "100vh",
-            backgroundColor: "rgba(15, 23, 42, 0.4)",
+            backgroundColor: "rgba(15, 23, 42, 0.6)",
             zIndex: 3999,
-            backdropFilter: "blur(2px)"
+            backdropFilter: "blur(4px)"
           }}
         />
       )}
