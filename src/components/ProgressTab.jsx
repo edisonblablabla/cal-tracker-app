@@ -257,7 +257,7 @@ export default function ProgressTab({
           <div style={{ background: "#fff7ed", border: "1px solid #ffedd5", padding: "5px 12px", borderRadius: "14px", display: "flex", alignItems: "center", gap: "5px" }}>
             <i className="fa-solid fa-fire" style={{ color: "#ea580c", fontSize: "12px" }}></i>
             <span style={{ fontSize: "13px", fontWeight: 800, color: "#ea580c" }}>
-              {appData?.streakDays || 7}
+              {Number(appData?.streakDays || 0)}
             </span>
           </div>
 
