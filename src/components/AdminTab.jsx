@@ -34,17 +34,16 @@ function formatAdminCreated(ts) {
 }
 
 function formatAdminLastOnline(ts, now) {
-  if (!ts || ts === 1) return "Never";
   const ms = parseMs(ts);
-  if (!ms || isNaN(ms)) return "Never";
+  if (!ms || isNaN(ms) || ms <= 1) return "No activity recorded";
   const diff = (now || Date.now()) - ms;
   const d = new Date(ms);
   const timeStr = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
 
   if (diff < ONLINE_THRESHOLD) return "Active Now";
-  if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago (${timeStr})`;
+  if (diff < 3600000) return `${Math.max(1, Math.floor(diff / 60000))}m ago (${timeStr})`;
   if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago (${timeStr})`;
-  const dateStr = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  const dateStr = d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
   return `${dateStr}, ${timeStr}`;
 }
 
@@ -761,8 +760,31 @@ export default function AdminTab({
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
               {filteredUsers.map(u => {
-                const lastSeenMs = parseMs(u.lastSeen);
-                const isOnline = lastSeenMs && (now - lastSeenMs < ONLINE_THRESHOLD);
+                // 🔍 SMART LAST ONLINE RESOLUTION
+    const lastSeenRaw = parseMs(u.lastSeen);
+    const loggedOutRaw = parseMs(u.lastLoggedOutAt);
+
+    // Online lamang kung may heartbeat at mas malaki sa 1 at nasa loob ng 75s
+    const isOnline = lastSeenRaw && lastSeenRaw > 1 && (now - lastSeenRaw < ONLINE_THRESHOLD);
+
+    // Kuhanin ang pinakabagong timestamp sa pagitan ng heartbeat at logout
+    let effectiveLastOnline = null;
+    if (lastSeenRaw && lastSeenRaw > 1) effectiveLastOnline = lastSeenRaw;
+    if (loggedOutRaw && loggedOutRaw > (effectiveLastOnline || 0)) effectiveLastOnline = loggedOutRaw;
+
+    // Fallback para sa lumang accounts: Hanapin ang pinakabagong post
+    if (!effectiveLastOnline) {
+      const userPosts = (posts || []).filter(p => p.userId === u.uid);
+      if (userPosts.length > 0) {
+        const sorted = [...userPosts].sort((a, b) => (parseMs(b.createdAt) || 0) - (parseMs(a.createdAt) || 0));
+        effectiveLastOnline = sorted[0]?.createdAt || null;
+      }
+    }
+
+    // Panghuling fallback: gamitin ang createdAt kung mayroon
+    if (!effectiveLastOnline && u.createdAt) {
+      effectiveLastOnline = u.createdAt;
+    }
 
                 return (
                   <div
@@ -841,7 +863,7 @@ export default function AdminTab({
 
                         <div style={{ fontSize: "10px", color: "#94a3b8", marginTop: "2px", display: "flex", gap: "8px", flexWrap: "wrap" }}>
                           <span>Joined: {formatAdminCreated(u.createdAt)}</span>
-                          <span>Last: <strong style={{ color: isOnline ? "#10b981" : "#64748b" }}>{isOnline ? "Active Now" : formatAdminLastOnline(u.lastSeen, now)}</strong></span>
+                          <span>Last: <strong style={{ color: isOnline ? "#10b981" : "#64748b" }}>{isOnline ? "Active Now" : formatAdminLastOnline(effectiveLastOnline, now)}</strong></span>
                         </div>
                       </div>
                     </div>
