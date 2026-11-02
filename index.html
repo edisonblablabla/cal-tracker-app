@@ -1,6 +1,26 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
+  <script id="auto-browser-redirect">
+    (function() {
+      try {
+        var ua = navigator.userAgent || navigator.vendor || window.opera || '';
+        // I-detect ang Facebook, Messenger, Instagram, o Threads in-app browser
+        var isSocialInApp = /FBAN|FBAV|Instagram|Line|Twitter|Threads/i.test(ua);
+        var isAndroid = /Android/i.test(ua);
+
+        if (isSocialInApp && isAndroid) {
+          // Kunin ang kasalukuyang URL nang walang http(s)://
+          var cleanHostAndPath = window.location.href.replace(/^https?:\/\//i, '');
+          // Agad na tawagin ang Android Chrome Intent bago pa mag-render ang React
+          var chromeIntentUrl = "intent://" + cleanHostAndPath + "#Intent;scheme=https;package=com.android.chrome;end";
+          window.location.replace(chromeIntentUrl);
+        }
+      } catch (err) {
+        console.warn("Auto-redirect handler error:", err);
+      }
+    })();
+  </script>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>NutriPulse - Health Dashboard</title>
