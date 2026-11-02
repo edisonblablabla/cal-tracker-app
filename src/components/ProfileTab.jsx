@@ -13,8 +13,11 @@ import {
   arrayUnion,
   arrayRemove
 } from "firebase/firestore";
+import { getAuth, signOut } from "firebase/auth";
+import { auth } from "../services/firebase";
 
 export default function ProfileTab({
+  handleSignOut,
   user,
   appData,
   avatarPreview,
@@ -214,6 +217,27 @@ export default function ProfileTab({
     if (!post) return;
     if (typeof setSelectedPost === "function") setSelectedPost(post);
     openLayer("huddle", () => setActiveHuddlePost(post));
+  };
+
+  
+  const handleLogout = async () => {
+    if (window.confirm("Sigurado ka bang nais mong mag-sign out sa NutriPulse?")) {
+      try {
+        if (typeof handleSignOut === "function") {
+          await handleSignOut();
+        } else {
+          const authInstance = (typeof auth !== "undefined" && auth) ? auth : getAuth();
+          await signOut(authInstance);
+        }
+        setIsEditingProfile(false);
+        if (showToast) showToast("Successfully signed out. See you soon! 👋");
+      } catch (err) {
+        console.error("Sign out error:", err);
+        try {
+          await signOut(getAuth());
+        } catch (e) {}
+      }
+    }
   };
 
   const handleSaveProfile = async (e) => {
@@ -975,7 +999,7 @@ export default function ProfileTab({
         </form>
       </div>
 
-      {/* 📝 EDIT PROFILE MODAL */}
+      {/* ⚙️ ATHLETE SETTINGS & PROFILE MANAGEMENT MODAL */}
       {isEditingProfile && (
         <div style={{
           position: "fixed",
@@ -986,86 +1010,146 @@ export default function ProfileTab({
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          padding: "16px"
+          padding: "16px",
+          boxSizing: "border-box"
         }}>
           <div style={{
             background: "#ffffff",
-            borderRadius: "18px",
+            borderRadius: "20px",
             width: "100%",
-            maxWidth: "380px",
-            padding: "20px",
-            boxShadow: "0 20px 40px rgba(0,0,0,0.15)"
+            maxWidth: "400px",
+            maxHeight: "90vh",
+            display: "flex",
+            flexDirection: "column",
+            boxShadow: "0 20px 40px rgba(0,0,0,0.18)",
+            overflow: "hidden"
           }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-              <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 900, color: "#0f172a" }}>
-                Edit Athlete Profile
-              </h3>
+            {/* Modal Header */}
+            <div style={{
+              padding: "16px 20px",
+              borderBottom: "1px solid #f1f5f9",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center"
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <div style={{ width: "28px", height: "28px", borderRadius: "8px", background: "rgba(56, 189, 248, 0.15)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <i className="fa-solid fa-gear" style={{ color: "#0284c7", fontSize: "14px" }}></i>
+                </div>
+                <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 900, color: "#0f172a" }}>
+                  Athlete Settings
+                </h3>
+              </div>
               <button
                 type="button"
                 onClick={() => setIsEditingProfile(false)}
-                style={{ background: "#f1f5f9", border: "none", width: "28px", height: "28px", borderRadius: "50%", color: "#64748b", cursor: "pointer", fontWeight: 800 }}
+                style={{ background: "#f1f5f9", border: "none", width: "28px", height: "28px", borderRadius: "50%", color: "#64748b", cursor: "pointer", fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center" }}
               >
                 ✕
               </button>
             </div>
 
-            <form onSubmit={handleSaveProfile} style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-              <div>
-                <label style={{ fontSize: "11px", fontWeight: 800, color: "#64748b", display: "block", marginBottom: "4px" }}>
-                  Athlete Name
-                </label>
-                <input
-                  type="text"
-                  value={editName}
-                  onChange={(e) => setEditName(e.target.value)}
-                  style={{ width: "100%", padding: "9px 12px", borderRadius: "10px", background: "#f8fafc", border: "1px solid #cbd5e1", color: "#0f172a", fontSize: "13px", outline: "none", boxSizing: "border-box" }}
-                  placeholder="e.g. Edison"
-                />
-              </div>
+            {/* Modal Scrollable Body */}
+            <div style={{ padding: "16px 20px", overflowY: "auto", flex: 1 }}>
+              <form onSubmit={handleSaveProfile} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+                
+                {/* Profile Identity Inputs */}
+                <div>
+                  <label style={{ fontSize: "11px", fontWeight: 800, color: "#64748b", display: "block", marginBottom: "5px", textTransform: "uppercase" }}>
+                    Athlete Name
+                  </label>
+                  <input
+                    type="text"
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    style={{ width: "100%", padding: "10px 12px", borderRadius: "10px", background: "#f8fafc", border: "1px solid #cbd5e1", color: "#0f172a", fontSize: "13px", outline: "none", boxSizing: "border-box" }}
+                    placeholder="e.g. Edison Valerio"
+                  />
+                </div>
 
-              <div>
-                <label style={{ fontSize: "11px", fontWeight: 800, color: "#64748b", display: "block", marginBottom: "4px" }}>
-                  Discipline / Title
-                </label>
-                <input
-                  type="text"
-                  value={editTitle}
-                  onChange={(e) => setEditTitle(e.target.value)}
-                  style={{ width: "100%", padding: "9px 12px", borderRadius: "10px", background: "#f8fafc", border: "1px solid #cbd5e1", color: "#0f172a", fontSize: "13px", outline: "none", boxSizing: "border-box" }}
-                  placeholder="e.g. 5K Runner & Strength Athlete"
-                />
-              </div>
+                <div>
+                  <label style={{ fontSize: "11px", fontWeight: 800, color: "#64748b", display: "block", marginBottom: "5px", textTransform: "uppercase" }}>
+                    Discipline / Title
+                  </label>
+                  <input
+                    type="text"
+                    value={editTitle}
+                    onChange={(e) => setEditTitle(e.target.value)}
+                    style={{ width: "100%", padding: "10px 12px", borderRadius: "10px", background: "#f8fafc", border: "1px solid #cbd5e1", color: "#0f172a", fontSize: "13px", outline: "none", boxSizing: "border-box" }}
+                    placeholder="e.g. Fitness Enthusiast"
+                  />
+                </div>
 
-              <div>
-                <label style={{ fontSize: "11px", fontWeight: 800, color: "#64748b", display: "block", marginBottom: "4px" }}>
-                  Bio / Goal
-                </label>
-                <textarea
-                  value={editBio}
-                  onChange={(e) => setEditBio(e.target.value)}
-                  rows={3}
-                  style={{ width: "100%", padding: "9px 12px", borderRadius: "10px", background: "#f8fafc", border: "1px solid #cbd5e1", color: "#0f172a", fontSize: "13px", outline: "none", resize: "none", boxSizing: "border-box" }}
-                  placeholder="Tell your fitness journey..."
-                />
-              </div>
+                <div>
+                  <label style={{ fontSize: "11px", fontWeight: 800, color: "#64748b", display: "block", marginBottom: "5px", textTransform: "uppercase" }}>
+                    Bio / Fitness Goal
+                  </label>
+                  <textarea
+                    value={editBio}
+                    onChange={(e) => setEditBio(e.target.value)}
+                    rows={3}
+                    style={{ width: "100%", padding: "10px 12px", borderRadius: "10px", background: "#f8fafc", border: "1px solid #cbd5e1", color: "#0f172a", fontSize: "13px", outline: "none", resize: "none", boxSizing: "border-box", fontFamily: "inherit" }}
+                    placeholder="Tell your fitness journey..."
+                  />
+                </div>
 
-              <div style={{ display: "flex", gap: "8px", marginTop: "6px" }}>
-                <button
-                  type="button"
-                  onClick={() => setIsEditingProfile(false)}
-                  style={{ flex: 1, padding: "10px", background: "#f1f5f9", color: "#64748b", border: "none", borderRadius: "10px", fontWeight: 800, fontSize: "12px", cursor: "pointer" }}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSavingProfile}
-                  style={{ flex: 1, padding: "10px", background: "linear-gradient(135deg, #4f46e5 0%, #38bdf8 100%)", color: "#ffffff", border: "none", borderRadius: "10px", fontWeight: 800, fontSize: "12px", cursor: isSavingProfile ? "not-allowed" : "pointer" }}
-                >
-                  {isSavingProfile ? "Saving..." : "Save Changes ⚡"}
-                </button>
-              </div>
-            </form>
+                {/* Account Details Box */}
+                <div style={{ background: "#f8fafc", borderRadius: "12px", padding: "12px", border: "1px solid #e2e8f0" }}>
+                  <span style={{ fontSize: "10.5px", fontWeight: 800, color: "#64748b", textTransform: "uppercase", display: "block" }}>
+                    Signed-in Account
+                  </span>
+                  <span style={{ fontSize: "13px", fontWeight: 800, color: "#0f172a", display: "block", marginTop: "3px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {user?.email || "Athlete User"}
+                  </span>
+                </div>
+
+                {/* Action Buttons: Cancel & Save */}
+                <div style={{ display: "flex", gap: "8px", marginTop: "4px" }}>
+                  <button
+                    type="button"
+                    onClick={() => setIsEditingProfile(false)}
+                    style={{ flex: 1, padding: "10px", background: "#f1f5f9", color: "#64748b", border: "none", borderRadius: "10px", fontWeight: 800, fontSize: "12.5px", cursor: "pointer" }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSavingProfile}
+                    style={{ flex: 1, padding: "10px", background: "linear-gradient(135deg, #4f46e5 0%, #38bdf8 100%)", color: "#ffffff", border: "none", borderRadius: "10px", fontWeight: 800, fontSize: "12.5px", cursor: isSavingProfile ? "not-allowed" : "pointer" }}
+                  >
+                    {isSavingProfile ? "Saving..." : "Save Changes ⚡"}
+                  </button>
+                </div>
+
+                {/* 🔴 RESTORED PROMINENT SIGN OUT BUTTON */}
+                <div style={{ borderTop: "1px solid #f1f5f9", paddingTop: "12px", marginTop: "4px" }}>
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    style={{
+                      width: "100%",
+                      padding: "11px",
+                      background: "#fef2f2",
+                      border: "1px solid #fecaca",
+                      borderRadius: "10px",
+                      color: "#dc2626",
+                      fontSize: "13px",
+                      fontWeight: 800,
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "8px",
+                      transition: "all 0.15s ease"
+                    }}
+                  >
+                    <i className="fa-solid fa-right-from-bracket"></i>
+                    <span>Sign Out</span>
+                  </button>
+                </div>
+
+              </form>
+            </div>
           </div>
         </div>
       )}

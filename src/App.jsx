@@ -1845,7 +1845,7 @@ export default function App() {
             setResonatePost={setResonatePost}
             showToast={showToast}
             formatPostTime={formatPostTime}
-           setSelectedVisitor={setSelectedVisitor} />
+           setSelectedVisitor={setSelectedVisitor}  handleSignOut={handleLogout} />
         )}
 
         {/* TAB 7: ADMIN */}
