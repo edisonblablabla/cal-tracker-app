@@ -163,3 +163,106 @@ html, body {
 }
 .nav-item { display: flex; flex-direction: column; align-items: center; gap: 3px; color: var(--text-muted); font-size: 11px; font-weight: 700; cursor: pointer; width: 16%; }
 .nav-item.active { color: var(--primary); }
+
+/* ============================================================
+   📱 GLOBAL BULLETPROOF RESPONSIVE MOBILE ENGINE
+   Compatible across all screen sizes (320px up to 4K displays)
+   ============================================================ */
+
+*, *::before, *::after {
+  box-sizing: border-box !important;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden !important;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+#root, .app-container {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden !important;
+}
+
+/* ─── SCREEN CONTAINER RESPONSIVE PADDING ─── */
+.screen {
+  width: 100%;
+  max-width: 780px;
+  margin: 0 auto;
+  box-sizing: border-box !important;
+}
+
+@media (max-width: 500px) {
+  .screen {
+    padding-left: 10px !important;
+    padding-right: 10px !important;
+    padding-bottom: 78px !important;
+  }
+}
+
+/* ─── BOTTOM NAVIGATION BAR (7-ITEM RESPONSIVE AUTO-FIT) ─── */
+.bottom-nav {
+  position: fixed !important;
+  bottom: 0 !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  width: 100% !important;
+  max-width: 780px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-around !important;
+  background: rgba(255, 255, 255, 0.96) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  border-top: 1px solid #e2e8f0 !important;
+  padding: 3px 1px calc(4px + env(safe-area-inset-bottom, 0px)) !important;
+  box-sizing: border-box !important;
+  z-index: 9999 !important;
+}
+
+.bottom-nav .nav-item {
+  flex: 1 1 0 !important;
+  min-width: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 4px 1px !important;
+  cursor: pointer !important;
+  user-select: none !important;
+  text-align: center !important;
+}
+
+.bottom-nav .nav-item i {
+  font-size: clamp(14px, 3.8vw, 17px) !important;
+  margin-bottom: 2px !important;
+  transition: transform 0.15s ease !important;
+}
+
+.bottom-nav .nav-item span {
+  font-size: clamp(8px, 2.2vw, 10px) !important;
+  font-weight: 700 !important;
+  line-height: 1.1 !important;
+  letter-spacing: -0.2px !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  max-width: 100% !important;
+  display: block !important;
+}
+
+/* ─── PREVENT HORIZONTAL OVERFLOW & SQUISHING ─── */
+p, span, h1, h2, h3, h4, h5, div {
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+}
+
+button {
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
