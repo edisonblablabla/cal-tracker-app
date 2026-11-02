@@ -1630,69 +1630,12 @@ export default function App() {
   // LIVE SELECTED POST IN SLIDE-OVER FOR INSTANT REAL-TIME PULSE/COMMENT UPDATES
   const liveSelectedPost = (selectedPost && posts.find(p => p.id === selectedPost.id)) || selectedPost;
 
-  
-  // ─── 🌐 CENTRALIZED STREAK HARMONIZATION ENGINE ───
-  useEffect(() => {
-    if (!appData) return;
-    const activeDates = new Set();
-    (appData.meals || []).forEach((m) => {
-      const d = m.dateLogged || m.date;
-      if (d) activeDates.add(String(d).slice(0, 10));
-    });
-    (appData.workoutLogs || []).forEach((w) => {
-      const d = w.dateLogged || w.date;
-      if (d) activeDates.add(String(d).slice(0, 10));
-    });
-    (appData.waterLogs || []).forEach((wt) => {
-      const d = wt.dateLogged || wt.date;
-      if (d) activeDates.add(String(d).slice(0, 10));
-    });
-    (appData.weightHistory || []).forEach((wh) => {
-      const d = wh.dateLogged || wh.date;
-      if (d) activeDates.add(String(d).slice(0, 10));
-    });
-
-    const storedStreak = Number(appData.streakDays) || 0;
-    let streak = 0;
-    const today = new Date();
-    const todayISO = today.toLocaleDateString("en-CA");
-    const yesterday = new Date();
-    yesterday.setDate(today.getDate() - 1);
-    const yesterdayISO = yesterday.toLocaleDateString("en-CA");
-
-    let checkDate = activeDates.has(todayISO)
-      ? new Date()
-      : activeDates.has(yesterdayISO)
-        ? yesterday
-        : null;
-
-    if (checkDate) {
-      while (checkDate) {
-        const iso = checkDate.toLocaleDateString("en-CA");
-        if (activeDates.has(iso)) {
-          streak++;
-          checkDate.setDate(checkDate.getDate() - 1);
-        } else {
-          break;
-        }
-      }
-    }
-
-    const calculatedStreak = Math.max(streak, storedStreak);
-    if (calculatedStreak > 0 && calculatedStreak !== Number(appData.streakDays)) {
-      setAppData(prev => ({ ...prev, streakDays: calculatedStreak }));
-      if (user?.uid) {
-        updateDoc(doc(db, "users", user.uid), { streakDays: calculatedStreak }).catch(() => {});
-      }
-    }
-  }, [appData?.meals, appData?.workoutLogs, appData?.waterLogs, appData?.weightHistory, user?.uid]);
-
   return (
     <div className="mobile-frame" style={{ maxWidth: "480px", margin: "0 auto", background: "#f8fafc", minHeight: "100vh", position: "relative" }}>
       <div className="screen-container" style={{ padding: "16px", paddingBottom: "120px" }}>
         {/* TAB 1: HOME */}
         {activeTab === "home" && (
-          <HomeTab setAppData={setAppData}
+          <HomeTab
               setActiveTab={setActiveTab}
               setPostText={setPostText}
               setImagePreview={setImagePreview}

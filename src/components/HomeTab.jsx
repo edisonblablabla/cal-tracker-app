@@ -95,22 +95,7 @@ export default function HomeTab({
       }
     }
     return Math.max(streak, storedStreak);
-   }, [appData, currentDateStr]);
-
-  // Auto-sync dynamicStreak to appData.streakDays and Firestore so all tabs match
-  useEffect(() => {
-    if (typeof dynamicStreak === "number" && dynamicStreak > 0 && dynamicStreak !== Number(appData?.streakDays)) {
-      if (typeof setAppData === "function") {
-        setAppData((prev) => ({ ...prev, streakDays: dynamicStreak }));
-      }
-      if (user?.uid && typeof db !== "undefined") {
-        try {
-          updateDoc(doc(db, "users", user.uid), { streakDays: dynamicStreak }).catch(() => {});
-        } catch (e) {}
-      }
-    }
-  }, [dynamicStreak, appData?.streakDays, user?.uid]);
-
+  }, [appData, currentDateStr]);
 
   const calorieGoal = Number(activeGoal || appData?.dailyCalorieTarget || appData?.baseGoal || 2416);
 
