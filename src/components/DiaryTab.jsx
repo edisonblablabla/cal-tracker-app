@@ -301,7 +301,7 @@ export default function DiaryTab({
 
   // CONFIRM & SAVE MANUAL FORM
   
-  // ─── 📸 GOOGLE GEMINI 3.8 FLASH AI NUTRITION VISION SCANNER ───
+  // ─── 📸 GOOGLE GEMINI AI NUTRITION VISION SCANNER (WITH AUTO-RETRY) ───
   const handleNutritionLabelUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -310,11 +310,8 @@ export default function DiaryTab({
     setIsAnalyzingLabel(true);
     if (showToast) showToast("🤖 Sinusuri ng AI ang litrato... Sandali lang.");
 
-    const controller = new AbortController();
-    const timeoutTimer = setTimeout(() => controller.abort(), 20000);
-
     try {
-      // 1. Mabilis na Canvas Compression (~35KB-45KB lang para mabilis sa mobile data)
+      // 1. Mabilis na Canvas Compression (~35KB lang para sa mabilis na upload)
       const base64Data = await new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = (event) => {
@@ -323,7 +320,7 @@ export default function DiaryTab({
             const canvas = document.createElement("canvas");
             let width = img.width;
             let height = img.height;
-            const maxDim = 800; // 800px: Mabilis i-upload at malinaw sa mga numero
+            const maxDim = 800;
 
             if (width > maxDim || height > maxDim) {
               if (width > height) {
@@ -349,31 +346,65 @@ export default function DiaryTab({
         reader.readAsDataURL(file);
       });
 
-      // 2. Direktang Tawag sa gemini-3.8-flash (Walang mabagal na looping)
       const prompt = "Extract the Nutrition Facts from this food packaging image. Return strictly a JSON object with keys: foodName (clean dish or snack name), portionSize (e.g. 1 pouch, 30g), calories (number of kcal), protein (grams number), carbs (total carbohydrates in grams number), fat (total fat in grams number). Return ONLY raw JSON without codeblocks or markdown.";
 
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`, {
-        method: "POST",
-        signal: controller.signal,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{
-            parts: [
-              { text: prompt },
-              { inline_data: { mime_type: "image/jpeg", data: base64Data } }
-            ]
-          }],
-          generationConfig: {
-            responseMimeType: "application/json"
+      // 2. Tawag sa AI na may Auto-Retry kapag High Demand
+      const candidateModels = ["gemini-3.8-flash", "gemini-3-flash", "gemini-2.5-flash", "gemini-flash-latest"];
+      let response = null;
+      let lastErrorMessage = "";
+
+      for (const model of candidateModels) {
+        let attempts = 0;
+        const maxAttempts = 2; // Susubok hanggang 2 beses bawat model kung sakaling busy
+
+        while (attempts < maxAttempts) {
+          attempts++;
+          try {
+            const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                contents: [{
+                  parts: [
+                    { text: prompt },
+                    { inline_data: { mime_type: "image/jpeg", data: base64Data } }
+                  ]
+                }],
+                generationConfig: {
+                  responseMimeType: "application/json"
+                }
+              })
+            });
+
+            if (res.ok) {
+              response = res;
+              break;
+            }
+
+            const errJson = await res.json().catch(() => ({}));
+            const errMsg = errJson?.error?.message || res.statusText || "";
+            lastErrorMessage = errMsg;
+
+            // Kung high demand o 503, maghintay sandali bago mag-retry
+            if (res.status === 503 || res.status === 429 || errMsg.toLowerCase().includes("high demand") || errMsg.toLowerCase().includes("temporary")) {
+              if (showToast) showToast("⏳ Medyo busy ang AI server, sumusubok muli...");
+              await new Promise(r => setTimeout(r, 1500));
+              continue;
+            } else {
+              // Ibang error (hal. model retired), lumipat agad sa susunod na model
+              break;
+            }
+          } catch (netErr) {
+            lastErrorMessage = netErr.message;
+            await new Promise(r => setTimeout(r, 1000));
           }
-        })
-      });
+        }
 
-      clearTimeout(timeoutTimer);
+        if (response && response.ok) break;
+      }
 
-      if (!response.ok) {
-        const errJson = await response.json().catch(() => ({}));
-        throw new Error(errJson?.error?.message || response.statusText || "Nabigong kumonekta sa AI.");
+      if (!response || !response.ok) {
+        throw new Error(lastErrorMessage || "Pansamantalang busy ang AI cluster. Pakisubukan muli makalipas ang ilang segundo.");
       }
 
       const result = await response.json();
@@ -383,7 +414,7 @@ export default function DiaryTab({
       const cleanJson = match ? match[0] : rawText;
       const parsed = JSON.parse(cleanJson);
 
-      // 3. Awtomatikong punan ang form fields
+      // 3. Awtomatikong punan ang mga form fields
       if (parsed.foodName) setManualName(parsed.foodName);
       if (parsed.portionSize) setManualPortion(parsed.portionSize);
       if (parsed.calories !== undefined) setManualCal(String(Math.round(Number(parsed.calories) || 0)));
@@ -402,17 +433,12 @@ export default function DiaryTab({
       setMultiplier(1);
 
       if (showToast) {
-        showToast(`✅ Nabasa: ${parsed.foodName || "Pagkain"} (${parsed.calories || 0} kcal)!`);
+        showToast(`✅ Nabasa ng AI: ${parsed.foodName || "Pagkain"} (${parsed.calories || 0} kcal)!`);
       }
     } catch (err) {
-      console.error("Gemini 3.8 Error:", err);
-      if (err.name === "AbortError") {
-        alert("⚠️ Medyo mabagal ang koneksyon ng internet kaya nag-timeout. Pakisubukang kuhanan muli.");
-      } else {
-        alert("⚠️ Hindi nasuri ang label: " + (err.message || "Pakisubukang kuhanan muli."));
-      }
+      console.error("AI Error:", err);
+      alert("⚠️ " + (err.message || "Hindi nasuri ang litrato. Pakisubukang muli."));
     } finally {
-      clearTimeout(timeoutTimer);
       setIsAnalyzingLabel(false);
       e.target.value = "";
     }
