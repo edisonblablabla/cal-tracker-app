@@ -551,35 +551,36 @@ export default function DiaryTab({
               zIndex: 10
             }}
           >
-            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-              <button type="button"
+            <div style={{ flex: 1, minWidth: 0 }}>
+                <h3 style={{ fontSize: "16px", fontWeight: 900, margin: 0, color: "#0f172a", letterSpacing: "-0.3px" }}>
+                  Add to {getBucketLabel(activeModalBucket)}
+                </h3>
+                <span style={{ fontSize: "11px", color: "#64748b", fontWeight: 600 }}>
+                  Scan barcode, AI label, or manual log
+                </span>
+              </div>
+              <button
+                type="button"
                 onClick={closeModal}
                 style={{
                   width: "32px",
                   height: "32px",
                   borderRadius: "50%",
-                  background: "#f8fafc",
+                  background: "#f1f5f9",
                   border: "1px solid #e2e8f0",
-                  color: "#334155",
+                  color: "#64748b",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
                   cursor: "pointer",
-                  fontSize: "13px"
+                  fontSize: "14px",
+                  flexShrink: 0,
+                  transition: "all 0.15s ease"
                 }}
-                title="Back"
+                title="Close"
               >
-                <i className="fa-solid fa-arrow-left"></i>
+                <i className="fa-solid fa-xmark"></i>
               </button>
-              <div>
-                <h3 style={{ fontSize: "15px", fontWeight: 900, margin: 0, color: "#0f172a" }}>
-                  Add to {getBucketLabel(activeModalBucket)}
-                </h3>
-                <span style={{ fontSize: "10px", color: "#64748b", fontWeight: 700 }}>
-                  Scan barcode, manual log, or choose staple
-                </span>
-              </div>
-            </div>
 
             
           </div>
@@ -614,28 +615,71 @@ export default function DiaryTab({
                   </span>
                 </div>
 
-                {/* 📷 BARCODE SCANNER TRIGGER BUTTON */}
-                <button
-                  type="button"
-                  onClick={() => setIsBarcodeScannerOpen(true)}
-                  style={{
-                    background: "linear-gradient(135deg, #0284c7 0%, #0ea5e9 100%)",
-                    color: "white",
-                    border: "none",
-                    padding: "5px 10px",
-                    borderRadius: "8px",
-                    fontSize: "11px",
-                    fontWeight: 800,
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "5px",
-                    boxShadow: "0 2px 6px rgba(14, 165, 233, 0.3)"
-                  }}
-                >
-                  <i className="fa-solid fa-barcode"></i>
-                  <span>Scan Barcode</span>
-                </button>
+                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                    {/* 📷 BARCODE SCANNER BUTTON */}
+                    <button
+                      type="button"
+                      onClick={() => setIsBarcodeScannerOpen(true)}
+                      style={{
+                        background: "linear-gradient(135deg, #0284c7 0%, #0ea5e9 100%)",
+                        color: "white",
+                        border: "none",
+                        padding: "5px 9px",
+                        borderRadius: "8px",
+                        fontSize: "10.5px",
+                        fontWeight: 800,
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "4px",
+                        boxShadow: "0 2px 5px rgba(14, 165, 233, 0.25)"
+                      }}
+                      title="Scan Barcode"
+                    >
+                      <i className="fa-solid fa-barcode"></i>
+                      <span>Barcode</span>
+                    </button>
+
+                    {/* 🏷️ AI NUTRITION LABEL SCANNER BUTTON */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const fileInput = document.getElementById("ai-label-input");
+                        if (fileInput) fileInput.click();
+                      }}
+                      style={{
+                        background: "linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)",
+                        color: "white",
+                        border: "none",
+                        padding: "5px 9px",
+                        borderRadius: "8px",
+                        fontSize: "10.5px",
+                        fontWeight: 800,
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "4px",
+                        boxShadow: "0 2px 5px rgba(99, 102, 241, 0.25)"
+                      }}
+                      title="Take photo of Nutrition Facts label"
+                    >
+                      <i className="fa-solid fa-camera"></i>
+                      <span>AI Label</span>
+                    </button>
+                    <input 
+                      id="ai-label-input" 
+                      type="file" 
+                      accept="image/*" 
+                      capture="environment" 
+                      style={{ display: "none" }} 
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          alert("📸 Nutrition label captured: " + file.name + "\nIkakabit na natin ang AI parser!");
+                        }
+                      }}
+                    />
+                  </div>
               </div>
 
               <form onSubmit={handleSaveManualMeal}>
