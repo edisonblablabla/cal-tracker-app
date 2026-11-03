@@ -1234,7 +1234,6 @@ if (!data?.onboardingCompleted && data?.height && data?.weight && (data?.baseGoa
         waterTargetMl: Number(wizardData.waterTargetMl) || 2500,
         todayBurnedCal: 0,
         todayWaterMl: 0,
-        isBlocked: false,
         isPrivateAccount: false,
         boosting: [],
         myBoosters: [],
