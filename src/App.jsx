@@ -633,8 +633,16 @@ if (!data?.onboardingCompleted && data?.height && data?.weight && (data?.baseGoa
   setDoc(userDocRef, { onboardingCompleted: true }, { merge: true }).catch(() => {});
 }
 } else {
-  setShowAuthForm(false);
-}
+                // ⚡ STRICT ONBOARDING GATE: Walang Firestore document ang account na ito (Ghost Account)
+                if (currentUser?.uid) {
+                  try {
+                    localStorage.removeItem(`np_onboard_${currentUser.uid}`);
+                    localStorage.removeItem(`np_profile_${currentUser.uid}`);
+                  } catch (e) {}
+                }
+                setAppData(null);
+                setShowAuthForm(false);
+              }
             setLoading(false);
           }, (err) => {
             console.error("Firestore user onSnapshot error:", err);
@@ -1664,8 +1672,8 @@ if (!data?.onboardingCompleted && data?.height && data?.weight && (data?.baseGoa
     );
   }
 
-  const isLocallyCompleted = user?.uid && localStorage.getItem(`np_onboard_${user.uid}`) === "true";
-  if (user && (!appData || !appData.onboardingCompleted) && !isLocallyCompleted) {
+  // ⚡ STRICT ONBOARDING GATE: Obligadong mag-onboard ang sinumang walang valid profile sa Firestore
+    if (user && (!appData || !appData.onboardingCompleted)) {
     return (
       <AthleteOnboardingWizard
         user={user}
