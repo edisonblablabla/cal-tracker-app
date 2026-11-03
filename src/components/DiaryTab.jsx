@@ -302,7 +302,7 @@ export default function DiaryTab({
 
   // CONFIRM & SAVE MANUAL FORM
   
-  // ─── 📸 ULTRA-FAST AI NUTRITION VISION SCANNER ───
+  // ─── 📸 ULTRA-FAST GEMINI FLASH-LITE NUTRITION SCANNER ───
   const handleNutritionLabelUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -311,9 +311,10 @@ export default function DiaryTab({
     setIsAnalyzingLabel(true);
 
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 14000);
+    const timer = setTimeout(() => controller.abort(), 12000); // 12s timeout limit
 
     try {
+      // 1. Ultra-lightweight canvas compression (~20KB para mabilis sa mahinang signal)
       const base64Data = await new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = (event) => {
@@ -350,21 +351,14 @@ export default function DiaryTab({
 
       const prompt = "Extract Nutrition Facts from this food packaging image. Return strictly a raw JSON object with keys: foodName (clean dish or snack name), portionSize (e.g. 1 pouch, 30g), calories (number of kcal), protein (grams number), carbs (total carbohydrates in grams number), fat (total fat in grams number). Return ONLY raw JSON without markdown.";
 
-      // Multi-model failover: Uunahin ang Lite models para makaiwas sa 503 high demand queue
-      const cascadeModels = [
-        "gemini-2.5-flash-lite",
-        "gemini-flash-lite-latest",
-        "gemini-2.5-flash",
-        "gemini-3.5-flash-lite",
-        "gemini-3.8-flash"
-      ];
-
+      // Prioritize high-capacity Lite models to prevent 503 high-demand queues
+      const priorityModels = ["gemini-2.5-flash-lite", "gemini-flash-lite-latest", "gemini-3.5-flash-lite", "gemini-2.5-flash"];
       let response = null;
       let lastErrMsg = "";
 
-      for (const model of cascadeModels) {
+      for (const m of priorityModels) {
         try {
-          const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+          const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${apiKey}`, {
             method: "POST",
             signal: controller.signal,
             headers: { "Content-Type": "application/json" },
@@ -394,7 +388,7 @@ export default function DiaryTab({
       clearTimeout(timer);
 
       if (!response || !response.ok) {
-        throw new Error(lastErrMsg || "Medyo busy ang server ng AI ngayon.");
+        throw new Error(lastErrMsg || "Medyo busy ang AI server.");
       }
 
       const result = await response.json();
@@ -404,6 +398,7 @@ export default function DiaryTab({
       const cleanJson = match ? match[0] : rawText.replace(/\`\`\`json/gi, "").replace(/\`\`\`/g, "").trim();
       const parsed = JSON.parse(cleanJson);
 
+      // Auto-fill values
       if (parsed.foodName) setManualName(parsed.foodName);
       if (parsed.portionSize) setManualPortion(parsed.portionSize);
       if (parsed.calories !== undefined) setManualCal(String(Math.round(Number(parsed.calories) || 0)));
@@ -426,11 +421,12 @@ export default function DiaryTab({
       }
     } catch (err) {
       console.error("AI Error:", err);
+      // Modernong Pop-up Card sa halip na sinaunang window.alert()
       setModernAlert({
-        title: "Pansamantalang Busy",
+        title: "Pansamantalang Busy ang Server",
         message: err.name === "AbortError" 
-          ? "Medyo mabagal ang signal ng mobile data kaya nag-timeout. Maaari mong i-type muna ang macros o subukan muli."
-          : "Pansamantalang nagka-traffic spike sa AI server. Paki-tap muli ang AI Label upang subukan ulit.",
+          ? "Medyo mahina ang koneksyon ng data kaya nag-timeout. Maaari mong i-type muna ang macros o subukan muli."
+          : "Medyo mataas ang traffic sa AI server ng Google sa segundong ito. Pindutin lamang ang 'Subukan Muli' para ma-scan agad.",
         buttonText: "Subukan Muli"
       });
     } finally {
@@ -819,6 +815,80 @@ export default function DiaryTab({
                       style={{ display: "none" }} 
                       onChange={handleNutritionLabelUpload}
                     />
+                    {modernAlert && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            backgroundColor: "rgba(15, 23, 42, 0.7)",
+            backdropFilter: "blur(8px)",
+            WebkitBackdropFilter: "blur(8px)",
+            zIndex: 999999,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "20px"
+          }}
+          onClick={() => setModernAlert(null)}
+        >
+          <div
+            style={{
+              background: "#ffffff",
+              borderRadius: "24px",
+              padding: "26px 20px 22px",
+              maxWidth: "320px",
+              width: "100%",
+              textAlign: "center",
+              boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.35)",
+              border: "1px solid rgba(226, 232, 240, 0.8)",
+              animation: "none"
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              style={{
+                width: "58px",
+                height: "58px",
+                borderRadius: "50%",
+                background: "#fef2f2",
+                color: "#ef4444",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: "26px",
+                margin: "0 auto 14px",
+                boxShadow: "0 0 20px rgba(239, 68, 68, 0.2)"
+              }}
+            >
+              <i className="fa-solid fa-triangle-exclamation"></i>
+            </div>
+            <h3 style={{ margin: "0 0 8px", fontSize: "17px", fontWeight: 800, color: "#0f172a" }}>
+              {modernAlert.title}
+            </h3>
+            <p style={{ margin: "0 0 20px", fontSize: "13px", color: "#64748b", lineHeight: "1.5", fontWeight: 500 }}>
+              {modernAlert.message}
+            </p>
+            <button
+              type="button"
+              onClick={() => setModernAlert(null)}
+              style={{
+                width: "100%",
+                padding: "13px",
+                borderRadius: "14px",
+                background: "linear-gradient(135deg, #4f46e5 0%, #6366f1 100%)",
+                color: "#ffffff",
+                border: "none",
+                fontSize: "14px",
+                fontWeight: 800,
+                cursor: "pointer",
+                boxShadow: "0 4px 14px rgba(79, 70, 229, 0.35)"
+              }}
+            >
+              {modernAlert.buttonText}
+            </button>
+          </div>
+        </div>
+      )}
                   </div>
               </div>
 
