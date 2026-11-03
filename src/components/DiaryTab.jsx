@@ -1,3 +1,4 @@
+import { createWorker } from "tesseract.js";
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import { Html5Qrcode } from "html5-qrcode";
 
