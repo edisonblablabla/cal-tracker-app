@@ -1911,7 +1911,6 @@ if (!data?.onboardingCompleted && data?.height && data?.weight && (data?.baseGoa
             isPublishing={isPublishing}
             publicCommunityPosts={publicCommunityPosts}
             userList={userList}
-            setActiveTab={setActiveTab}
             setSelectedVisitor={setSelectedVisitor}
             activeMenuPostId={activeMenuPostId}
             setActiveMenuPostId={setActiveMenuPostId}
