@@ -1,6 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, browserLocalPersistence, setPersistence } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from "firebase/firestore";
 
 export const firebaseConfig = {
   apiKey: "AIzaSyDzwhPze3yvZfFD-Be7Rsh25FBGfDU6708",
@@ -16,10 +16,16 @@ const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: 'select_account' });
-export const db = getFirestore(app);
+
+// ⚡ 0ms Multi-tab Offline Persistent Cache (Firebase v12 Engine)
+export const db = initializeFirestore(app, {
+  localCache: persistentLocalCache({
+    tabManager: persistentMultipleTabManager()
+  })
+});
+
 export default app;
 
-// Enforce local session persistence within the same browser tab
 try {
   setPersistence(auth, browserLocalPersistence).catch(() => {});
 } catch (e) {}

@@ -53,7 +53,18 @@ export default function App() {
   const [toastMessage, setToastMessage] = useState(null);
   const [confirmModal, setConfirmModal] = useState(null);
 
-  const [appData, setAppData] = useState(null);
+  const [appData, setAppData] = useState(() => {
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith("np_profile_")) {
+          const item = localStorage.getItem(k);
+          if (item) return JSON.parse(item);
+        }
+      }
+    } catch (e) {}
+    return null;
+  });
 
   // ─── 🌐 SENTRAL NA STREAK ENGINE (SINGLE SOURCE OF TRUTH) ───
   const accurateStreak = useMemo(() => {
@@ -594,6 +605,11 @@ export default function App() {
               }
 
               setAppData(data || {});
+                if (currentUser?.uid && data) {
+                  try {
+                    localStorage.setItem(`np_profile_${currentUser.uid}`, JSON.stringify(data));
+                  } catch (e) {}
+                }
               if (data?.lastSeenNotifTime) setLastSeenNotifTimeState(data.lastSeenNotifTime);
               if (data?.lastSeenMsgTime) setLastSeenMsgTimeState(data.lastSeenMsgTime);
 
@@ -1591,7 +1607,7 @@ if (!data?.onboardingCompleted && data?.height && data?.weight && (data?.baseGoa
   // CONDITIONAL EARLY RETURNS (ALL 7 HOOKS ARE STRICTLY DEFINED ABOVE THIS LINE)
   // =========================================================================
 
-  if (loading) {
+  if (loading && !appData) {
     return (
       <div className="mobile-frame" style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
         <p style={{ fontWeight: 800, color: "var(--primary)" }}>Loading NutriPulse...</p>
