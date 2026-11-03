@@ -1957,7 +1957,7 @@ if (!data?.onboardingCompleted && data?.height && data?.weight && (data?.baseGoa
         {/* TAB 5: GOALS */}
         {activeTab === "goals" && (
           <GoalsTab
-            appData={appData}
+            appData={syncedAppData || appData}
             activeGoal={activeGoal}
             goalTitles={goalTitles}
             setGoalPreset={setGoalPreset}
