@@ -301,7 +301,7 @@ export default function DiaryTab({
 
   // CONFIRM & SAVE MANUAL FORM
   
-  // ─── 📸 GOOGLE GEMINI AI NUTRITION VISION SCANNER (FAST LITE + ANIMATED) ───
+  // ─── 📸 ULTRA-FAST AI NUTRITION VISION SCANNER ───
   const handleNutritionLabelUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -310,10 +310,10 @@ export default function DiaryTab({
     setIsAnalyzingLabel(true);
 
     const controller = new AbortController();
-    const timeoutTimer = setTimeout(() => controller.abort(), 16000); // 16s limit para hindi maburyong sa mabagal na net
+    const timer = setTimeout(() => controller.abort(), 12000); // 12 seconds max para hindi mabalam
 
     try {
-      // 1. Mabilis na Canvas Compression (~30KB-40KB)
+      // Radical lightweight compression: 600px at 0.50 quality (~15KB - 25KB lang)
       const base64Data = await new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = (event) => {
@@ -322,7 +322,7 @@ export default function DiaryTab({
             const canvas = document.createElement("canvas");
             let width = img.width;
             let height = img.height;
-            const maxDim = 800;
+            const maxDim = 600;
 
             if (width > maxDim || height > maxDim) {
               if (width > height) {
@@ -338,7 +338,7 @@ export default function DiaryTab({
             canvas.height = height;
             const ctx = canvas.getContext("2d");
             ctx.drawImage(img, 0, 0, width, height);
-            const dataUrl = canvas.toDataURL("image/jpeg", 0.70);
+            const dataUrl = canvas.toDataURL("image/jpeg", 0.50);
             resolve(dataUrl.split(",")[1]);
           };
           img.onerror = reject;
@@ -348,63 +348,36 @@ export default function DiaryTab({
         reader.readAsDataURL(file);
       });
 
-      const prompt = "Extract the Nutrition Facts from this food packaging image. Return strictly a JSON object with keys: foodName (clean dish or snack name), portionSize (e.g. 1 pouch, 30g), calories (number of kcal), protein (grams number), carbs (total carbohydrates in grams number), fat (total fat in grams number). Return ONLY raw JSON without markdown or codeblocks.";
+      const prompt = "Extract Nutrition Facts from this food packaging image. Return strictly a raw JSON object with keys: foodName (clean dish or snack name), portionSize (e.g. 1 pouch, 30g), calories (number of kcal), protein (grams number), carbs (total carbohydrates in grams number), fat (total fat in grams number). Return ONLY raw JSON without markdown.";
 
-      // Priority list: Flash-Lite models have high concurrency to bypass high-demand 503 errors
-      const modelsToTry = [
-        "gemini-3.8-flash-lite",
-        "gemini-3.8-flash",
-        "gemini-2.5-flash-lite",
-        "gemini-flash-latest"
-      ];
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`, {
+        method: "POST",
+        signal: controller.signal,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{
+            parts: [
+              { text: prompt },
+              { inline_data: { mime_type: "image/jpeg", data: base64Data } }
+            ]
+          }]
+        })
+      });
 
-      let response = null;
-      let lastErrMsg = "";
+      clearTimeout(timer);
 
-      for (const model of modelsToTry) {
-        try {
-          const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
-            method: "POST",
-            signal: controller.signal,
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              contents: [{
-                parts: [
-                  { text: prompt },
-                  { inline_data: { mime_type: "image/jpeg", data: base64Data } }
-                ]
-              }]
-            })
-          });
-
-          if (res.ok) {
-            response = res;
-            break;
-          }
-
-          const errJson = await res.json().catch(() => ({}));
-          lastErrMsg = errJson?.error?.message || res.statusText || "";
-          // Kapag 503 o high-demand, lilipat agad sa susunod na model nang walang mabagal na tulog
-        } catch (fetchErr) {
-          lastErrMsg = fetchErr.message;
-          if (fetchErr.name === "AbortError") break;
-        }
-      }
-
-      clearTimeout(timeoutTimer);
-
-      if (!response || !response.ok) {
-        throw new Error(lastErrMsg || "Medyo busy ang server ng AI ngayon. Pakisubukang muli.");
+      if (!response.ok) {
+        const errJson = await response.json().catch(() => ({}));
+        throw new Error(errJson?.error?.message || response.statusText || "Nabigong kumonekta.");
       }
 
       const result = await response.json();
       const parts = result?.candidates?.[0]?.content?.parts || [];
       const rawText = parts.map(p => p.text || "").join(" ").trim();
       const match = rawText.match(/\{[\s\S]*\}/);
-      const cleanJson = match ? match[0] : rawText;
+      const cleanJson = match ? match[0] : rawText.replace(/\`\`\`json/gi, "").replace(/\`\`\`/g, "").trim();
       const parsed = JSON.parse(cleanJson);
 
-      // Awtomatikong punan ang mga form fields
       if (parsed.foodName) setManualName(parsed.foodName);
       if (parsed.portionSize) setManualPortion(parsed.portionSize);
       if (parsed.calories !== undefined) setManualCal(String(Math.round(Number(parsed.calories) || 0)));
@@ -423,17 +396,17 @@ export default function DiaryTab({
       setMultiplier(1);
 
       if (showToast) {
-        showToast(`✅ Nabasa ng AI: ${parsed.foodName || "Pagkain"} (${parsed.calories || 0} kcal)!`);
+        showToast(`✅ Nabasa: ${parsed.foodName || "Pagkain"} (${parsed.calories || 0} kcal)!`);
       }
     } catch (err) {
       console.error("AI Error:", err);
       if (err.name === "AbortError") {
-        alert("⚠️ Medyo mabagal ang koneksyon ng mobile data kaya nag-timeout. Pakisubukang muli.");
+        alert("⚠️ Medyo mahina ang signal ng data. Maaari mong i-type muna ang calories o subukan muli.");
       } else {
-        alert("⚠️ Hindi nasuri ang label: " + (err.message || "Pakisubukang muli."));
+        alert("⚠️ Pansamantalang busy ang AI: " + (err.message || "Pakisubukang muli."));
       }
     } finally {
-      clearTimeout(timeoutTimer);
+      clearTimeout(timer);
       setIsAnalyzingLabel(false);
       e.target.value = "";
     }
