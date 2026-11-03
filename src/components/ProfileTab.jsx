@@ -1,3 +1,7 @@
+// ⚡ Module-level Persistent Cache para sa agarang 0ms tab switching
+const userPostsMemoryCache = {};
+const networkUsersMemoryCache = [];
+
 import ConfirmModal from "./ConfirmModal";
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { db } from "../services/firebase";
@@ -46,9 +50,24 @@ export default function ProfileTab({
   const [profileSubTab, setProfileSubTab] = useState("activities");
   const [showComposer, setShowComposer] = useState(false);
   const profFileInputRef = useRef(null); // "activities" | "boosters" | "boosting"
-  const [myPosts, setMyPosts] = useState([]);
-  const [allAthletes, setAllAthletes] = useState([]);
-  const [loadingPosts, setLoadingPosts] = useState(true);
+  // ⚡ SWR Cache: Ipakita agad ang huling posts nang walang loading spinner
+  const [myPosts, setMyPosts] = useState(() => {
+    if (user?.uid && userPostsMemoryCache[user.uid]) return userPostsMemoryCache[user.uid];
+    try {
+      const saved = localStorage.getItem(`np_posts_${user?.uid}`);
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return [];
+  });
+  const [allAthletes, setAllAthletes] = useState(() => networkUsersMemoryCache);
+  const [loadingPosts, setLoadingPosts] = useState(() => {
+    if (user?.uid && userPostsMemoryCache[user.uid]?.length > 0) return false;
+    try {
+      const saved = localStorage.getItem(`np_posts_${user?.uid}`);
+      if (saved && JSON.parse(saved).length > 0) return false;
+    } catch (e) {}
+    return true;
+  });
 
   // Modals & Panels states
   const [isEditingProfile, setIsEditingProfile] = useState(false);
@@ -128,7 +147,10 @@ export default function ProfileTab({
   // ─── 1. REALTIME LISTENER SA SARILING POSTS ───
   useEffect(() => {
     if (!user?.uid) return;
-    setLoadingPosts(true);
+    // Tanging kapag walang anumang cached posts lamang magpapakita ng spinner
+    if (!userPostsMemoryCache[user.uid] || userPostsMemoryCache[user.uid].length === 0) {
+      setLoadingPosts(true);
+    }
     try {
       const q = query(collection(db, "posts"), where("userId", "==", user.uid));
       const unsub = onSnapshot(q, (snapshot) => {

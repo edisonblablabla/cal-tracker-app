@@ -1607,13 +1607,19 @@ if (!data?.onboardingCompleted && data?.height && data?.weight && (data?.baseGoa
   // CONDITIONAL EARLY RETURNS (ALL 7 HOOKS ARE STRICTLY DEFINED ABOVE THIS LINE)
   // =========================================================================
 
-  if (loading && !appData) {
-    return (
-      <div className="mobile-frame" style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <p style={{ fontWeight: 800, color: "var(--primary)" }}>Loading NutriPulse...</p>
-      </div>
-    );
-  }
+      // ⚡ ZERO-FLICKER GUARD: Huwag mag-flash ng Onboarding Wizard habang naglo-load ang cloud session
+    if (loading) {
+      // Kung may completed profile na sa cache, tuloy-tuloy agad sa dashboard nang walang antala
+      if (user && appData?.onboardingCompleted) {
+        // Render seamlessly
+      } else {
+        return (
+          <div className="mobile-frame" style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <p style={{ fontWeight: 800, color: "var(--primary)" }}>Loading NutriPulse...</p>
+          </div>
+        );
+      }
+    }
 
   if (appData?.isBlocked && !isAdmin) {
     return (
