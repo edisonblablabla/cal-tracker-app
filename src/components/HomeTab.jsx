@@ -698,23 +698,38 @@ ${trkpts}
   // 🚀 REDIRECT SA PULSE FEED NA MAY KASAMANG DRAFT POST AT LITRATO
   const handleShareToPulseFeed = (activity) => {
     if (!activity) return;
-    const shareMessage = `🏃 Outdoor Activity Completed!\n📍 Distance: ${Number(activity.distanceKm || 0).toFixed(2)} km\n⏱️ Duration: ${formatTime(activity.durationSec || activity.durationMin * 60)}\n🔥 Calories Burned: +${activity.burnedCal || 0} kcal\n👟 Steps: +${Number(activity.steps || 0).toLocaleString()} steps`;
-    
+    const distStr = Number(activity.distanceKm || 0).toFixed(2);
+    const durStr = formatTime(activity.durationSec || (activity.durationMin ? activity.durationMin * 60 : 0));
+    const calStr = activity.burnedCal || 0;
+    const stepsStr = Number(activity.steps || 0).toLocaleString();
+    const paceStr = activity.avgPaceMinKm || "0.00";
+
+    const shareMessage = `🏃 Outdoor GPS Session Completed!\n\n📍 Distance: ${distStr} km\n⏱️ Duration: ${durStr}\n🔥 Burned: ${calStr} kcal\n👟 Steps: ${stepsStr} steps\n⚡ Avg Pace: ${paceStr} min/km\n\n#NutriPulse #GPSWorkout #FitnessJourney`;
+
+    // I-set ang post text sa parehong caption at content para walang mismatch
     if (typeof setPostText === "function") {
       setPostText(shareMessage);
     }
+
     if (typeof setDraftSocialPost === "function") {
       setDraftSocialPost({
+        caption: shareMessage,
         content: shareMessage,
-        activity
+        text: shareMessage,
+        activity: activity
       });
     }
+
+    // Isara ang Route Preview Modal
     setSelectedViewingActivity(null);
+
+    // Lumipat sa Community Tab (Feed)
     if (typeof setActiveTab === "function") {
       setActiveTab("community");
     }
+
     if (typeof showToast === "function") {
-      showToast("🚀 Activity ready to share in Community Pulse!");
+      showToast("🚀 Activity ready to share! Opening Pulse Feed composer...");
     }
   };
 
