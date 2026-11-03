@@ -221,6 +221,7 @@ export default function App() {
   
   const [posts, setPosts] = useState([]);
   const [postText, setPostText] = useState("");
+  const [draftSocialPost, setDraftSocialPost] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [postVisibility, setPostVisibility] = useState("public");
 
@@ -1836,6 +1837,8 @@ if (!data?.onboardingCompleted && data?.height && data?.weight && (data?.baseGoa
         {/* TAB 1: HOME */}
         {activeTab === "home" && (
           <HomeTab appData={syncedAppData || appData}
+              draftSocialPost={draftSocialPost}
+              setDraftSocialPost={setDraftSocialPost}
               setActiveTab={setActiveTab}
               setPostText={setPostText}
               setImagePreview={setImagePreview}

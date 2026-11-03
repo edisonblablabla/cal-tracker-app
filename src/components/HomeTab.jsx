@@ -400,6 +400,9 @@ export default function HomeTab({
       const existingWorkouts = appData?.workoutLogs || [];
       const updatedWorkouts = [completedActivity, ...existingWorkouts];
       const updatedSteps = (Number(appData?.todaySteps) || 0) + stepsAdded;
+      const updatedTotalDistance = Number(((Number(appData?.totalDistance) || 0) + dist).toFixed(2));
+      const updatedTodayBurnedCal = (Number(appData?.todayBurnedCal) || 0) + calBurned;
+      const updatedTotalBurned = (Number(appData?.totalBurnedCalories) || 0) + calBurned;
       const existingStepLogs = appData?.stepLogs || [];
       const newStepRecord = {
         id: Date.now(),
@@ -409,9 +412,13 @@ export default function HomeTab({
         timestamp: Date.now()
       };
 
+      // 🏆 FULL LEADERBOARD & METRICS SYNC
       saveToCloud({
         ...appData,
         todaySteps: updatedSteps,
+        totalDistance: updatedTotalDistance,
+        todayBurnedCal: updatedTodayBurnedCal,
+        totalBurnedCalories: updatedTotalBurned,
         lastStepDate: currentDateStr,
         stepLogs: stepsAdded > 0 ? [newStepRecord, ...existingStepLogs] : existingStepLogs,
         workoutLogs: updatedWorkouts
@@ -691,40 +698,23 @@ ${trkpts}
   // 🚀 REDIRECT SA PULSE FEED NA MAY KASAMANG DRAFT POST AT LITRATO
   const handleShareToPulseFeed = (activity) => {
     if (!activity) return;
-    try {
-      const canvas = renderActivityToCanvas(activity);
-      const dataUrl = canvas.toDataURL("image/png");
-      const dist = (activity.distanceKm || 0).toFixed(2);
-      const dur = formatTime(activity.durationSec || activity.durationMin * 60);
-      const pace = activity.avgPaceMinKm || "0.00";
-      const burn = activity.burnedCal || 0;
-
-      const prefilledCaption = `🏃 Outdoor Activity: ${dist} km in ${dur}! Pace: ${pace}/km • Burned +${burn} kcal. Tracked with NutriPulse GPS ⚡`;
-
-      // 1. Isara ang summary modal
-      setSelectedViewingActivity(null);
-
-      // 2. I-populate ang composer sa Pulse Feed
-      if (typeof setPostText === "function") {
-        setPostText(prefilledCaption);
-      }
-      if (typeof setImagePreview === "function") {
-        setImagePreview(dataUrl);
-      }
-
-      // 3. Lumipat sa Community / Pulse Feed tab
-      if (typeof setActiveTab === "function") {
-        setActiveTab("community");
-      }
-
-      window.scrollTo({ top: 0, behavior: "smooth" });
-
-      if (showToast) {
-        showToast("✨ Opening Pulse Feed... Edit your caption before posting!");
-      }
-    } catch (err) {
-      console.error("Share redirect error:", err);
-      if (showToast) showToast("⚠️ Error preparing post: " + err.message);
+    const shareMessage = `🏃 Outdoor Activity Completed!\n📍 Distance: ${Number(activity.distanceKm || 0).toFixed(2)} km\n⏱️ Duration: ${formatTime(activity.durationSec || activity.durationMin * 60)}\n🔥 Calories Burned: +${activity.burnedCal || 0} kcal\n👟 Steps: +${Number(activity.steps || 0).toLocaleString()} steps`;
+    
+    if (typeof setPostText === "function") {
+      setPostText(shareMessage);
+    }
+    if (typeof setDraftSocialPost === "function") {
+      setDraftSocialPost({
+        content: shareMessage,
+        activity
+      });
+    }
+    setSelectedViewingActivity(null);
+    if (typeof setActiveTab === "function") {
+      setActiveTab("community");
+    }
+    if (typeof showToast === "function") {
+      showToast("🚀 Activity ready to share in Community Pulse!");
     }
   };
 
