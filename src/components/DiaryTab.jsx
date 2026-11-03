@@ -451,7 +451,7 @@ export default function DiaryTab({
                   </div>
                 </div>
 
-                <button
+                <button type="button"
                   onClick={() => setActiveModalBucket(bucketKey)}
                   style={{
                     background: "#f1f5f9",
@@ -501,7 +501,7 @@ export default function DiaryTab({
                         </span>
                       </div>
 
-                      <button
+                      <button type="button"
                         onClick={() => deleteMeal(m.id)}
                         style={{ background: "none", border: "none", color: "#94a3b8", fontSize: "12px", cursor: "pointer", padding: "4px" }}
                         title="Delete entry"
@@ -552,7 +552,7 @@ export default function DiaryTab({
             }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-              <button
+              <button type="button"
                 onClick={closeModal}
                 style={{
                   width: "32px",
@@ -868,7 +868,7 @@ export default function DiaryTab({
                   }}
                 />
                 {searchQuery && (
-                  <button
+                  <button type="button"
                     onClick={() => setSearchQuery("")}
                     style={{ position: "absolute", right: "10px", top: "9px", background: "none", border: "none", color: "#94a3b8", fontSize: "12px", cursor: "pointer" }}
                   >
@@ -916,7 +916,7 @@ export default function DiaryTab({
                         </span>
                       </div>
 
-                      <button
+                      <button type="button"
                         onClick={() => handleQuickLogSuggestion(item)}
                         style={{
                           width: "30px",
@@ -983,7 +983,7 @@ export default function DiaryTab({
                   Barcode Scanner
                 </h4>
               </div>
-              <button
+              <button type="button"
                 onClick={() => setIsBarcodeScannerOpen(false)}
                 style={{ background: "none", border: "none", color: "#94a3b8", fontSize: "16px", cursor: "pointer" }}
               >
@@ -1049,7 +1049,7 @@ export default function DiaryTab({
               </div>
             </div>
 
-            <button
+            <button type="button"
               onClick={() => setIsBarcodeScannerOpen(false)}
               style={{
                 width: "100%",

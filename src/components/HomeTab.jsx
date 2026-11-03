@@ -170,9 +170,9 @@ export default function HomeTab({
   }, [appData?.waterLogs, appData?.todayWaterMl, appData?.lastWaterDate, currentDateStr]);
 
   const caloriesRemaining = Math.max(calorieGoal - consumedCalories + burnedCalories, 0);
-  const intakePercent = Math.min(Math.round((consumedCalories / calorieGoal) * 100), 100);
-  const burnPercent = Math.min(Math.round((burnedCalories / burnTarget) * 100), 100);
-  const waterPercent = Math.min(Math.round((todayWaterMl / waterTarget) * 100), 100);
+  const intakePercent = Math.min(Math.round((consumedCalories / Math.max(calorieGoal, 1)) * 100), 100);
+  const burnPercent = Math.min(Math.round((burnedCalories / Math.max(burnTarget, 1)) * 100), 100);
+  const waterPercent = Math.min(Math.round((todayWaterMl / Math.max(waterTarget, 1)) * 100), 100);
 
   const targetProtein = Number(appData?.pGoal || appData?.proteinGoal) || Math.round((calorieGoal * 0.3) / 4);
   const targetCarbs = Number(appData?.cGoal || appData?.carbsGoal) || Math.round((calorieGoal * 0.45) / 4);
@@ -965,7 +965,7 @@ ${trkpts}
             </span>
           </div>
 
-          <button 
+          <button type="button" 
             onClick={() => setShowAboutModal && setShowAboutModal(true)}
             style={{ width: "28px", height: "28px", borderRadius: "50%", background: "#f8fafc", border: "1px solid #e2e8f0", color: "#64748b", fontWeight: 800, fontSize: "12px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
             title="App Information"
@@ -1098,13 +1098,13 @@ ${trkpts}
           </div>
 
           <div style={{ display: "flex", gap: "6px" }}>
-            <button
+            <button type="button"
               onClick={() => handleQuickAddWater(250)}
               style={{ flex: 1, background: "#ffffff", border: "1px solid #bae6fd", color: "#0284c7", padding: "5px 0", borderRadius: "8px", fontSize: "10px", fontWeight: 800, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "4px" }}
             >
               <i className="fa-solid fa-plus" style={{ fontSize: "8px" }}></i> 250 ml
             </button>
-            <button
+            <button type="button"
               onClick={() => handleQuickAddWater(500)}
               style={{ flex: 1, background: "#ffffff", border: "1px solid #bae6fd", color: "#0284c7", padding: "5px 0", borderRadius: "8px", fontSize: "10px", fontWeight: 800, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "4px" }}
             >
@@ -1239,7 +1239,7 @@ ${trkpts}
               </div>
             </div>
 
-            <button
+            <button type="button"
               onClick={() => setShowPreRunModal(true)}
               style={{
                 width: "100%",
@@ -1264,13 +1264,13 @@ ${trkpts}
             </button>
 
             <div style={{ display: "flex", gap: "6px", marginBottom: recordedGpsActivities.length > 0 ? "10px" : "0" }}>
-              <button
+              <button type="button"
                 onClick={() => handleManualAddSteps(500)}
                 style={{ flex: 1, background: "#f8fafc", border: "1px solid #e2e8f0", color: "#475569", padding: "5px 0", borderRadius: "8px", fontSize: "10px", fontWeight: 800, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "4px" }}
               >
                 <i className="fa-solid fa-plus" style={{ fontSize: "8px" }}></i> 500 Steps (Indoor)
               </button>
-              <button
+              <button type="button"
                 onClick={() => handleManualAddSteps(1000)}
                 style={{ flex: 1, background: "#f8fafc", border: "1px solid #e2e8f0", color: "#475569", padding: "5px 0", borderRadius: "8px", fontSize: "10px", fontWeight: 800, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "4px" }}
               >
@@ -1328,7 +1328,7 @@ ${trkpts}
 
       {/* ─── 4. QUICK ACTION LOG BUTTONS ─── */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
-        <button
+        <button type="button"
           onClick={() => setActiveSheet("food")}
           style={{
             background: "linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)",
@@ -1350,7 +1350,7 @@ ${trkpts}
           <span>Log Food</span>
         </button>
 
-        <button
+        <button type="button"
           onClick={() => setActiveSheet("workout")}
           style={{
             background: "#ffffff",
@@ -1575,7 +1575,7 @@ ${trkpts}
                   Route & Activity Summary
                 </h3>
               </div>
-              <button
+              <button type="button"
                 onClick={() => setSelectedViewingActivity(null)}
                 style={{ background: "none", border: "none", color: "#94a3b8", fontSize: "18px", cursor: "pointer" }}
               >
@@ -1801,7 +1801,7 @@ ${trkpts}
               Save File
             </a>
 
-            <button
+            <button type="button"
               onClick={() => setPreviewImageUrl(null)}
               style={{
                 flex: 1,
@@ -1847,7 +1847,7 @@ ${trkpts}
                   Quick Log Food
                 </h3>
               </div>
-              <button 
+              <button type="button" 
                 onClick={() => {
                   setActiveSheet(null);
                   setIsAddingCustomPreset(false);
@@ -1870,7 +1870,7 @@ ${trkpts}
                 style={{ width: "100%", padding: "9px 12px 9px 34px", borderRadius: "10px", border: "1px solid #cbd5e1", fontSize: "12.5px", fontWeight: 700, outline: "none", background: "#f8fafc" }}
               />
               {foodSearchQuery && (
-                <button
+                <button type="button"
                   onClick={() => setFoodSearchQuery("")}
                   style={{ position: "absolute", right: "10px", top: "9px", background: "none", border: "none", color: "#94a3b8", fontSize: "12px", cursor: "pointer" }}
                 >
@@ -1883,7 +1883,7 @@ ${trkpts}
               <span style={{ fontSize: "10px", fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px" }}>
                 Suggestions & Quick Staples
               </span>
-              <button
+              <button type="button"
                 onClick={() => {
                   setIsAddingCustomPreset(!isAddingCustomPreset);
                   setIsManualEntryOpen(false);
@@ -1998,7 +1998,7 @@ ${trkpts}
 
                     <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                       {item.isCustom && (
-                        <button
+                        <button type="button"
                           onClick={() => handleDeleteCustomPreset(item.id)}
                           style={{ width: "26px", height: "26px", borderRadius: "50%", background: "rgba(239, 68, 68, 0.15)", border: "none", color: "#ef4444", fontSize: "10px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
                           title="Delete from presets"
@@ -2007,7 +2007,7 @@ ${trkpts}
                         </button>
                       )}
 
-                      <button
+                      <button type="button"
                         onClick={() => handleQuickLogItem(item)}
                         style={{
                           width: "32px",
@@ -2034,7 +2034,7 @@ ${trkpts}
             </div>
 
             <div style={{ marginTop: "10px", borderTop: "1px solid #f1f5f9", paddingTop: "8px" }}>
-              <button
+              <button type="button"
                 onClick={() => {
                   setIsManualEntryOpen(!isManualEntryOpen);
                   setIsAddingCustomPreset(false);
@@ -2092,7 +2092,7 @@ ${trkpts}
                 </div>
                 <h3 style={{ fontSize: "14px", fontWeight: 800, margin: 0, color: "#0f172a" }}>Log Workout</h3>
               </div>
-              <button onClick={() => setActiveSheet(null)} style={{ background: "none", border: "none", color: "#94a3b8", fontSize: "16px", cursor: "pointer" }}>✕</button>
+              <button type="button" onClick={() => setActiveSheet(null)} style={{ background: "none", border: "none", color: "#94a3b8", fontSize: "16px", cursor: "pointer" }}>✕</button>
             </div>
 
             <form onSubmit={handleSaveWorkout}>

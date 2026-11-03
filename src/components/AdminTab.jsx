@@ -337,7 +337,7 @@ export default function AdminTab({
             </div>
           </div>
 
-          <button
+          <button type="button"
             onClick={handleRefreshClick}
             disabled={isRefreshing}
             style={{

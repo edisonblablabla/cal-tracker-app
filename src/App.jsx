@@ -1629,7 +1629,7 @@ if (!data?.onboardingCompleted && data?.height && data?.weight && (data?.baseGoa
           <p style={{ fontSize: "12px", color: "#64748b", lineHeight: 1.5, marginBottom: "16px" }}>
             Your account is currently frozen under administrative review. Your account data has been preserved.
           </p>
-          <button className="btn-block" onClick={handleLogout} style={{ background: "#dc2626" }}>
+          <button type="button" className="btn-block" onClick={handleLogout} style={{ background: "#dc2626" }}>
             Sign Out
           </button>
         </div>
@@ -1701,11 +1701,11 @@ if (!data?.onboardingCompleted && data?.height && data?.weight && (data?.baseGoa
   });
 
   const activeGoal = appData?.dayMode === "workout" ? (appData?.baseGoal || 2200) + 200 : (appData?.baseGoal || 2200);
-  const pct = Math.min(Math.round((totalCal / activeGoal) * 100), 100);
+  const pct = Math.min(Math.round((totalCal / Math.max(activeGoal, 1)) * 100), 100);
   const strokeOffset = 283 - (283 * (pct / 100));
 
   const currentWeight = appData?.weight || 60;
-  const estimatedWaterLiters = ((currentWeight * 35) / 1000).toFixed(1);
+  const estimatedWaterLiters = (Math.max(Number(currentWeight || 60), 1) * 0.035).toFixed(1);
   const goalTitles = {
     "jogger": "Daily Jogger",
     "marathon": "Endurance & Marathon",
