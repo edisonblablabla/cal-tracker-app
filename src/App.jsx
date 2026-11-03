@@ -2096,7 +2096,7 @@ if (!data?.onboardingCompleted && data?.height && data?.weight && (data?.baseGoa
       />
 
       {/* FIXED BOTTOM NAVIGATION BAR */}
-      <div className="bottom-nav" style={{ boxSizing: "border-box", margin: "0 auto", position: "fixed", bottom: 0, left: 0, right: 0, display: "flex", justifyContent: "center", maxWidth: "480px", width: "100%", background: "#ffffff", borderTop: "1px solid #e2e8f0", zIndex: 1000 }}>
+      <div className="bottom-nav" style={{ boxSizing: "border-box", margin: "0 auto", position: "fixed", bottom: 0, left: 0, right: 0, display: "flex", justifyContent: "center", maxWidth: "480px", width: "100%", background: "#ffffff", borderTop: "1px solid #e2e8f0", zIndex: 100 }}>
         <div className={"nav-item " + (activeTab === "home" ? "active" : "")} onClick={() => handleTabChange("home")}><i className="fa-solid fa-house"></i><span>Home</span></div>
         <div className={"nav-item " + (activeTab === "diary" ? "active" : "")} onClick={() => handleTabChange("diary")}><i className="fa-regular fa-calendar-check"></i><span>Log</span></div>
         <div className={"nav-item " + ((((activeTab === "community" || activeTab === "social") || (activeTab === "community" || activeTab === "social") || activeTab === "pulse") || ((activeTab === "community" || activeTab === "social") || (activeTab === "community" || activeTab === "social") || activeTab === "pulse")) ? "active" : "")} onClick={() => handleTabChange("community")} style={{ position: "relative" }}>

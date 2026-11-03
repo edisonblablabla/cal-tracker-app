@@ -157,7 +157,7 @@ html, body {
   display: flex; 
   justify-content: space-around; 
   align-items: center; 
-  z-index: 9999;
+  z-index: 100;
   box-shadow: 0 -4px 15px rgba(0,0,0,0.05);
   padding-bottom: env(safe-area-inset-bottom);
 }
@@ -222,7 +222,7 @@ html, body {
   border-top: 1px solid #e2e8f0 !important;
   padding: 3px 1px calc(4px + env(safe-area-inset-bottom, 0px)) !important;
   box-sizing: border-box !important;
-  z-index: 9999 !important;
+  z-index: 100 !important;
 }
 
 .bottom-nav .nav-item {
