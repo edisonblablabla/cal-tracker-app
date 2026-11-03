@@ -1842,6 +1842,8 @@ if (!data?.onboardingCompleted && data?.height && data?.weight && (data?.baseGoa
               setActivePanel={setActivePanel}
               allUserNotifs={allUserNotifs}
               lastSeenNotifTime={lastSeenNotifTime}
+            user={user}
+            todayMeals={todayMeals}
             activeTab={activeTab}
             setShowAboutModal={setShowAboutModal}
             quote={quote}
@@ -1890,6 +1892,7 @@ if (!data?.onboardingCompleted && data?.height && data?.weight && (data?.baseGoa
             setLastSeenMsgTime={setLastSeenMsgTime}
             user={user}
             appData={syncedAppData || appData}
+            setActiveTab={setActiveTab}
             avatarPreview={avatarPreview}
             setShowSearchModal={setShowSearchModal}
             setActivePanel={setActivePanel}
@@ -1928,6 +1931,7 @@ if (!data?.onboardingCompleted && data?.height && data?.weight && (data?.baseGoa
             appData={syncedAppData || appData}
                   saveToCloud={saveToCloud}
                   showToast={showToast}
+            setShowAboutModal={setShowAboutModal}
             currentWeight={currentWeight}
             newLogWeight={newLogWeight}
             setNewLogWeight={setNewLogWeight}
@@ -1993,7 +1997,7 @@ if (!data?.onboardingCompleted && data?.height && data?.weight && (data?.baseGoa
 
         {/* TAB 7: ADMIN */}
         {isAdmin && activeTab === "admin" && (
-          <AdminTab
+          <AdminTab showToast={showToast}
             posts={posts}
             userList={userList}
             adminSubTab={adminSubTab}
