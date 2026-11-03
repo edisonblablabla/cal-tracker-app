@@ -568,6 +568,8 @@ ${trkpts}
 
     
     // Draw Carto/OSM Map Grid Background with Streets
+    
+    // Draw Carto/OSM Map Grid Background with Streets
     const coords = activity.route || [];
     if (coords.length >= 2) {
       const lats = coords.map((c) => c.lat);
@@ -679,6 +681,7 @@ ${trkpts}
       ctx.fillText("📍 Stationary Activity / Indoor GPS Point Recorded", boxX + boxW / 2, boxY + boxH / 2 + 55);
       ctx.textAlign = "left";
     }
+
 
 
     // Stats Grid
