@@ -98,6 +98,7 @@ export default function DiaryTab({
   const [isBarcodeScannerOpen, setIsBarcodeScannerOpen] = useState(false);
   const [isFetchingBarcode, setIsFetchingBarcode] = useState(false);
   const [isAnalyzingLabel, setIsAnalyzingLabel] = useState(false);
+  const [modernAlert, setModernAlert] = useState(null);
   const [manualBarcodeCode, setManualBarcodeCode] = useState("");
   const scannerInstanceRef = useRef(null);
 
@@ -310,10 +311,9 @@ export default function DiaryTab({
     setIsAnalyzingLabel(true);
 
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 12000); // 12 seconds max para hindi mabalam
+    const timer = setTimeout(() => controller.abort(), 14000);
 
     try {
-      // Radical lightweight compression: 600px at 0.50 quality (~15KB - 25KB lang)
       const base64Data = await new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = (event) => {
@@ -350,25 +350,51 @@ export default function DiaryTab({
 
       const prompt = "Extract Nutrition Facts from this food packaging image. Return strictly a raw JSON object with keys: foodName (clean dish or snack name), portionSize (e.g. 1 pouch, 30g), calories (number of kcal), protein (grams number), carbs (total carbohydrates in grams number), fat (total fat in grams number). Return ONLY raw JSON without markdown.";
 
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`, {
-        method: "POST",
-        signal: controller.signal,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{
-            parts: [
-              { text: prompt },
-              { inline_data: { mime_type: "image/jpeg", data: base64Data } }
-            ]
-          }]
-        })
-      });
+      // Multi-model failover: Uunahin ang Lite models para makaiwas sa 503 high demand queue
+      const cascadeModels = [
+        "gemini-2.5-flash-lite",
+        "gemini-flash-lite-latest",
+        "gemini-2.5-flash",
+        "gemini-3.5-flash-lite",
+        "gemini-3.8-flash"
+      ];
+
+      let response = null;
+      let lastErrMsg = "";
+
+      for (const model of cascadeModels) {
+        try {
+          const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+            method: "POST",
+            signal: controller.signal,
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contents: [{
+                parts: [
+                  { text: prompt },
+                  { inline_data: { mime_type: "image/jpeg", data: base64Data } }
+                ]
+              }]
+            })
+          });
+
+          if (res.ok) {
+            response = res;
+            break;
+          }
+
+          const errJson = await res.json().catch(() => ({}));
+          lastErrMsg = errJson?.error?.message || res.statusText || "";
+        } catch (fetchErr) {
+          lastErrMsg = fetchErr.message;
+          if (fetchErr.name === "AbortError") break;
+        }
+      }
 
       clearTimeout(timer);
 
-      if (!response.ok) {
-        const errJson = await response.json().catch(() => ({}));
-        throw new Error(errJson?.error?.message || response.statusText || "Nabigong kumonekta.");
+      if (!response || !response.ok) {
+        throw new Error(lastErrMsg || "Medyo busy ang server ng AI ngayon.");
       }
 
       const result = await response.json();
@@ -396,15 +422,17 @@ export default function DiaryTab({
       setMultiplier(1);
 
       if (showToast) {
-        showToast(`✅ Nabasa: ${parsed.foodName || "Pagkain"} (${parsed.calories || 0} kcal)!`);
+        showToast(`✅ Nabasa ng AI: ${parsed.foodName || "Pagkain"} (${parsed.calories || 0} kcal)!`);
       }
     } catch (err) {
       console.error("AI Error:", err);
-      if (err.name === "AbortError") {
-        alert("⚠️ Medyo mahina ang signal ng data. Maaari mong i-type muna ang calories o subukan muli.");
-      } else {
-        alert("⚠️ Pansamantalang busy ang AI: " + (err.message || "Pakisubukang muli."));
-      }
+      setModernAlert({
+        title: "Pansamantalang Busy",
+        message: err.name === "AbortError" 
+          ? "Medyo mabagal ang signal ng mobile data kaya nag-timeout. Maaari mong i-type muna ang macros o subukan muli."
+          : "Pansamantalang nagka-traffic spike sa AI server. Paki-tap muli ang AI Label upang subukan ulit.",
+        buttonText: "Subukan Muli"
+      });
     } finally {
       clearTimeout(timer);
       setIsAnalyzingLabel(false);
