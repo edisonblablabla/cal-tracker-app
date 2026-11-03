@@ -301,23 +301,20 @@ export default function DiaryTab({
 
   // CONFIRM & SAVE MANUAL FORM
   
-  // ─── 📸 GOOGLE GEMINI 1.5 FLASH AI NUTRITION VISION SCANNER ───
+  // ─── 📸 GOOGLE GEMINI 3.8 FLASH AI NUTRITION VISION SCANNER ───
   const handleNutritionLabelUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     const apiKey = atob("QVEuQWI4Uk42TFNSdzktdEVtSTRrc2lTcFZlZ0l3UXdlSHo3enVfRzk3dG9YV1hrdGN6Qnc=");
-    if (!apiKey) {
-      alert("⚠️ Walang nakitang Gemini API key. Pakitiyak na naka-set ang VITE_GEMINI_API_KEY sa build.");
-      e.target.value = "";
-      return;
-    }
-
     setIsAnalyzingLabel(true);
-    if (showToast) showToast("🤖 Sinusuri ng AI ang Nutrition Facts... Pakihintay sandali.");
+    if (showToast) showToast("🤖 Sinusuri ng AI ang litrato... Sandali lang.");
+
+    const controller = new AbortController();
+    const timeoutTimer = setTimeout(() => controller.abort(), 20000);
 
     try {
-      // 1. I-compress ang imahe gamit ang HTML5 Canvas (max 1024px) para sa mabilis na upload
+      // 1. Mabilis na Canvas Compression (~35KB-45KB lang para mabilis sa mobile data)
       const base64Data = await new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = (event) => {
@@ -326,7 +323,7 @@ export default function DiaryTab({
             const canvas = document.createElement("canvas");
             let width = img.width;
             let height = img.height;
-            const maxDim = 1024;
+            const maxDim = 800; // 800px: Mabilis i-upload at malinaw sa mga numero
 
             if (width > maxDim || height > maxDim) {
               if (width > height) {
@@ -342,7 +339,7 @@ export default function DiaryTab({
             canvas.height = height;
             const ctx = canvas.getContext("2d");
             ctx.drawImage(img, 0, 0, width, height);
-            const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+            const dataUrl = canvas.toDataURL("image/jpeg", 0.70);
             resolve(dataUrl.split(",")[1]);
           };
           img.onerror = reject;
@@ -352,48 +349,41 @@ export default function DiaryTab({
         reader.readAsDataURL(file);
       });
 
-      // 2. Tawagin ang Gemini Vision API
-      const prompt = "Identify this food item and extract the Nutrition Facts. Return strictly a JSON object with keys: foodName (clean dish or snack brand name), portionSize (e.g. 1 pouch, 50g, 1 serving), calories (number of kcal), protein (grams number), carbs (total carbohydrates in grams number), fat (total fat in grams number). Estimate realistically if any value is slightly obscured. Return ONLY raw JSON without markdown formatting or codeblocks.";
+      // 2. Direktang Tawag sa gemini-3.8-flash (Walang mabagal na looping)
+      const prompt = "Extract the Nutrition Facts from this food packaging image. Return strictly a JSON object with keys: foodName (clean dish or snack name), portionSize (e.g. 1 pouch, 30g), calories (number of kcal), protein (grams number), carbs (total carbohydrates in grams number), fat (total fat in grams number). Return ONLY raw JSON without codeblocks or markdown.";
 
-      let response = null;
-      let lastErrMsg = "";
-      for (const model of ["gemini-flash-latest", "gemini-2.0-flash", "gemini-1.5-flash-latest", "gemini-2.5-flash"]) {
-        try {
-          const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              contents: [{
-                parts: [
-                  { text: prompt },
-                  { inline_data: { mime_type: "image/jpeg", data: base64Data } }
-                ]
-              }]
-            })
-          });
-          if (res.ok) {
-            response = res;
-            break;
-          } else {
-            const errJson = await res.json().catch(() => ({}));
-            lastErrMsg = errJson?.error?.message || res.statusText;
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`, {
+        method: "POST",
+        signal: controller.signal,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{
+            parts: [
+              { text: prompt },
+              { inline_data: { mime_type: "image/jpeg", data: base64Data } }
+            ]
+          }],
+          generationConfig: {
+            responseMimeType: "application/json"
           }
-        } catch (fetchErr) {
-          lastErrMsg = fetchErr.message;
-        }
-      }
+        })
+      });
 
-      if (!response) {
-        throw new Error(lastErrMsg || "Nabigong kumonekta sa Gemini AI.");
+      clearTimeout(timeoutTimer);
+
+      if (!response.ok) {
+        const errJson = await response.json().catch(() => ({}));
+        throw new Error(errJson?.error?.message || response.statusText || "Nabigong kumonekta sa AI.");
       }
 
       const result = await response.json();
-      const rawText = result?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+      const parts = result?.candidates?.[0]?.content?.parts || [];
+      const rawText = parts.map(p => p.text || "").join(" ").trim();
       const match = rawText.match(/\{[\s\S]*\}/);
-      const cleanJson = match ? match[0] : rawText.replace(/```json/gi, "").replace(/```/g, "").trim();
+      const cleanJson = match ? match[0] : rawText;
       const parsed = JSON.parse(cleanJson);
 
-      // 3. Awtomatikong punan ang mga form fields
+      // 3. Awtomatikong punan ang form fields
       if (parsed.foodName) setManualName(parsed.foodName);
       if (parsed.portionSize) setManualPortion(parsed.portionSize);
       if (parsed.calories !== undefined) setManualCal(String(Math.round(Number(parsed.calories) || 0)));
@@ -412,12 +402,17 @@ export default function DiaryTab({
       setMultiplier(1);
 
       if (showToast) {
-        showToast(`✅ Nabasa ng AI: ${parsed.foodName || "Pagkain"} (${parsed.calories || 0} kcal)!`);
+        showToast(`✅ Nabasa: ${parsed.foodName || "Pagkain"} (${parsed.calories || 0} kcal)!`);
       }
     } catch (err) {
-      console.error("Gemini AI Error:", err);
-      alert("⚠️ Hindi nasuri ang label: " + (err.message || "Pakisubukang kuhanan muli."));
+      console.error("Gemini 3.8 Error:", err);
+      if (err.name === "AbortError") {
+        alert("⚠️ Medyo mabagal ang koneksyon ng internet kaya nag-timeout. Pakisubukang kuhanan muli.");
+      } else {
+        alert("⚠️ Hindi nasuri ang label: " + (err.message || "Pakisubukang kuhanan muli."));
+      }
     } finally {
+      clearTimeout(timeoutTimer);
       setIsAnalyzingLabel(false);
       e.target.value = "";
     }
