@@ -1148,7 +1148,12 @@ export default function CommunityTab({
                       </button>
                       <button
                         type="button"
-                        onClick={createPost}
+                        onClick={async () => {
+                          if (typeof createPost === "function") {
+                            await createPost(false);
+                            setShowComposer(false);
+                          }
+                        }}
                         disabled={isPublishing}
                         style={{
                           padding: "7px 16px",

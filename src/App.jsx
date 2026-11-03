@@ -996,10 +996,12 @@ if (!data?.onboardingCompleted && data?.height && data?.weight && (data?.baseGoa
     }
   };
 
-  const createPost = async (isProfile = false) => {
+  const createPost = async (isProfileParam = false) => {
+    // Tiyaking boolean lamang ang isProfile, balewalain ang React click event
+    const isProfile = isProfileParam === true;
     if (appData?.isBlocked) return showToast("Your account is currently blocked/restricted.");
 
-    const textToSubmit = isProfile ? profPostText.trim() : postText.trim();
+    const textToSubmit = isProfile ? (profPostText || "").trim() : (postText || "").trim();
     const imageToSubmit = isProfile ? profImagePreview : imagePreview;
     const visibilityToSubmit = isProfile ? profPostVisibility : postVisibility;
 
