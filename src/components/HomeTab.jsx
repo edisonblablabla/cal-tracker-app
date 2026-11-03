@@ -698,38 +698,58 @@ ${trkpts}
   // 🚀 REDIRECT SA PULSE FEED NA MAY KASAMANG DRAFT POST AT LITRATO
   const handleShareToPulseFeed = (activity) => {
     if (!activity) return;
-    const distStr = Number(activity.distanceKm || 0).toFixed(2);
-    const durStr = formatTime(activity.durationSec || (activity.durationMin ? activity.durationMin * 60 : 0));
-    const calStr = activity.burnedCal || 0;
-    const stepsStr = Number(activity.steps || 0).toLocaleString();
-    const paceStr = activity.avgPaceMinKm || "0.00";
+    try {
+      const dist = Number(activity.distanceKm || 0).toFixed(2);
+      const dur = formatTime(activity.durationSec || (activity.durationMin ? activity.durationMin * 60 : 0));
+      const pace = activity.avgPaceMinKm || "0.00";
+      const burn = activity.burnedCal || 0;
 
-    const shareMessage = `🏃 Outdoor GPS Session Completed!\n\n📍 Distance: ${distStr} km\n⏱️ Duration: ${durStr}\n🔥 Burned: ${calStr} kcal\n👟 Steps: ${stepsStr} steps\n⚡ Avg Pace: ${paceStr} min/km\n\n#NutriPulse #GPSWorkout #FitnessJourney`;
+      const prefilledCaption = `🏃 Outdoor Activity: ${dist} km in ${dur}! Pace: ${pace}/km • Burned +${burn} kcal. Tracked with NutriPulse GPS ⚡`;
 
-    // I-set ang post text sa parehong caption at content para walang mismatch
-    if (typeof setPostText === "function") {
-      setPostText(shareMessage);
-    }
+      // 1. I-render ang visual workout card / poster gamit ang canvas
+      let dataUrl = null;
+      if (typeof renderActivityToCanvas === "function") {
+        const canvas = renderActivityToCanvas(activity);
+        if (canvas && canvas.toDataURL) {
+          dataUrl = canvas.toDataURL("image/png");
+        }
+      }
 
-    if (typeof setDraftSocialPost === "function") {
-      setDraftSocialPost({
-        caption: shareMessage,
-        content: shareMessage,
-        text: shareMessage,
-        activity: activity
-      });
-    }
+      // 2. I-set ang text at ang imahe ng poster
+      if (typeof setPostText === "function") {
+        setPostText(prefilledCaption);
+      }
+      if (dataUrl && typeof setImagePreview === "function") {
+        setImagePreview(dataUrl);
+      }
 
-    // Isara ang Route Preview Modal
-    setSelectedViewingActivity(null);
+      // 3. Ihanda ang draft payload para sa Community Tab
+      if (typeof setDraftSocialPost === "function") {
+        setDraftSocialPost({
+          caption: prefilledCaption,
+          content: prefilledCaption,
+          text: prefilledCaption,
+          image: dataUrl,
+          imageUrl: dataUrl,
+          activity: activity
+        });
+      }
 
-    // Lumipat sa Community Tab (Feed)
-    if (typeof setActiveTab === "function") {
-      setActiveTab("community");
-    }
+      // 4. Isara ang GPS Route modal at lumipat sa Community Tab
+      setSelectedViewingActivity(null);
 
-    if (typeof showToast === "function") {
-      showToast("🚀 Activity ready to share! Opening Pulse Feed composer...");
+      if (typeof setActiveTab === "function") {
+        setActiveTab("community");
+      }
+
+      if (typeof showToast === "function") {
+        showToast("✨ Visual workout card generated! Edit or post directly in Pulse Feed.");
+      }
+    } catch (err) {
+      console.error("Error generating workout poster:", err);
+      if (typeof showToast === "function") {
+        showToast("⚠️ Could not generate visual card: " + err.message);
+      }
     }
   };
 

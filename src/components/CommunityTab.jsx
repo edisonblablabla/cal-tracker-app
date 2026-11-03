@@ -280,19 +280,16 @@ export default function CommunityTab({
   // ─── 3. DRAFT POST SYNC ───
   useEffect(() => {
     if (draftSocialPost) {
-      // 1. Lumipat sa Feed subtab
       setActiveSubTab("feed");
-      // 2. Buksan ang Composer modal
       setShowComposer(true);
-      // 3. Basahin ang text mula sa caption, content, o text
       const incomingText = draftSocialPost.caption || draftSocialPost.content || draftSocialPost.text || "";
       if (incomingText && typeof setPostText === "function") {
         setPostText(incomingText);
       }
-      if (draftSocialPost.image && typeof setImagePreview === "function") {
-        setImagePreview(draftSocialPost.image);
+      const incomingImage = draftSocialPost.image || draftSocialPost.imageUrl;
+      if (incomingImage && typeof setImagePreview === "function") {
+        setImagePreview(incomingImage);
       }
-      // 4. I-clear ang draft matapos ma-load para hindi mag-loop
       if (typeof setDraftSocialPost === "function") {
         setDraftSocialPost(null);
       }
