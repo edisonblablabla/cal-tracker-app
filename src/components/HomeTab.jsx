@@ -142,7 +142,7 @@ export default function HomeTab({
       (acc, m) => ({
         proteinG: acc.proteinG + (Number(m.p ?? m.protein) || 0),
         carbsG: acc.carbsG + (Number(m.c ?? m.carbs) || 0),
-        fatG: acc.fatG + (Number(m.f ?? m.fats ?? m.fat) || 0)
+        fatG: Number((acc.fatG + (Number(m.f ?? m.fats ?? m.fat) || 0)).toFixed(1))
       }),
       { proteinG: 0, carbsG: 0, fatG: 0 }
     );
@@ -174,9 +174,9 @@ export default function HomeTab({
   const burnPercent = Math.min(Math.round((burnedCalories / burnTarget) * 100), 100);
   const waterPercent = Math.min(Math.round((todayWaterMl / waterTarget) * 100), 100);
 
-  const targetProtein = Math.round((calorieGoal * 0.3) / 4);
-  const targetCarbs = Math.round((calorieGoal * 0.45) / 4);
-  const targetFat = Math.round((calorieGoal * 0.25) / 9);
+  const targetProtein = Number(appData?.pGoal || appData?.proteinGoal) || Math.round((calorieGoal * 0.3) / 4);
+  const targetCarbs = Number(appData?.cGoal || appData?.carbsGoal) || Math.round((calorieGoal * 0.45) / 4);
+  const targetFat = Number(appData?.fGoal || appData?.fatGoal) || Math.round((calorieGoal * 0.25) / 9);
 
   // ─── SATELLITE GPS & ATHLETE ENGINE ───
   const [showPreRunModal, setShowPreRunModal] = useState(false);
@@ -1053,7 +1053,7 @@ ${trkpts}
             <div>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: "9.5px", fontWeight: 800, marginBottom: "2px" }}>
                 <span style={{ color: "#0f172a" }}>Protein</span>
-                <span style={{ color: "#6366f1" }}>{proteinG}/{targetProtein}g</span>
+                <span style={{ color: "#6366f1" }}>{Math.round(proteinG)}/{Math.round(targetProtein)}g</span>
               </div>
               <div style={{ height: "4px", background: "#f1f5f9", borderRadius: "999px", overflow: "hidden" }}>
                 <div style={{ width: `${Math.min(Math.round((proteinG / targetProtein) * 100), 100)}%`, height: "100%", background: "#6366f1", borderRadius: "999px" }}></div>
@@ -1063,7 +1063,7 @@ ${trkpts}
             <div>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: "9.5px", fontWeight: 800, marginBottom: "2px" }}>
                 <span style={{ color: "#0f172a" }}>Carbs</span>
-                <span style={{ color: "#0ea5e9" }}>{carbsG}/{targetCarbs}g</span>
+                <span style={{ color: "#0ea5e9" }}>{Math.round(carbsG)}/{Math.round(targetCarbs)}g</span>
               </div>
               <div style={{ height: "4px", background: "#f1f5f9", borderRadius: "999px", overflow: "hidden" }}>
                 <div style={{ width: `${Math.min(Math.round((carbsG / targetCarbs) * 100), 100)}%`, height: "100%", background: "#0ea5e9", borderRadius: "999px" }}></div>
@@ -1073,7 +1073,7 @@ ${trkpts}
             <div>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: "9.5px", fontWeight: 800, marginBottom: "2px" }}>
                 <span style={{ color: "#0f172a" }}>Fats</span>
-                <span style={{ color: "#f59e0b" }}>{fatG}/{targetFat}g</span>
+                <span style={{ color: "#f59e0b" }}>{Math.round(fatG)}/{Math.round(targetFat)}g</span>
               </div>
               <div style={{ height: "4px", background: "#f1f5f9", borderRadius: "999px", overflow: "hidden" }}>
                 <div style={{ width: `${Math.min(Math.round((fatG / targetFat) * 100), 100)}%`, height: "100%", background: "#f59e0b", borderRadius: "999px" }}></div>
