@@ -1834,7 +1834,7 @@ ${trkpts}
         >
           <div 
             onClick={(e) => e.stopPropagation()} 
-            style={{ width: "100%", maxWidth: "420px", maxHeight: "85vh", display: "flex", flexDirection: "column", background: "#ffffff", borderTopLeftRadius: "22px", borderTopRightRadius: "22px", padding: "16px 16px 20px 16px", boxShadow: "0 -10px 30px rgba(0,0,0,0.15)", animation: "slideUp 0.2s ease-out" }}
+            style={{ width: "100%", maxWidth: "420px", maxHeight: "90vh", display: "flex", flexDirection: "column", background: "#ffffff", borderTopLeftRadius: "22px", borderTopRightRadius: "22px", padding: "16px 16px calc(20px + max(40px, env(safe-area-inset-bottom))) 16px", boxShadow: "0 -10px 30px rgba(0,0,0,0.15)", animation: "slideUp 0.2s ease-out" }}
           >
             <div style={{ width: "36px", height: "4px", background: "#cbd5e1", borderRadius: "2px", margin: "0 auto 12px auto" }}></div>
             

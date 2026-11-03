@@ -467,7 +467,7 @@ export default function ProgressTab({
         >
           <div 
             onClick={(e) => e.stopPropagation()}
-            style={{ width: "100%", maxWidth: "440px", background: "#ffffff", borderTopLeftRadius: "24px", borderTopRightRadius: "24px", padding: "20px", boxShadow: "0 -10px 30px rgba(0,0,0,0.15)", animation: "slideUp 0.25s ease-out" }}
+            style={{ width: "100%", maxWidth: "440px", background: "#ffffff", borderTopLeftRadius: "24px", borderTopRightRadius: "24px", padding: "24px 20px calc(24px + max(40px, env(safe-area-inset-bottom)))", boxShadow: "0 -10px 30px rgba(0,0,0,0.15)", animation: "slideUp 0.25s ease-out" }}
           >
             <div style={{ width: "40px", height: "4px", background: "#cbd5e1", borderRadius: "2px", margin: "0 auto 16px auto" }}></div>
 
