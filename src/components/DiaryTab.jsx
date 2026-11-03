@@ -300,6 +300,105 @@ export default function DiaryTab({
   }, [isBarcodeScannerOpen]);
 
   // CONFIRM & SAVE MANUAL FORM
+  
+  const handleNutritionLabelUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsAnalyzingLabel(true);
+    if (showToast) showToast("🔍 Binabasa ang Nutrition Facts sa device... Pakihintay sandali.");
+
+    try {
+      const preprocessedDataUrl = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement("canvas");
+            let width = img.width;
+            let height = img.height;
+            const maxDim = 1000;
+            if (width > maxDim || height > maxDim) {
+              if (width > height) {
+                height = Math.round((height * maxDim) / width);
+                width = maxDim;
+              } else {
+                width = Math.round((width * maxDim) / height);
+                height = maxDim;
+              }
+            }
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext("2d");
+            ctx.drawImage(img, 0, 0, width, height);
+
+            const imgData = ctx.getImageData(0, 0, width, height);
+            const d = imgData.data;
+            for (let i = 0; i < d.length; i += 4) {
+              const v = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+              d[i] = d[i + 1] = d[i + 2] = v > 125 ? Math.min(255, v * 1.15) : Math.max(0, v * 0.85);
+            }
+            ctx.putImageData(imgData, 0, 0);
+            resolve(canvas.toDataURL("image/jpeg", 0.9));
+          };
+          img.onerror = reject;
+          img.src = event.target.result;
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+      const worker = await createWorker("eng");
+      const ret = await worker.recognize(preprocessedDataUrl);
+      await worker.terminate();
+
+      const text = ret.data.text || "";
+      let cal = 0, p = 0, c = 0, f = 0;
+
+      const calMatch = text.match(/(?:calories|energy|enerhiya|kalorya)[^\d\n\r]{0,25}(\d{1,4})/i) ||
+                       text.match(/(\d{1,4})\s*(?:kcal|calories)/i);
+      if (calMatch) cal = parseInt(calMatch[1], 10);
+
+      const pMatch = text.match(/protein[^\d\n\r]{0,18}(\d{1,3}(?:\.\d)?)/i);
+      if (pMatch) p = Math.round(parseFloat(pMatch[1]));
+
+      const cMatch = text.match(/(?:carbohydrate|total\s*carb|carbs)[^\d\n\r]{0,18}(\d{1,3}(?:\.\d)?)/i);
+      if (cMatch) c = Math.round(parseFloat(cMatch[1]));
+
+      const fMatch = text.match(/(?:total\s*fat|fat|taba)[^\d\n\r]{0,18}(\d{1,3}(?:\.\d)?)/i);
+      if (fMatch) f = Math.round(parseFloat(fMatch[1]));
+
+      if (cal > 0) setManualCal(String(cal));
+      if (p > 0) setManualP(String(p));
+      if (c > 0) setManualC(String(c));
+      if (f > 0) setManualF(String(f));
+
+      if (!manualName.trim()) setManualName("Scanned Food");
+
+      setBaseNutrition({
+        name: manualName.trim() || "Scanned Food",
+        portion: manualPortion || "1 serving",
+        calories: cal || 0,
+        protein: p || 0,
+        carbs: c || 0,
+        fat: f || 0
+      });
+      setMultiplier(1);
+
+      if (cal > 0 || p > 0 || c > 0 || f > 0) {
+        if (showToast) showToast(`✅ Nabasa sa Nutrition Facts: ${cal} kcal (P:${p}g C:${c}g F:${f}g)`);
+      } else {
+        alert("ℹ️ Medyo malabo ang mga numero sa label. Pakitingnan ang text boxes at i-adjust kung kinakailangan.");
+      }
+    } catch (err) {
+      console.error("OCR Error:", err);
+      alert("⚠️ Hindi nabasa ang litrato: " + (err.message || "Pakisubukang kuhanan nang mas maliwanag."));
+    } finally {
+      setIsAnalyzingLabel(false);
+      e.target.value = "";
+    }
+  };
+
   const handleSaveManualMeal = (e) => {
     e.preventDefault();
     const cNum = parseInt(manualCal, 10);
@@ -645,28 +744,33 @@ export default function DiaryTab({
                     {/* 🏷️ AI NUTRITION LABEL SCANNER BUTTON */}
                     <button
                       type="button"
+                      disabled={isAnalyzingLabel}
                       onClick={() => {
                         const fileInput = document.getElementById("ai-label-input");
                         if (fileInput) fileInput.click();
                       }}
                       style={{
-                        background: "linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)",
+                        background: isAnalyzingLabel ? "#94a3b8" : "linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)",
                         color: "white",
                         border: "none",
-                        padding: "5px 9px",
+                        height: "28px",
+                        padding: "0 9px",
                         borderRadius: "8px",
-                        fontSize: "10.5px",
+                        fontSize: "11px",
                         fontWeight: 800,
-                        cursor: "pointer",
-                        display: "flex",
+                        cursor: isAnalyzingLabel ? "not-allowed" : "pointer",
+                        display: "inline-flex",
                         alignItems: "center",
+                        justifyContent: "center",
                         gap: "4px",
+                        whiteSpace: "nowrap",
+                        flexShrink: 0,
                         boxShadow: "0 2px 5px rgba(99, 102, 241, 0.25)"
                       }}
                       title="Take photo of Nutrition Facts label"
                     >
-                      <i className="fa-solid fa-camera"></i>
-                      <span>AI Label</span>
+                      <i className={isAnalyzingLabel ? "fa-solid fa-spinner fa-spin" : "fa-solid fa-camera"}></i>
+                      <span>{isAnalyzingLabel ? "Reading..." : "AI Label"}</span>
                     </button>
                     <input 
                       id="ai-label-input" 
@@ -674,12 +778,7 @@ export default function DiaryTab({
                       accept="image/*" 
                       capture="environment" 
                       style={{ display: "none" }} 
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          alert("📸 Nutrition label captured: " + file.name + "\nIkakabit na natin ang AI parser!");
-                        }
-                      }}
+                      onChange={handleNutritionLabelUpload}
                     />
                   </div>
               </div>
