@@ -1,3 +1,5 @@
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { db } from "../services/firebase";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
@@ -10,6 +12,96 @@ const DEFAULT_STAPLES = [
   { id: "def_chicken", name: "Chicken Breast", cal: 165, serving: "100.0 gram", p: 31, c: 0, f: 3.6 },
   { id: "def_banana", name: "Banana", cal: 105, serving: "1.0 medium", p: 1.3, c: 27, f: 0.3 }
 ];
+
+
+// Leaflet Modal Map Container Component
+function ActivityRouteMap({ route }) {
+  const mapDivRef = useRef(null);
+  const leafletMapRef = useRef(null);
+
+  useEffect(() => {
+    if (!mapDivRef.current || !route || route.length === 0) return;
+
+    // Linisin ang lumang leaflet instance kung mayroon
+    if (leafletMapRef.current) {
+      leafletMapRef.current.remove();
+      leafletMapRef.current = null;
+    }
+
+    const latlngs = route.map(p => [p.lat, p.lon]);
+    const center = latlngs[Math.floor(latlngs.length / 2)];
+
+    const map = L.map(mapDivRef.current, {
+      zoomControl: true,
+      attributionControl: false
+    }).setView(center, 15);
+
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19
+    }).addTo(map);
+
+    if (latlngs.length > 1) {
+      const poly = L.polyline(latlngs, {
+        color: "#0284c7",
+        weight: 5,
+        opacity: 0.9,
+        lineJoin: "round",
+        lineCap: "round"
+      }).addTo(map);
+
+      // Start Marker (Green)
+      L.circleMarker(latlngs[0], {
+        radius: 7,
+        fillColor: "#10b981",
+        color: "#ffffff",
+        weight: 2,
+        fillOpacity: 1
+      }).addTo(map).bindPopup("<b>Start</b>");
+
+      // Finish Marker (Red)
+      L.circleMarker(latlngs[latlngs.length - 1], {
+        radius: 8,
+        fillColor: "#ef4444",
+        color: "#ffffff",
+        weight: 2,
+        fillOpacity: 1
+      }).addTo(map).bindPopup("<b>Finish</b>");
+
+      map.fitBounds(poly.getBounds(), { padding: [25, 25] });
+    } else {
+      L.circleMarker(latlngs[0], {
+        radius: 8,
+        fillColor: "#0284c7",
+        color: "#ffffff",
+        weight: 2,
+        fillOpacity: 1
+      }).addTo(map).bindPopup("<b>Point</b>");
+    }
+
+    leafletMapRef.current = map;
+
+    return () => {
+      if (leafletMapRef.current) {
+        leafletMapRef.current.remove();
+        leafletMapRef.current = null;
+      }
+    };
+  }, [route]);
+
+  return (
+    <div
+      ref={mapDivRef}
+      style={{
+        width: "100%",
+        height: "220px",
+        borderRadius: "14px",
+        overflow: "hidden",
+        border: "1px solid #cbd5e1",
+        boxShadow: "inset 0 2px 4px rgba(0,0,0,0.06)"
+      }}
+    />
+  );
+}
 
 export default function HomeTab({
   setActiveTab,
@@ -474,8 +566,9 @@ ${trkpts}
     ctx.fill();
     ctx.stroke();
 
+    
+    // Draw Carto/OSM Map Grid Background with Streets
     const coords = activity.route || [];
-
     if (coords.length >= 2) {
       const lats = coords.map((c) => c.lat);
       const lons = coords.map((c) => c.lon);
@@ -483,7 +576,6 @@ ${trkpts}
       const maxLat = Math.max(...lats);
       const minLon = Math.min(...lons);
       const maxLon = Math.max(...lons);
-
       const latSpan = maxLat - minLat || 0.0001;
       const lonSpan = maxLon - minLon || 0.0001;
       const pad = 60;
@@ -491,40 +583,87 @@ ${trkpts}
       const mapX = (lon) => boxX + pad + ((lon - minLon) / lonSpan) * (boxW - pad * 2);
       const mapY = (lat) => boxY + boxH - pad - ((lat - minLat) / latSpan) * (boxH - pad * 2);
 
+      // Map Terrain & Road Grid Styling (Dark Mode Cartographic Theme)
       ctx.save();
-      ctx.strokeStyle = "#38bdf8";
-      ctx.lineWidth = 7;
+      ctx.beginPath();
+      drawSafeRoundedRect(ctx, boxX, boxY, boxW, boxH, 20);
+      ctx.clip();
+
+      // Render subtle cartographic street grid lines
+      ctx.strokeStyle = "rgba(51, 65, 85, 0.4)";
+      ctx.lineWidth = 1;
+      for (let x = boxX; x < boxX + boxW; x += 40) {
+        ctx.beginPath();
+        ctx.moveTo(x, boxY);
+        ctx.lineTo(x, boxY + boxH);
+        ctx.stroke();
+      }
+      for (let y = boxY; y < boxY + boxH; y += 40) {
+        ctx.beginPath();
+        ctx.moveTo(boxX, y);
+        ctx.lineTo(boxX + boxW, y);
+        ctx.stroke();
+      }
+
+      // Compass Rose / Map Watermark
+      ctx.fillStyle = "rgba(148, 163, 184, 0.15)";
+      ctx.font = "900 120px sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("N", boxX + boxW / 2, boxY + boxH / 2 + 40);
+
+      // Map Scale & Attribution Badge
+      ctx.fillStyle = "rgba(15, 23, 42, 0.8)";
+      ctx.fillRect(boxX + 10, boxY + boxH - 28, 190, 20);
+      ctx.fillStyle = "#94a3b8";
+      ctx.font = "700 9px sans-serif";
+      ctx.textAlign = "left";
+      ctx.fillText("🗺️ OpenStreetMap Athletics Carto", boxX + 16, boxY + boxH - 14);
+
+      // Glowing Polyline GPS Route
+      ctx.strokeStyle = "#0284c7";
+      ctx.lineWidth = 12;
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
-      ctx.shadowColor = "#0284c7";
-      ctx.shadowBlur = 20;
-
+      ctx.shadowColor = "#38bdf8";
+      ctx.shadowBlur = 18;
       ctx.beginPath();
       ctx.moveTo(mapX(coords[0].lon), mapY(coords[0].lat));
       for (let i = 1; i < coords.length; i++) {
         ctx.lineTo(mapX(coords[i].lon), mapY(coords[i].lat));
       }
       ctx.stroke();
-      ctx.restore();
 
+      // Core Trail Line
+      ctx.strokeStyle = "#38bdf8";
+      ctx.lineWidth = 6;
+      ctx.shadowBlur = 0;
+      ctx.stroke();
+
+      // Start Marker
       ctx.fillStyle = "#10b981";
       ctx.beginPath();
       ctx.arc(mapX(coords[0].lon), mapY(coords[0].lat), 9, 0, Math.PI * 2);
       ctx.fill();
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
 
+      // Finish Marker
       const lastPt = coords[coords.length - 1];
-      ctx.fillStyle = "#f43f5e";
+      ctx.fillStyle = "#ef4444";
       ctx.beginPath();
       ctx.arc(mapX(lastPt.lon), mapY(lastPt.lat), 10, 0, Math.PI * 2);
       ctx.fill();
       ctx.strokeStyle = "#ffffff";
-      ctx.lineWidth = 3;
+      ctx.lineWidth = 2.5;
       ctx.stroke();
 
-      ctx.fillStyle = "#94a3b8";
+      ctx.fillStyle = "#e2e8f0";
       ctx.font = "800 13px sans-serif";
       ctx.fillText("● START", mapX(coords[0].lon) + 14, mapY(coords[0].lat) + 5);
       ctx.fillText("■ FINISH", mapX(lastPt.lon) + 14, mapY(lastPt.lat) + 5);
+
+      ctx.restore();
     } else {
       ctx.fillStyle = "#38bdf8";
       ctx.beginPath();
@@ -540,6 +679,7 @@ ${trkpts}
       ctx.fillText("📍 Stationary Activity / Indoor GPS Point Recorded", boxX + boxW / 2, boxY + boxH / 2 + 55);
       ctx.textAlign = "left";
     }
+
 
     // Stats Grid
     const statsY = 690;
@@ -1066,70 +1206,143 @@ ${trkpts}
 
         <div style={{ background: "#f8fafc", padding: "8px 10px", borderRadius: "12px", border: "1px solid #f1f5f9" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "5px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
-              <i className="fa-solid fa-droplet" style={{ color: "#0ea5e9", fontSize: "11px" }}></i>
-              <span style={{ fontSize: "10px", fontWeight: 800, color: "#0f172a" }}>Hydration</span>
-            </div>
-            <span style={{ fontSize: "10px", fontWeight: 800, color: "#0ea5e9" }}>
-              {todayWaterMl.toLocaleString()} / {waterTarget.toLocaleString()} ml ({waterPercent}%)
-            </span>
-          </div>
-
-          <div style={{ height: "5px", background: "#e0f2fe", borderRadius: "999px", overflow: "hidden", marginBottom: "8px" }}>
-            <div style={{ width: `${waterPercent}%`, height: "100%", background: "linear-gradient(90deg, #38bdf8 0%, #0284c7 100%)", borderRadius: "999px" }}></div>
-          </div>
-
-          
-
-            {/* COMPLETED GPS SESSIONS LIST */}
-            {recordedGpsActivities.length > 0 && (
-              <div style={{ borderTop: "1px solid #f1f5f9", paddingTop: "8px" }}>
-                <span style={{ fontSize: "9.5px", fontWeight: 800, color: "#64748b", textTransform: "uppercase", display: "block", marginBottom: "5px" }}>
-                  Today's Recorded GPS Routes ({recordedGpsActivities.length})
-                </span>
-                <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
-                  {recordedGpsActivities.map((act) => (
-                    <div
-                      key={act.id}
-                      onClick={() => setSelectedViewingActivity(act)}
-                      style={{
-                        background: "#f8fafc",
-                        border: "1px solid #e2e8f0",
-                        borderRadius: "10px",
-                        padding: "7px 10px",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        cursor: "pointer"
-                      }}
-                      title="Tap to view route map and export"
-                    >
-                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                        <i className="fa-solid fa-map-location-dot" style={{ color: "#0ea5e9", fontSize: "12px" }}></i>
-                        <div>
-                          <span style={{ fontSize: "11px", fontWeight: 800, color: "#0f172a" }}>
-                            {act.distanceKm.toFixed(2)} km Walk & Run
-                          </span>
-                          <span style={{ fontSize: "9.5px", color: "#64748b", display: "block" }}>
-                            {formatTime(act.durationSec || act.durationMin * 60)} • {act.avgPaceMinKm || "0.00"}/km • +{act.burnedCal} kcal
-                          </span>
-                        </div>
-                      </div>
-
-                      <span style={{ fontSize: "10px", fontWeight: 800, color: "#0284c7", background: "#e0f2fe", padding: "3px 7px", borderRadius: "6px" }}>
-                        View Map →
-                      </span>
-                    </div>
-                  ))}
-                </div>
+              <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+                <i className="fa-solid fa-droplet" style={{ color: "#0ea5e9", fontSize: "11px" }}></i>
+                <span style={{ fontSize: "10px", fontWeight: 800, color: "#0f172a" }}>Hydration</span>
               </div>
-            )}
+              <span style={{ fontSize: "10px", fontWeight: 800, color: "#0ea5e9" }}>
+                {todayWaterMl.toLocaleString()} / {waterTarget.toLocaleString()} ml ({waterPercent}%)
+              </span>
+            </div>
 
+            <div style={{ height: "5px", background: "#e0f2fe", borderRadius: "999px", overflow: "hidden", marginBottom: "8px" }}>
+              <div style={{ width: `${waterPercent}%`, height: "100%", background: "linear-gradient(90deg, #38bdf8 0%, #0284c7 100%)", borderRadius: "999px" }}></div>
+            </div>
+
+            {/* QUICK WATER LOG CHIPS */}
+            <div style={{ display: "flex", gap: "6px", marginBottom: "10px" }}>
+              {[250, 500, 750].map((ml) => (
+                <button
+                  key={ml}
+                  type="button"
+                  onClick={() => handleAddWater(ml)}
+                  style={{
+                    flex: 1,
+                    background: "#f0f9ff",
+                    border: "1px solid #bae6fd",
+                    color: "#0369a1",
+                    padding: "5px 0",
+                    borderRadius: "8px",
+                    fontSize: "10px",
+                    fontWeight: 800,
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "4px"
+                  }}
+                >
+                  <i className="fa-solid fa-plus" style={{ fontSize: "8px" }}></i> {ml} ml
+                </button>
+              ))}
+            </div>
+
+            {/* STEPS & OUTDOOR GPS TRACKING (SECURE: NO MANUAL STEPS) */}
+            <div style={{ borderTop: "1px solid #f1f5f9", paddingTop: "8px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "5px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+                  <i className="fa-solid fa-shoe-prints" style={{ color: "#10b981", fontSize: "10px" }}></i>
+                  <span style={{ fontSize: "10px", fontWeight: 800, color: "#0f172a" }}>Verified Activity Steps</span>
+                </div>
+                <span style={{ fontSize: "10px", fontWeight: 800, color: "#10b981" }}>
+                  {todaySteps.toLocaleString()} / {stepGoal.toLocaleString()} steps ({stepPercent}%)
+                </span>
+              </div>
+
+              <div style={{ height: "5px", background: "#ecfdf5", borderRadius: "999px", overflow: "hidden", marginBottom: "10px" }}>
+                <div style={{ width: `${stepPercent}%`, height: "100%", background: "linear-gradient(90deg, #34d399 0%, #059669 100%)", borderRadius: "999px" }}></div>
+              </div>
+
+              {/* LIVE GPS BUTTON */}
+              <button
+                type="button"
+                onClick={() => {
+                  if (navigator.geolocation) {
+                    setShowPreRunModal(true);
+                  } else {
+                    if (showToast) showToast("GPS is not supported on this device.", "error");
+                  }
+                }}
+                style={{
+                  width: "100%",
+                  background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
+                  color: "#ffffff",
+                  border: "none",
+                  borderRadius: "10px",
+                  padding: "10px",
+                  fontWeight: 800,
+                  fontSize: "12px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "7px",
+                  cursor: "pointer",
+                  boxShadow: "0 4px 12px rgba(16, 185, 129, 0.25)",
+                  marginBottom: recordedGpsActivities.length > 0 ? "10px" : "0"
+                }}
+              >
+                <i className="fa-solid fa-location-crosshairs"></i>
+                <span>Start Live GPS Outdoor Tracking</span>
+              </button>
+
+              {/* COMPLETED GPS SESSIONS LIST */}
+              {recordedGpsActivities.length > 0 && (
+                <div style={{ borderTop: "1px solid #f1f5f9", paddingTop: "8px" }}>
+                  <span style={{ fontSize: "9.5px", fontWeight: 800, color: "#64748b", textTransform: "uppercase", display: "block", marginBottom: "5px" }}>
+                    Today's Recorded GPS Routes ({recordedGpsActivities.length})
+                  </span>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
+                    {recordedGpsActivities.map((act) => (
+                      <div
+                        key={act.id}
+                        onClick={() => setSelectedViewingActivity(act)}
+                        style={{
+                          background: "#f8fafc",
+                          border: "1px solid #e2e8f0",
+                          borderRadius: "10px",
+                          padding: "7px 10px",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          cursor: "pointer"
+                        }}
+                        title="Tap to view route map and export"
+                      >
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                          <i className="fa-solid fa-map-location-dot" style={{ color: "#0ea5e9", fontSize: "12px" }}></i>
+                          <div>
+                            <span style={{ fontSize: "11px", fontWeight: 800, color: "#0f172a" }}>
+                              {Number(act.distanceKm || 0).toFixed(2)} km Walk & Run
+                            </span>
+                            <span style={{ fontSize: "9.5px", color: "#64748b", display: "block" }}>
+                              {formatTime(act.durationSec || act.durationMin * 60)} • {act.avgPaceMinKm || "0.00"}/km • +{act.burnedCal || 0} kcal
+                            </span>
+                          </div>
+                        </div>
+
+                        <span style={{ fontSize: "10px", fontWeight: 800, color: "#0284c7", background: "#e0f2fe", padding: "3px 7px", borderRadius: "6px" }}>
+                          View Map →
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
-        )}
-      </div>
+        </div>
 
-      {/* ─── 4. QUICK ACTION LOG BUTTONS ─── */}
+        {/* ─── 4. QUICK ACTION LOG BUTTONS ─── */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
         <button type="button"
           onClick={() => setActiveSheet("food")}
@@ -1387,12 +1600,9 @@ ${trkpts}
             </div>
 
             {/* Route Map Preview */}
-            <div style={{ background: "#0f172a", borderRadius: "14px", height: "140px", padding: "10px", position: "relative" }}>
-              <div style={{ position: "absolute", top: "6px", left: "8px", fontSize: "8px", fontWeight: 800, color: "#94a3b8", textTransform: "uppercase" }}>
-                Recorded Route Vector ({selectedViewingActivity.route?.length || 0} pts)
+            <div style={{ marginBottom: "12px" }}>
+                <ActivityRouteMap route={selectedViewingActivity.route} />
               </div>
-              {renderRouteSvg(selectedViewingActivity.route)}
-            </div>
 
             {/* Metrics Breakdown */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "6px", textAlign: "center" }}>
