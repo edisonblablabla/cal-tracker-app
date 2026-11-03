@@ -352,7 +352,7 @@ export default function DiaryTab({
       const prompt = "Extract Nutrition Facts from this food packaging image. Return strictly a raw JSON object with keys: foodName (clean dish or snack name), portionSize (e.g. 1 pouch, 30g), calories (number of kcal), protein (grams number), carbs (total carbohydrates in grams number), fat (total fat in grams number). Return ONLY raw JSON without markdown.";
 
       // Prioritize high-capacity Lite models to prevent 503 high-demand queues
-      const priorityModels = ["gemini-2.5-flash-lite", "gemini-flash-lite-latest", "gemini-3.5-flash-lite", "gemini-2.5-flash"];
+      const priorityModels = ["gemini-3.6-flash","gemini-3.5-flash","gemini-3.1-flash-lite","gemini-3-flash-preview"];
       let response = null;
       let lastErrMsg = "";
 
