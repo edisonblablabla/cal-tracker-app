@@ -1891,6 +1891,9 @@ if (!data?.onboardingCompleted && data?.height && data?.weight && (data?.baseGoa
         {/* TAB 3: SOCIAL TAB */}
         {(((activeTab === "community" || activeTab === "social") || (activeTab === "community" || activeTab === "social") || activeTab === "pulse") || ((activeTab === "community" || activeTab === "social") || (activeTab === "community" || activeTab === "social") || activeTab === "pulse")) && (
           <CommunityTab
+            draftSocialPost={draftSocialPost}
+            setDraftSocialPost={setDraftSocialPost}
+            selectedPost={selectedPost}
             lastSeenMsgTime={lastSeenMsgTime}
             setLastSeenMsgTime={setLastSeenMsgTime}
             user={user}
@@ -1962,6 +1965,7 @@ if (!data?.onboardingCompleted && data?.height && data?.weight && (data?.baseGoa
         {/* TAB 6: PROFILE */}
         {activeTab === "profile" && (
           <ProfileTab
+            setActiveTab={setActiveTab}
             user={user}
             appData={syncedAppData || appData}
                   saveToCloud={saveToCloud}
