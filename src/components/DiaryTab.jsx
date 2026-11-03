@@ -96,6 +96,7 @@ export default function DiaryTab({
   // 4. BARCODE CAMERA SCANNER STATE & ENGINE
   const [isBarcodeScannerOpen, setIsBarcodeScannerOpen] = useState(false);
   const [isFetchingBarcode, setIsFetchingBarcode] = useState(false);
+  const [isAnalyzingLabel, setIsAnalyzingLabel] = useState(false);
   const [manualBarcodeCode, setManualBarcodeCode] = useState("");
   const scannerInstanceRef = useRef(null);
 
