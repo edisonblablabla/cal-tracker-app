@@ -1696,55 +1696,7 @@ export default function CommunityTab({
                     </div>
                   </div>
 
-                  <div style={{ display: "flex", gap: "6px", flexShrink: 0, marginLeft: "8px" }}>
-                    {!isMe && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowSearchDrawer(false);
-                          openLayer("chat", () => {
-                            setActiveChatPartner({ uid: aUid, id: aUid, userName: aName, avatarUrl: aPhoto });
-                            setShowInboxDrawer(true);
-                          });
-                        }}
-                        style={{
-                          background: "#f0f9ff",
-                          border: "1px solid #bae6fd",
-                          borderRadius: "8px",
-                          padding: "6px 10px",
-                          color: "#0284c7",
-                          cursor: "pointer",
-                          fontSize: "11.5px",
-                          fontWeight: 800,
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "4px"
-                        }}
-                        title="Direct Message"
-                      >
-                        <i className="fa-solid fa-comment-dots"></i>
-                        <span>Chat</span>
-                      </button>
-                    )}
-
-                    <button
-                      type="button"
-                      onClick={() => handleOpenAthleteProfile(aUid, athlete)}
-                      style={{
-                        background: "#f8fafc",
-                        border: "1px solid #e2e8f0",
-                        borderRadius: "8px",
-                        padding: "6px 10px",
-                        color: "#475569",
-                        cursor: "pointer",
-                        fontSize: "11.5px",
-                        fontWeight: 700
-                      }}
-                      title="View Profile"
-                    >
-                      <i className="fa-regular fa-user"></i>
-                    </button>
-                  </div>
+                  
                 </div>
               );
             })
