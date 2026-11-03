@@ -355,25 +355,36 @@ export default function DiaryTab({
       // 2. Tawagin ang Gemini Vision API
       const prompt = "Identify this food item and extract the Nutrition Facts. Return strictly a JSON object with keys: foodName (clean dish or snack brand name), portionSize (e.g. 1 pouch, 50g, 1 serving), calories (number of kcal), protein (grams number), carbs (total carbohydrates in grams number), fat (total fat in grams number). Estimate realistically if any value is slightly obscured. Return ONLY raw JSON without markdown formatting or codeblocks.";
 
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-goog-api-key": apiKey
-        },
-        body: JSON.stringify({
-          contents: [{
-            parts: [
-              { text: prompt },
-              { inline_data: { mime_type: "image/jpeg", data: base64Data } }
-            ]
-          }]
-        })
-      });
+      let response = null;
+      let lastErrMsg = "";
+      for (const model of ["gemini-flash-latest", "gemini-2.0-flash", "gemini-1.5-flash-latest", "gemini-2.5-flash"]) {
+        try {
+          const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contents: [{
+                parts: [
+                  { text: prompt },
+                  { inline_data: { mime_type: "image/jpeg", data: base64Data } }
+                ]
+              }]
+            })
+          });
+          if (res.ok) {
+            response = res;
+            break;
+          } else {
+            const errJson = await res.json().catch(() => ({}));
+            lastErrMsg = errJson?.error?.message || res.statusText;
+          }
+        } catch (fetchErr) {
+          lastErrMsg = fetchErr.message;
+        }
+      }
 
-      if (!response.ok) {
-        const errJson = await response.json().catch(() => ({}));
-        throw new Error(errJson?.error?.message || "Nabigong kumonekta sa Gemini AI.");
+      if (!response) {
+        throw new Error(lastErrMsg || "Nabigong kumonekta sa Gemini AI.");
       }
 
       const result = await response.json();
