@@ -791,189 +791,247 @@ export default function CommunityTab({
         {/* 🏆 LEADERBOARD VIEW */}
         {activeSubTab === "leaderboard" && (
           <div style={{ padding: "0 16px" }}>
-            <div style={{ display: "flex", gap: "8px", margin: "10px 0 16px 0", overflowX: "auto" }}>
-              <button
-                type="button"
-                onClick={() => setLeaderboardMetric("distance")}
-                style={{
-                  background: leaderboardMetric === "distance" ? "#0f172a" : "#ffffff",
-                  color: leaderboardMetric === "distance" ? "#ffffff" : "#475569",
-                  border: "1px solid " + (leaderboardMetric === "distance" ? "#0f172a" : "#cbd5e1"),
-                  padding: "6px 12px",
-                  borderRadius: "20px",
-                  fontSize: "11.5px",
-                  fontWeight: 800,
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "5px"
-                }}
-              >
-                <i className="fa-solid fa-person-running" style={{ color: leaderboardMetric === "distance" ? "#38bdf8" : "#64748b" }}></i>
-                Distance (KM)
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setLeaderboardMetric("calories")}
-                style={{
-                  background: leaderboardMetric === "calories" ? "#0f172a" : "#ffffff",
-                  color: leaderboardMetric === "calories" ? "#ffffff" : "#475569",
-                  border: "1px solid " + (leaderboardMetric === "calories" ? "#0f172a" : "#cbd5e1"),
-                  padding: "6px 12px",
-                  borderRadius: "20px",
-                  fontSize: "11.5px",
-                  fontWeight: 800,
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "5px"
-                }}
-              >
-                <i className="fa-solid fa-fire" style={{ color: leaderboardMetric === "calories" ? "#f97316" : "#64748b" }}></i>
-                Calories Burned</button>
-
-              <button
-                type="button"
-                onClick={() => setLeaderboardMetric("streak")}
-                style={{
-                  background: leaderboardMetric === "streak" ? "#0f172a" : "#ffffff",
-                  color: leaderboardMetric === "streak" ? "#ffffff" : "#475569",
-                  border: "1px solid " + (leaderboardMetric === "streak" ? "#0f172a" : "#cbd5e1"),
-                  padding: "6px 12px",
-                  borderRadius: "20px",
-                  fontSize: "11.5px",
-                  fontWeight: 800,
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "5px"
-                }}
-              >
-                <i className="fa-solid fa-bolt" style={{ color: leaderboardMetric === "streak" ? "#eab308" : "#64748b" }}></i>
-                Streak
-              </button>
-            </div>
-
-            {/* Podium (Tanging may score > 0 ang makikita) */}
-            {top1 ? (
-              <div style={{
-                display: "flex",
-                justifyContent: "center",
-                alignItems: "flex-end",
-                gap: "8px",
-                margin: "18px 0 24px 0",
-                padding: "8px 0"
+            <div style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(3, 1fr)",
+                gap: "6px",
+                margin: "12px 0 18px 0",
+                padding: "4px",
+                background: "#f1f5f9",
+                borderRadius: "16px",
+                border: "1px solid #e2e8f0"
               }}>
-                {top2 ? (
-                  <div
-                    onClick={() => handleOpenAthleteProfile(top2.uid, top2)}
-                    style={{ display: "flex", flexDirection: "column", alignItems: "center", flex: 1, maxWidth: "100px", cursor: "pointer" }}
-                  >
-                    {renderAvatar(top2.photo, top2.name, 48, "3px solid #94a3b8")}
-                    <div style={{
-                      background: "linear-gradient(180deg, #e2e8f0 0%, #cbd5e1 100%)",
-                      width: "100%",
-                      height: "75px",
-                      borderTopLeftRadius: "10px",
-                      borderTopRightRadius: "10px",
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      marginTop: "-12px",
-                      boxShadow: "0 4px 10px rgba(0,0,0,0.04)"
-                    }}>
-                      <span style={{ fontSize: "11px", fontWeight: 800, color: "#334155", maxWidth: "90%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {top2.name.split(" ")[0]}
-                      </span>
-                      <span style={{ fontSize: "13px", fontWeight: 900, color: "#0f172a" }}>
-                        {leaderboardMetric === "distance" ? top2.dist + " km" : leaderboardMetric === "calories" ? top2.cal + " cal" : top2.streak + "d"}
-                      </span>
-                      <span style={{ fontSize: "10px", fontWeight: 800, color: "#64748b" }}>#2</span>
-                    </div>
-                  </div>
-                ) : <div style={{ flex: 1, maxWidth: "100px" }} />}
-
-                <div
-                  onClick={() => handleOpenAthleteProfile(top1.uid, top1)}
-                  style={{ display: "flex", flexDirection: "column", alignItems: "center", flex: 1.1, maxWidth: "110px", cursor: "pointer" }}
-                >
-                  <i className="fa-solid fa-crown" style={{ color: "#eab308", fontSize: "18px", marginBottom: "2px", zIndex: 3 }}></i>
-                  {renderAvatar(top1.photo, top1.name, 60, "3px solid #eab308")}
-                  <div style={{
-                    background: "linear-gradient(180deg, #fef08a 0%, #facc15 100%)",
-                    width: "100%",
-                    height: "95px",
-                    borderTopLeftRadius: "12px",
-                    borderTopRightRadius: "12px",
+                {/* Distance Button */}
+                <button
+                  type="button"
+                  onClick={() => setLeaderboardMetric("distance")}
+                  style={{
+                    height: "48px",
                     display: "flex",
                     flexDirection: "column",
                     alignItems: "center",
                     justifyContent: "center",
-                    marginTop: "-14px",
-                    boxShadow: "0 4px 14px rgba(234, 179, 8, 0.25)"
-                  }}>
-                    <span style={{ fontSize: "12px", fontWeight: 900, color: "#713f12", maxWidth: "90%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {top1.name.split(" ")[0]}
-                    </span>
-                    <span style={{ fontSize: "14.5px", fontWeight: 900, color: "#422006" }}>
-                      {leaderboardMetric === "distance" ? top1.dist + " km" : leaderboardMetric === "calories" ? top1.cal + " cal" : top1.streak + " days"}
-                    </span>
-                    <span style={{ fontSize: "11px", fontWeight: 900, color: "#854d0e" }}>👑 #1</span>
+                    gap: "2px",
+                    borderRadius: "12px",
+                    border: "none",
+                    cursor: "pointer",
+                    background: leaderboardMetric === "distance" ? "#0f172a" : "transparent",
+                    color: leaderboardMetric === "distance" ? "#ffffff" : "#64748b",
+                    boxShadow: leaderboardMetric === "distance" ? "0 4px 12px rgba(15, 23, 42, 0.15)" : "none",
+                    transition: "all 0.2s ease"
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+                    <i className="fa-solid fa-person-running" style={{ color: leaderboardMetric === "distance" ? "#38bdf8" : "#94a3b8", fontSize: "13px" }}></i>
+                    <span style={{ fontSize: "11.5px", fontWeight: 800 }}>Distance</span>
                   </div>
-                </div>
+                  <span style={{ fontSize: "9px", fontWeight: 700, opacity: leaderboardMetric === "distance" ? 0.8 : 0.6, letterSpacing: "0.5px" }}>
+                    KM
+                  </span>
+                </button>
 
-                {top3 ? (
+                {/* Calories Burned Button */}
+                <button
+                  type="button"
+                  onClick={() => setLeaderboardMetric("calories")}
+                  style={{
+                    height: "48px",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "2px",
+                    borderRadius: "12px",
+                    border: "none",
+                    cursor: "pointer",
+                    background: leaderboardMetric === "calories" ? "#0f172a" : "transparent",
+                    color: leaderboardMetric === "calories" ? "#ffffff" : "#64748b",
+                    boxShadow: leaderboardMetric === "calories" ? "0 4px 12px rgba(15, 23, 42, 0.15)" : "none",
+                    transition: "all 0.2s ease"
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+                    <i className="fa-solid fa-fire" style={{ color: leaderboardMetric === "calories" ? "#f97316" : "#94a3b8", fontSize: "13px" }}></i>
+                    <span style={{ fontSize: "11.5px", fontWeight: 800 }}>Calories</span>
+                  </div>
+                  <span style={{ fontSize: "9px", fontWeight: 700, opacity: leaderboardMetric === "calories" ? 0.8 : 0.6, letterSpacing: "0.5px" }}>
+                    BURNED
+                  </span>
+                </button>
+
+                {/* Streak Button */}
+                <button
+                  type="button"
+                  onClick={() => setLeaderboardMetric("streak")}
+                  style={{
+                    height: "48px",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "2px",
+                    borderRadius: "12px",
+                    border: "none",
+                    cursor: "pointer",
+                    background: leaderboardMetric === "streak" ? "#0f172a" : "transparent",
+                    color: leaderboardMetric === "streak" ? "#ffffff" : "#64748b",
+                    boxShadow: leaderboardMetric === "streak" ? "0 4px 12px rgba(15, 23, 42, 0.15)" : "none",
+                    transition: "all 0.2s ease"
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+                    <i className="fa-solid fa-bolt" style={{ color: leaderboardMetric === "streak" ? "#eab308" : "#94a3b8", fontSize: "13px" }}></i>
+                    <span style={{ fontSize: "11.5px", fontWeight: 800 }}>Streak</span>
+                  </div>
+                  <span style={{ fontSize: "9px", fontWeight: 700, opacity: leaderboardMetric === "streak" ? 0.8 : 0.6, letterSpacing: "0.5px" }}>
+                    DAYS
+                  </span>
+                </button>
+              </div>
+
+              {/* Modern Olympic Podium Section */}
+              {top1 ? (
+                <div style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1.15fr 1fr",
+                  gap: "10px",
+                  alignItems: "flex-end",
+                  margin: "18px 0 24px 0",
+                  padding: "0 4px"
+                }}>
+                  {/* Rank 2 (Silver - Left) */}
+                  {top2 ? (
+                    <div
+                      onClick={() => handleOpenAthleteProfile(top2.uid, top2)}
+                      style={{ display: "flex", flexDirection: "column", alignItems: "center", cursor: "pointer", width: "100%" }}
+                    >
+                      <div style={{ marginBottom: "-14px", zIndex: 2 }}>
+                        {renderAvatar(top2.photo, top2.name, 48, "3px solid #94a3b8")}
+                      </div>
+                      <div style={{
+                        background: "linear-gradient(180deg, #f1f5f9 0%, #cbd5e1 100%)",
+                        border: "1px solid #94a3b8",
+                        width: "100%",
+                        height: "88px",
+                        borderTopLeftRadius: "14px",
+                        borderTopRightRadius: "14px",
+                        borderBottomLeftRadius: "6px",
+                        borderBottomRightRadius: "6px",
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        padding: "18px 4px 8px 4px",
+                        boxShadow: "0 4px 12px rgba(148, 163, 184, 0.2)"
+                      }}>
+                        <span style={{ fontSize: "11.5px", fontWeight: 800, color: "#334155", maxWidth: "95%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {top2.name.split(" ")[0]}
+                        </span>
+                        <span style={{ fontSize: "13px", fontWeight: 900, color: "#0f172a", letterSpacing: "-0.3px" }}>
+                          {leaderboardMetric === "distance" ? top2.dist + " km" : leaderboardMetric === "calories" ? top2.cal + " cal" : top2.streak + "d"}
+                        </span>
+                        <span style={{ background: "#e2e8f0", padding: "1px 8px", borderRadius: "10px", fontSize: "10px", fontWeight: 900, color: "#475569" }}>
+                          🥈 #2
+                        </span>
+                      </div>
+                    </div>
+                  ) : <div />}
+
+                  {/* Rank 1 (Gold Champion - Center) */}
                   <div
-                    onClick={() => handleOpenAthleteProfile(top3.uid, top3)}
-                    style={{ display: "flex", flexDirection: "column", alignItems: "center", flex: 1, maxWidth: "100px", cursor: "pointer" }}
+                    onClick={() => handleOpenAthleteProfile(top1.uid, top1)}
+                    style={{ display: "flex", flexDirection: "column", alignItems: "center", cursor: "pointer", width: "100%" }}
                   >
-                    {renderAvatar(top3.photo, top3.name, 44, "3px solid #f97316")}
+                    <i className="fa-solid fa-crown" style={{ color: "#eab308", fontSize: "18px", marginBottom: "3px", zIndex: 3, filter: "drop-shadow(0 2px 4px rgba(234, 179, 8, 0.4))" }}></i>
+                    <div style={{ marginBottom: "-16px", zIndex: 2 }}>
+                      {renderAvatar(top1.photo, top1.name, 60, "3.5px solid #eab308")}
+                    </div>
                     <div style={{
-                      background: "linear-gradient(180deg, #fed7aa 0%, #fdba74 100%)",
+                      background: "linear-gradient(180deg, #fef9c3 0%, #facc15 100%)",
+                      border: "1.5px solid #eab308",
                       width: "100%",
-                      height: "65px",
-                      borderTopLeftRadius: "10px",
-                      borderTopRightRadius: "10px",
+                      height: "108px",
+                      borderTopLeftRadius: "16px",
+                      borderTopRightRadius: "16px",
+                      borderBottomLeftRadius: "6px",
+                      borderBottomRightRadius: "6px",
                       display: "flex",
                       flexDirection: "column",
                       alignItems: "center",
-                      justifyContent: "center",
-                      marginTop: "-12px",
-                      boxShadow: "0 4px 10px rgba(0,0,0,0.04)"
+                      justifyContent: "space-between",
+                      padding: "20px 4px 10px 4px",
+                      boxShadow: "0 6px 18px rgba(234, 179, 8, 0.28)"
                     }}>
-                      <span style={{ fontSize: "11px", fontWeight: 800, color: "#7c2d12", maxWidth: "90%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {top3.name.split(" ")[0]}
+                      <span style={{ fontSize: "12.5px", fontWeight: 900, color: "#713f12", maxWidth: "95%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {top1.name.split(" ")[0]}
                       </span>
-                      <span style={{ fontSize: "13px", fontWeight: 900, color: "#431407" }}>
-                        {leaderboardMetric === "distance" ? top3.dist + " km" : leaderboardMetric === "calories" ? top3.cal + " cal" : top3.streak + "d"}
+                      <span style={{ fontSize: "15px", fontWeight: 900, color: "#422006", letterSpacing: "-0.4px" }}>
+                        {leaderboardMetric === "distance" ? top1.dist + " km" : leaderboardMetric === "calories" ? top1.cal + " cal" : top1.streak + " days"}
                       </span>
-                      <span style={{ fontSize: "10px", fontWeight: 800, color: "#9a3412" }}>#3</span>
+                      <span style={{ background: "#fef08a", padding: "2px 10px", borderRadius: "10px", fontSize: "10.5px", fontWeight: 900, color: "#854d0e", border: "1px solid #facc15" }}>
+                        👑 #1
+                      </span>
                     </div>
                   </div>
-                ) : <div style={{ flex: 1, maxWidth: "100px" }} />}
-              </div>
-            ) : (
-              <div style={{
-                textAlign: "center",
-                padding: "26px 16px",
-                background: "#ffffff",
-                borderRadius: "16px",
-                border: "1px dashed #cbd5e1",
-                margin: "16px 0"
-              }}>
-                <i className="fa-solid fa-trophy" style={{ fontSize: "32px", color: "#e2e8f0", marginBottom: "8px", display: "block" }}></i>
-                <div style={{ fontSize: "13.5px", fontWeight: 800, color: "#0f172a" }}>No qualified athletes yet</div>
-                <p style={{ fontSize: "11.5px", color: "#64748b", margin: "4px 0 0 0" }}>
-                  {leaderboardMetric === "streak"
-                    ? "Athletes need at least a 3-day streak to qualify. Keep going! 🔥"
-                    : "Be the first to record an activity and claim the #1 spot! 🏆"}
-                </p>
-              </div>
-            )}
 
-            {/* Rankings List */}
+                  {/* Rank 3 (Bronze - Right) */}
+                  {top3 ? (
+                    <div
+                      onClick={() => handleOpenAthleteProfile(top3.uid, top3)}
+                      style={{ display: "flex", flexDirection: "column", alignItems: "center", cursor: "pointer", width: "100%" }}
+                    >
+                      <div style={{ marginBottom: "-14px", zIndex: 2 }}>
+                        {renderAvatar(top3.photo, top3.name, 44, "3px solid #f97316")}
+                      </div>
+                      <div style={{
+                        background: "linear-gradient(180deg, #ffedd5 0%, #fdba74 100%)",
+                        border: "1px solid #fb923c",
+                        width: "100%",
+                        height: "78px",
+                        borderTopLeftRadius: "14px",
+                        borderTopRightRadius: "14px",
+                        borderBottomLeftRadius: "6px",
+                        borderBottomRightRadius: "6px",
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        padding: "16px 4px 8px 4px",
+                        boxShadow: "0 4px 12px rgba(249, 115, 22, 0.18)"
+                      }}>
+                        <span style={{ fontSize: "11px", fontWeight: 800, color: "#7c2d12", maxWidth: "95%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {top3.name.split(" ")[0]}
+                        </span>
+                        <span style={{ fontSize: "12.5px", fontWeight: 900, color: "#431407", letterSpacing: "-0.3px" }}>
+                          {leaderboardMetric === "distance" ? top3.dist + " km" : leaderboardMetric === "calories" ? top3.cal + " cal" : top3.streak + "d"}
+                        </span>
+                        <span style={{ background: "#fed7aa", padding: "1px 8px", borderRadius: "10px", fontSize: "10px", fontWeight: 900, color: "#9a3412" }}>
+                          🥉 #3
+                        </span>
+                      </div>
+                    </div>
+                  ) : <div />}
+                </div>
+              ) : (
+                <div style={{
+                  textAlign: "center",
+                  padding: "26px 16px",
+                  background: "#ffffff",
+                  borderRadius: "16px",
+                  border: "1px dashed #cbd5e1",
+                  margin: "16px 0"
+                }}>
+                  <i className="fa-solid fa-trophy" style={{ fontSize: "32px", color: "#e2e8f0", marginBottom: "8px", display: "block" }}></i>
+                  <div style={{ fontSize: "13.5px", fontWeight: 800, color: "#0f172a" }}>No qualified athletes yet</div>
+                  <p style={{ fontSize: "11.5px", color: "#64748b", margin: "4px 0 0 0" }}>
+                    {leaderboardMetric === "streak"
+                      ? "Athletes need at least a 3-day streak to qualify. Keep going! 🔥"
+                      : "Start logging your workouts and meals to enter the top rankings! ⚡"}
+                  </p>
+                </div>
+              )}
+
+              {/* Rankings List */}
             <div style={{ background: "#ffffff", borderRadius: "14px", padding: "6px 12px", border: "1px solid #f1f5f9", boxShadow: "0 2px 6px rgba(0,0,0,0.02)" }}>
               {runnersUp.length > 0 ? (
                 runnersUp.map((athlete, idx) => (
