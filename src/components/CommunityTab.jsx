@@ -53,7 +53,7 @@ export default function CommunityTab({
   formatPostTime = (ts) => "Just now"
 }) {
   const [activeSubTab, setActiveSubTab] = useState("leaderboard");
-  const [leaderboardMetric, setLeaderboardMetric] = useState("distance");
+  const [leaderboardMetric, setLeaderboardMetric] = useState("streak");
   const [showComposer, setShowComposer] = useState(false);
 
   // DRAWERS & PANELS
@@ -792,101 +792,110 @@ export default function CommunityTab({
         {activeSubTab === "leaderboard" && (
           <div style={{ padding: "0 16px" }}>
             <div style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(3, 1fr)",
-                gap: "6px",
-                margin: "12px 0 18px 0",
-                padding: "4px",
-                background: "#f1f5f9",
-                borderRadius: "16px",
-                border: "1px solid #e2e8f0"
+                position: "sticky",
+                top: "104px",
+                zIndex: 15,
+                background: "#ffffff",
+                paddingTop: "8px",
+                paddingBottom: "10px",
+                margin: "0 -4px 10px -4px"
               }}>
-                {/* Distance Button */}
-                <button
-                  type="button"
-                  onClick={() => setLeaderboardMetric("distance")}
-                  style={{
-                    height: "48px",
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: "2px",
-                    borderRadius: "12px",
-                    border: "none",
-                    cursor: "pointer",
-                    background: leaderboardMetric === "distance" ? "#0f172a" : "transparent",
-                    color: leaderboardMetric === "distance" ? "#ffffff" : "#64748b",
-                    boxShadow: leaderboardMetric === "distance" ? "0 4px 12px rgba(15, 23, 42, 0.15)" : "none",
-                    transition: "all 0.2s ease"
-                  }}
-                >
-                  <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
-                    <i className="fa-solid fa-person-running" style={{ color: leaderboardMetric === "distance" ? "#38bdf8" : "#94a3b8", fontSize: "13px" }}></i>
-                    <span style={{ fontSize: "11.5px", fontWeight: 800 }}>Distance</span>
-                  </div>
-                  <span style={{ fontSize: "9px", fontWeight: 700, opacity: leaderboardMetric === "distance" ? 0.8 : 0.6, letterSpacing: "0.5px" }}>
-                    KM
-                  </span>
-                </button>
+                <div style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(3, 1fr)",
+                  gap: "6px",
+                  padding: "4px",
+                  background: "#f1f5f9",
+                  borderRadius: "16px",
+                  border: "1px solid #e2e8f0"
+                }}>
+                  {/* 1. STREAK BUTTON (UNAHAN) */}
+                  <button
+                    type="button"
+                    onClick={() => setLeaderboardMetric("streak")}
+                    style={{
+                      height: "48px",
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "2px",
+                      borderRadius: "12px",
+                      border: "none",
+                      cursor: "pointer",
+                      background: leaderboardMetric === "streak" ? "#0f172a" : "transparent",
+                      color: leaderboardMetric === "streak" ? "#ffffff" : "#64748b",
+                      boxShadow: leaderboardMetric === "streak" ? "0 4px 12px rgba(15, 23, 42, 0.15)" : "none",
+                      transition: "all 0.2s ease"
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+                      <i className="fa-solid fa-bolt" style={{ color: leaderboardMetric === "streak" ? "#eab308" : "#94a3b8", fontSize: "13px" }}></i>
+                      <span style={{ fontSize: "11.5px", fontWeight: 800 }}>Streak</span>
+                    </div>
+                    <span style={{ fontSize: "9px", fontWeight: 700, opacity: leaderboardMetric === "streak" ? 0.8 : 0.6, letterSpacing: "0.5px" }}>
+                      DAYS
+                    </span>
+                  </button>
 
-                {/* Calories Burned Button */}
-                <button
-                  type="button"
-                  onClick={() => setLeaderboardMetric("calories")}
-                  style={{
-                    height: "48px",
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: "2px",
-                    borderRadius: "12px",
-                    border: "none",
-                    cursor: "pointer",
-                    background: leaderboardMetric === "calories" ? "#0f172a" : "transparent",
-                    color: leaderboardMetric === "calories" ? "#ffffff" : "#64748b",
-                    boxShadow: leaderboardMetric === "calories" ? "0 4px 12px rgba(15, 23, 42, 0.15)" : "none",
-                    transition: "all 0.2s ease"
-                  }}
-                >
-                  <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
-                    <i className="fa-solid fa-fire" style={{ color: leaderboardMetric === "calories" ? "#f97316" : "#94a3b8", fontSize: "13px" }}></i>
-                    <span style={{ fontSize: "11.5px", fontWeight: 800 }}>Calories</span>
-                  </div>
-                  <span style={{ fontSize: "9px", fontWeight: 700, opacity: leaderboardMetric === "calories" ? 0.8 : 0.6, letterSpacing: "0.5px" }}>
-                    BURNED
-                  </span>
-                </button>
+                  {/* 2. DISTANCE BUTTON (GITNA) */}
+                  <button
+                    type="button"
+                    onClick={() => setLeaderboardMetric("distance")}
+                    style={{
+                      height: "48px",
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "2px",
+                      borderRadius: "12px",
+                      border: "none",
+                      cursor: "pointer",
+                      background: leaderboardMetric === "distance" ? "#0f172a" : "transparent",
+                      color: leaderboardMetric === "distance" ? "#ffffff" : "#64748b",
+                      boxShadow: leaderboardMetric === "distance" ? "0 4px 12px rgba(15, 23, 42, 0.15)" : "none",
+                      transition: "all 0.2s ease"
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+                      <i className="fa-solid fa-person-running" style={{ color: leaderboardMetric === "distance" ? "#38bdf8" : "#94a3b8", fontSize: "13px" }}></i>
+                      <span style={{ fontSize: "11.5px", fontWeight: 800 }}>Distance</span>
+                    </div>
+                    <span style={{ fontSize: "9px", fontWeight: 700, opacity: leaderboardMetric === "distance" ? 0.8 : 0.6, letterSpacing: "0.5px" }}>
+                      KM
+                    </span>
+                  </button>
 
-                {/* Streak Button */}
-                <button
-                  type="button"
-                  onClick={() => setLeaderboardMetric("streak")}
-                  style={{
-                    height: "48px",
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: "2px",
-                    borderRadius: "12px",
-                    border: "none",
-                    cursor: "pointer",
-                    background: leaderboardMetric === "streak" ? "#0f172a" : "transparent",
-                    color: leaderboardMetric === "streak" ? "#ffffff" : "#64748b",
-                    boxShadow: leaderboardMetric === "streak" ? "0 4px 12px rgba(15, 23, 42, 0.15)" : "none",
-                    transition: "all 0.2s ease"
-                  }}
-                >
-                  <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
-                    <i className="fa-solid fa-bolt" style={{ color: leaderboardMetric === "streak" ? "#eab308" : "#94a3b8", fontSize: "13px" }}></i>
-                    <span style={{ fontSize: "11.5px", fontWeight: 800 }}>Streak</span>
-                  </div>
-                  <span style={{ fontSize: "9px", fontWeight: 700, opacity: leaderboardMetric === "streak" ? 0.8 : 0.6, letterSpacing: "0.5px" }}>
-                    DAYS
-                  </span>
-                </button>
+                  {/* 3. CALORIES BUTTON (DULO) */}
+                  <button
+                    type="button"
+                    onClick={() => setLeaderboardMetric("calories")}
+                    style={{
+                      height: "48px",
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "2px",
+                      borderRadius: "12px",
+                      border: "none",
+                      cursor: "pointer",
+                      background: leaderboardMetric === "calories" ? "#0f172a" : "transparent",
+                      color: leaderboardMetric === "calories" ? "#ffffff" : "#64748b",
+                      boxShadow: leaderboardMetric === "calories" ? "0 4px 12px rgba(15, 23, 42, 0.15)" : "none",
+                      transition: "all 0.2s ease"
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+                      <i className="fa-solid fa-fire" style={{ color: leaderboardMetric === "calories" ? "#f97316" : "#94a3b8", fontSize: "13px" }}></i>
+                      <span style={{ fontSize: "11.5px", fontWeight: 800 }}>Calories</span>
+                    </div>
+                    <span style={{ fontSize: "9px", fontWeight: 700, opacity: leaderboardMetric === "calories" ? 0.8 : 0.6, letterSpacing: "0.5px" }}>
+                      BURNED
+                    </span>
+                  </button>
+                </div>
               </div>
 
               {/* Modern Olympic Podium Section */}
