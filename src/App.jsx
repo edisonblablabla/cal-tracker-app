@@ -53,18 +53,7 @@ export default function App() {
   const [toastMessage, setToastMessage] = useState(null);
   const [confirmModal, setConfirmModal] = useState(null);
 
-  const [appData, setAppData] = useState(() => {
-    try {
-      for (let i = 0; i < localStorage.length; i++) {
-        const k = localStorage.key(i);
-        if (k && k.startsWith("np_profile_")) {
-          const item = localStorage.getItem(k);
-          if (item) return JSON.parse(item);
-        }
-      }
-    } catch (e) {}
-    return null;
-  });
+  const [appData, setAppData] = useState(null);
 
   // ─── 🌐 SENTRAL NA STREAK ENGINE (SINGLE SOURCE OF TRUTH) ───
   const accurateStreak = useMemo(() => {
@@ -588,66 +577,73 @@ export default function App() {
           unsubUserDoc = onSnapshot(userDocRef, async (docSnap) => {
               if (docSnap.exists()) {
                 let data = docSnap.data();
-                // Proteksyon: panatilihing completed kung may local flag na
-                const isLocallyDone = currentUser?.uid && localStorage.getItem(`np_onboard_${currentUser.uid}`) === "true";
-                if (isLocallyDone && !data?.onboardingCompleted) {
-                  data = { ...data, onboardingCompleted: true };
+
+                // ⚡ Auto-heal: I-sync ang Auth email at pangalan kung nawawala sa Firestore
+                if ((!data.userEmail || !data.userName) && currentUser) {
+                  data.userEmail = data.userEmail || currentUser.email || "";
+                  data.userName = data.userName || currentUser.displayName || (currentUser.email ? currentUser.email.split("@")[0] : "Athlete");
+                  data.role = data.role || "athlete";
+                  setDoc(userDocRef, { userEmail: data.userEmail, userName: data.userName, role: data.role }, { merge: true }).catch(() => {});
                 }
-              const todayStr = new Date().toDateString();
 
-              if (data?.lastLogDate && data.lastLogDate !== todayStr) {
-                data = {
-                  ...data,
-                  todayBurnedCal: 0,
-                  todayWaterMl: 0,
-                  lastLogDate: todayStr
-                };
-                await setDoc(userDocRef, { todayBurnedCal: 0, todayWaterMl: 0, lastLogDate: todayStr }, { merge: true });
-              }
+                // ⚡ Mahigpit na harang: Kung walang height o weight, OBLIGADONG MAG-ONBOARD
+                if (!data.height || !data.weight) {
+                  data.onboardingCompleted = false;
+                }
 
-              setAppData(data || {});
+                const todayStr = new Date().toDateString();
+                if (data?.lastLogDate && data.lastLogDate !== todayStr) {
+                  data = {
+                    ...data,
+                    todayBurnedCal: 0,
+                    todayWaterMl: 0,
+                    lastLogDate: todayStr
+                  };
+                  await setDoc(userDocRef, { todayBurnedCal: 0, todayWaterMl: 0, lastLogDate: todayStr }, { merge: true });
+                }
+
+                setAppData(data || {});
                 if (currentUser?.uid && data) {
                   try {
                     localStorage.setItem(`np_profile_${currentUser.uid}`, JSON.stringify(data));
                   } catch (e) {}
                 }
-              if (data?.lastSeenNotifTime) setLastSeenNotifTimeState(data.lastSeenNotifTime);
-              if (data?.lastSeenMsgTime) setLastSeenMsgTimeState(data.lastSeenMsgTime);
+                if (data?.lastSeenNotifTime) setLastSeenNotifTimeState(data.lastSeenNotifTime);
+                if (data?.lastSeenMsgTime) setLastSeenMsgTimeState(data.lastSeenMsgTime);
 
-              setProfName(data?.userName || currentUser.displayName || "Athlete");
-              setProfTitle(data?.userTitle || "Fitness Enthusiast");
-              if (data?.height) setProfHeight(data.height);
-              if (data?.weight) {
-                setProfWeight(data.weight);
-                setNewLogWeight(data.weight);
-              }
-              if (data?.activityLevel) setProfActivity(data.activityLevel);
-              if (data?.isPrivateAccount !== undefined) setProfIsBlocked(data.isPrivateAccount);
-              if (data?.avatarUrl) setAvatarPreview(data.avatarUrl);
-              if (data?.coverUrl) setCoverPreview(data.coverUrl);
-
-              setShowAuthForm(false);
-
-              // Safety check: tanging mga datihang profile lamang na may existing height/weight ang minamarkang completed
-if (!data?.onboardingCompleted && data?.height && data?.weight && (data?.baseGoal || data?.goal)) {
-  setDoc(userDocRef, { onboardingCompleted: true }, { merge: true }).catch(() => {});
-}
-} else {
-                // ⚡ STRICT ONBOARDING GATE: Walang Firestore document ang account na ito (Ghost Account)
-                if (currentUser?.uid) {
-                  try {
-                    localStorage.removeItem(`np_onboard_${currentUser.uid}`);
-                    localStorage.removeItem(`np_profile_${currentUser.uid}`);
-                  } catch (e) {}
+                setProfName(data?.userName || currentUser.displayName || "Athlete");
+                setProfTitle(data?.userTitle || "Fitness Enthusiast");
+                if (data?.height) setProfHeight(data.height);
+                if (data?.weight) {
+                  setProfWeight(data.weight);
+                  setNewLogWeight(data.weight);
                 }
-                setAppData(null);
+                if (data?.activityLevel) setProfActivity(data.activityLevel);
+                if (data?.isPrivateAccount !== undefined) setProfIsBlocked(data.isPrivateAccount);
+                if (data?.avatarUrl) setAvatarPreview(data.avatarUrl);
+                if (data?.coverUrl) setCoverPreview(data.coverUrl);
+
+                setShowAuthForm(false);
+              } else {
+                // ⚡ GHOST ACCOUNT DETECTED: Awtomatikong likhain ang document sa Firestore!
+                console.log("⚡ Auto-creating missing database profile for ghost user:", currentUser.email);
+                const freshProfile = {
+                  uid: currentUser.uid,
+                  userEmail: currentUser.email || "",
+                  userName: currentUser.displayName || (currentUser.email ? currentUser.email.split("@")[0] : "Athlete"),
+                  userTitle: "Fitness Enthusiast",
+                  role: "athlete",
+                  onboardingCompleted: false, // 🔒 OBLIGADO SA WIZARD!
+                  createdAt: Date.now(),
+                  lastSeen: Date.now()
+                };
+
+                await setDoc(userDocRef, freshProfile, { merge: true });
+                setAppData(freshProfile);
                 setShowAuthForm(false);
               }
-            setLoading(false);
-          }, (err) => {
-            console.error("Firestore user onSnapshot error:", err);
-            setLoading(false);
-          });
+              setLoading(false);
+            });
         } else {
           if (heartbeatInterval) {
             clearInterval(heartbeatInterval);
